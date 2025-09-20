@@ -9,45 +9,50 @@
 import SwiftUI
 
 struct SharedCalendarsView: View {
+    let onMenuTapped: () -> Void
+    let onGroupSelected: (String) -> Void
+    
+    init(onMenuTapped: @escaping () -> Void = {}, onGroupSelected: @escaping (String) -> Void = { _ in }) {
+        self.onMenuTapped = onMenuTapped
+        self.onGroupSelected = onGroupSelected
+    }
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Header con fondo azul claro
+                
                 VStack {
                     HStack {
-                        // Botón hamburguesa
-                        Button(action: {}) {
+                       
+                        Button(action: onMenuTapped) {
                             Image(systemName: "line.3.horizontal")
                                 .foregroundColor(UI.navy)
-                                .font(.title2)
+                                .font(.body)
                         }
                         
                         Spacer()
                         
-                        // Título
+                        
                         Text("Shared")
-                            .font(.title2)
+                            .font(.headline)
                             .fontWeight(.semibold)
                             .foregroundColor(UI.navy)
                         
                         Spacer()
                         
-                        // Botón Edit
+                        
                         Button(action: {}) {
                             Text("Edit")
                                 .foregroundColor(UI.navy)
-                                .font(.body)
+                                .font(.subheadline)
                         }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 10)
-                    .padding(.bottom, 15)
+                    .padding(.horizontal, 16)
                 }
-                .background(Color(hex: "#B8C8DB")) // Color azul claro del header
+                .frame(height: 60)
+                .background(Color(hex: "#B8C8DB")) 
                 
-                // Contenido principal
                 VStack(spacing: 0) {
-                    // Contador de grupos
+                   
                     HStack {
                         Text("Total Groups:")
                             .font(.title2)
@@ -65,7 +70,7 @@ struct SharedCalendarsView: View {
                     .padding(.vertical, 20)
                     .background(UI.neutralLight)
                     
-                    // Título de sección
+                    
                     HStack {
                         Text("Shared Calendars")
                             .font(.title2)
@@ -78,19 +83,25 @@ struct SharedCalendarsView: View {
                     .padding(.bottom, 10)
                     .background(UI.neutralLight)
                     
-                    // Lista de grupos
+                    
                     VStack(spacing: 0) {
-                        GroupRow(groupName: "[Group Name]")
+                        GroupRow(groupName: "[Group Name]", onTapped: {
+                            onGroupSelected("[Group Name]")
+                        })
                         
                         Divider()
                             .padding(.horizontal, 20)
                         
-                        GroupRow(groupName: "[Group Name]")
+                        GroupRow(groupName: "[Group Name]", onTapped: {
+                            onGroupSelected("[Group Name]")
+                        })
                         
                         Divider()
                             .padding(.horizontal, 20)
                         
-                        GroupRow(groupName: "[Group Name]")
+                        GroupRow(groupName: "[Group Name]", onTapped: {
+                            onGroupSelected("[Group Name]")
+                        })
                     }
                     .background(UI.neutralLight)
                     
@@ -99,7 +110,7 @@ struct SharedCalendarsView: View {
                 .background(UI.neutralLight)
             }
             .overlay(
-                // Botón flotante para agregar
+                
                 VStack {
                     Spacer()
                     HStack {
@@ -124,13 +135,19 @@ struct SharedCalendarsView: View {
     }
 }
 
-// Componente para cada fila de grupo
+
 struct GroupRow: View {
     let groupName: String
+    let onTapped: () -> Void
+    
+    init(groupName: String, onTapped: @escaping () -> Void = {}) {
+        self.groupName = groupName
+        self.onTapped = onTapped
+    }
     
     var body: some View {
         HStack(spacing: 15) {
-            // Ícono circular azul
+            
             Circle()
                 .fill(UI.navy)
                 .frame(width: 40, height: 40)
@@ -148,7 +165,7 @@ struct GroupRow: View {
             
             Spacer()
             
-            // Flecha de navegación
+            
             Image(systemName: "chevron.right")
                 .foregroundColor(UI.muted)
                 .font(.caption)
@@ -157,11 +174,18 @@ struct GroupRow: View {
         .padding(.vertical, 15)
         .contentShape(Rectangle())
         .onTapGesture {
-            // Navegación al grupo específico
+            onTapped()
         }
     }
 }
 
 #Preview {
-    SharedCalendarsView()
+    SharedCalendarsView(
+        onMenuTapped: {
+            print("Menu tapped")
+        },
+        onGroupSelected: { groupName in
+            print("Group selected: \(groupName)")
+        }
+    )
 }

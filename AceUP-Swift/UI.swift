@@ -36,7 +36,6 @@ extension Color {
 
 
 enum UI {
-    // Colores principales
     static let primary = Color(hex: "#50E3C2")     
     static let navy    = Color(hex: "#122C4A")    
     
@@ -53,7 +52,6 @@ enum UI {
     static let neutralMedium = Color(hex: "#E8E6E0") 
     static let neutralDark = Color(hex: "#2A2520")   
     
-    // Color de fondo
     static let bg = neutralLight
     
     static let accent = Color(hex: "#FF6B6B")      
@@ -63,7 +61,6 @@ enum UI {
     static let muted = Color(hex: "#8B8680")      
 }
 
-// Botón primario
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -78,7 +75,6 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
-// Campo de texto
 struct StyledTextField: View {
     let placeholder: String
     @Binding var text: String
@@ -108,7 +104,7 @@ struct StyledTextField: View {
     }
 }
 
-// Campo de contraseña personalizado que evita completamente el autocompletado de iOS
+
 struct StyledSecureField: View {
     let placeholder: String
     @Binding var text: String
@@ -122,29 +118,29 @@ struct StyledSecureField: View {
 
     var body: some View {
         HStack {
-            // Usamos siempre TextField normal y manejamos el masking manualmente
+            
             TextField(placeholder, text: isSecured ? $maskedText : $text)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .textContentType(.none) // Desactiva sugerencias automáticas
+                .textContentType(.none) 
                 .disableAutocorrection(true)
-                .keyboardType(.asciiCapable) // Teclado ASCII sin sugerencias
+                .keyboardType(.asciiCapable) 
                 .submitLabel(.done)
                 .font(.body)
                 .onChange(of: maskedText) { oldValue, newValue in
                     if isSecured {
-                        // Si se añadió un carácter, lo agregamos al texto real
+                        
                         if newValue.count > oldValue.count {
                             let newChar = String(newValue.suffix(1))
                             text.append(newChar)
                         }
-                        // Si se eliminó un carácter, lo eliminamos del texto real
+                        
                         else if newValue.count < oldValue.count {
                             if !text.isEmpty {
                                 text.removeLast()
                             }
                         }
-                        // Actualizar el texto maskeado
+                        
                         maskedText = String(repeating: "●", count: text.count)
                     }
                 }

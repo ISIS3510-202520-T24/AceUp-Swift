@@ -10,57 +10,66 @@ import SwiftUI
 
 struct GroupCalendarView: View {
     @State private var selectedDate = Date()
+    let onMenuTapped: () -> Void
+    let onBackTapped: () -> Void
+    
+    init(onMenuTapped: @escaping () -> Void = {}, onBackTapped: @escaping () -> Void = {}) {
+        self.onMenuTapped = onMenuTapped
+        self.onBackTapped = onBackTapped
+    }
     
     var body: some View {
         VStack(spacing: 0) {
             
             VStack {
                 HStack {
-                   
-                    Button(action: {}) {
+                    
+                    Button(action: onBackTapped) {
                         Image(systemName: "chevron.left")
                             .foregroundColor(UI.navy)
-                            .font(.title2)
+                            .font(.body)
                             .fontWeight(.medium)
                     }
                     
                     Spacer()
                     
-                    // Título del grupo
+                    
                     Text("[Group Name]")
-                        .font(.title2)
+                        .font(.headline)
                         .fontWeight(.semibold)
                         .foregroundColor(UI.navy)
                     
                     Spacer()
                     
-                    // Espacio para balancear el botón back
-                    Color.clear
-                        .frame(width: 24)
+                   
+                    Button(action: onMenuTapped) {
+                        Image(systemName: "line.3.horizontal")
+                            .foregroundColor(UI.navy)
+                            .font(.body)
+                    }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 10)
-                .padding(.bottom, 15)
+                .padding(.horizontal, 16)
             }
-            .background(Color(hex: "#B8C8DB")) // Color azul claro del header
+            .frame(height: 60)
+            .background(Color(hex: "#B8C8DB")) 
             
-            // Selector de días de la semana
+            
             WeeklyCalendarView(selectedDate: $selectedDate)
                 .background(UI.neutralLight)
             
-            // Contenido del calendario (líneas de horario)
+            
             ScrollView {
                 VStack(spacing: 0) {
-                    // Crear líneas de horario desde las 6:00 AM hasta las 11:00 PM
+                    
                     ForEach(6..<24, id: \.self) { hour in
                         HStack {
-                            // Línea divisora
+                            
                             Rectangle()
                                 .fill(UI.muted.opacity(0.2))
                                 .frame(height: 1)
                         }
                         .padding(.horizontal, 20)
-                        .frame(height: 60) // Espacio para cada hora
+                        .frame(height: 60) 
                     }
                 }
             }
@@ -70,7 +79,7 @@ struct GroupCalendarView: View {
     }
 }
 
-// Componente del calendario semanal
+
 struct WeeklyCalendarView: View {
     @Binding var selectedDate: Date
     
@@ -81,13 +90,13 @@ struct WeeklyCalendarView: View {
         HStack(spacing: 0) {
             ForEach(0..<7, id: \.self) { index in
                 VStack(spacing: 8) {
-                    // Día de la semana
+                   
                     Text(weekDays[index])
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundColor(UI.muted)
                     
-                    // Número del día
+                   
                     Text("\(dayNumbers[index])")
                         .font(.title3)
                         .fontWeight(.semibold)
@@ -101,7 +110,7 @@ struct WeeklyCalendarView: View {
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    // Lógica para seleccionar día
+                    
                 }
             }
         }
@@ -111,5 +120,12 @@ struct WeeklyCalendarView: View {
 }
 
 #Preview {
-    GroupCalendarView()
+    GroupCalendarView(
+        onMenuTapped: {
+            print("Menu tapped")
+        },
+        onBackTapped: {
+            print("Back tapped")
+        }
+    )
 }
