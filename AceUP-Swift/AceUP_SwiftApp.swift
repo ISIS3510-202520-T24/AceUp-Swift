@@ -9,9 +9,31 @@ import SwiftUI
 
 @main
 struct AceUP_SwiftApp: App {
+    
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
     var body: some Scene {
         WindowGroup {
-            LoginView()
+            AppNavigationView() 
+        }
+    }
+}
+
+
+struct ContentView: View {
+    @State private var isLoggedIn = false
+    
+    var body: some View {
+        if isLoggedIn {
+            
+            AppNavigationView()
+        } else {
+
+            LoginView(onLoginSuccess: {
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    isLoggedIn = true
+                }
+            })
         }
     }
 }

@@ -10,6 +10,11 @@ import SwiftUI
 struct LoginView: View {
     @State private var email = ""
     @State private var password = ""
+    let onLoginSuccess: () -> Void
+
+    init(onLoginSuccess: @escaping () -> Void = {}) {
+        self.onLoginSuccess = onLoginSuccess
+    }
 
     var body: some View {
         NavigationStack {
@@ -51,7 +56,10 @@ struct LoginView: View {
                         .frame(maxWidth: 480)
                         .padding(.top, 8)
 
-                        Button(action: {}) {
+                        Button(action: {
+                           
+                            onLoginSuccess()
+                        }) {
                             Text("Login")
                                 .font(.headline)
                                 .frame(maxWidth: .infinity)
@@ -78,4 +86,10 @@ struct LoginView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
     }
+}
+
+#Preview {
+    LoginView(onLoginSuccess: {
+        print("Login exitoso - navegando a SharedCalendarsView")
+    })
 }
