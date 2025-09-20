@@ -11,6 +11,11 @@ import SwiftUI
 struct AppNavigationView: View {
     @State private var selectedView: AppView = .today
     @State private var isSidebarPresented = false
+    let onLogout: () -> Void
+    
+    init(onLogout: @escaping () -> Void = {}) {
+        self.onLogout = onLogout
+    }
     
     var body: some View {
         ZStack {
@@ -98,7 +103,7 @@ struct AppNavigationView: View {
                         withAnimation(.easeInOut(duration: 0.3)) {
                             isSidebarPresented.toggle()
                         }
-                    })
+                    }, onLogout: onLogout)
                 }
             }
             .disabled(isSidebarPresented) 
@@ -189,9 +194,16 @@ struct ProfileView: View {
 
 struct SettingsView: View {
     let onMenuTapped: () -> Void
+    let onLogout: () -> Void
+    
+    init(onMenuTapped: @escaping () -> Void = {}, onLogout: @escaping () -> Void = {}) {
+        self.onMenuTapped = onMenuTapped
+        self.onLogout = onLogout
+    }
     
     var body: some View {
         VStack(spacing: 0) {
+            // Header con altura fija
             VStack {
                 HStack {
                     Button(action: onMenuTapped) {
@@ -213,34 +225,90 @@ struct SettingsView: View {
                         .frame(width: 24)
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 12)
+                .frame(maxWidth: .infinity)
             }
+            .frame(height: 60)
             .background(Color(hex: "#B8C8DB"))
             
-            
-            VStack(spacing: 30) {
-                
-                Spacer().frame(height: 40)
-                
-                Image(systemName: "gear.circle.fill")
-                    .font(.system(size: 80))
-                    .foregroundColor(UI.primary)
-                
-                VStack(spacing: 12) {
-                    Text("App Settings")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(UI.navy)
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Sección de perfil de usuario
+                    VStack(spacing: 16) {
+                        Spacer().frame(height: 32)
+                        
+                        // Avatar del usuario con botón de editar
+                        ZStack {
+                            Circle()
+                                .fill(UI.neutralMedium)
+                                .frame(width: 80, height: 80)
+                            
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 36))
+                                .foregroundColor(UI.neutralLight)
+                            
+                            // Botón de editar
+                            Circle()
+                                .fill(UI.navy)
+                                .frame(width: 28, height: 28)
+                                .overlay(
+                                    Image(systemName: "pencil")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.white)
+                                )
+                                .offset(x: 28, y: 28)
+                        }
+                        
+                        VStack(spacing: 4) {
+                            Text("User Name")
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                                .foregroundColor(UI.navy)
+                            
+                            Text("@username")
+                                .font(.subheadline)
+                                .foregroundColor(UI.muted)
+                        }
+                        
+                        Spacer().frame(height: 32)
+                    }
                     
-                    Text("Application settings and preferences will go here")
-                        .font(.body)
-                        .foregroundColor(UI.muted)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
+                    // Lista de opciones de configuración
+                    VStack(spacing: 0) {
+                        SettingsOptionView(title: "Saved Messages", showDivider: true)
+                        SettingsOptionView(title: "Recent Calls", showDivider: true)
+                        SettingsOptionView(title: "Devices", showDivider: true)
+                        SettingsOptionView(title: "Notifications", showDivider: true)
+                        SettingsOptionView(title: "Appearance", showDivider: true)
+                        SettingsOptionView(title: "Language", showDivider: true)
+                        SettingsOptionView(title: "Privacy & Security", showDivider: true)
+                        SettingsOptionView(title: "Storage", showDivider: false)
+                    }
+                    .background(UI.neutralLight)
+                    
+                    Spacer().frame(height: 40)
+                    
+                    // Botón de logout
+                    Button(action: {
+                        onLogout()
+                    }) {
+                        HStack {
+                            Image(systemName: "arrow.right.square")
+                                .font(.title3)
+                                .foregroundColor(.white)
+                            
+                            Text("Logout")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color.red)
+                        .cornerRadius(10)
+                    }
+                    .padding(.horizontal, 40)
+                    
+                    Spacer().frame(height: 40)
                 }
-                
-                Spacer()
             }
             .background(UI.neutralLight)
         }
@@ -248,8 +316,40 @@ struct SettingsView: View {
     }
 }
 
+struct SettingsOptionView: View {
+    let title: String
+    let showDivider: Bool
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(title)
+                    .font(.body)
+                    .foregroundColor(UI.navy)
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(UI.muted)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .background(UI.neutralLight)
+            
+            if showDivider {
+                Divider()
+                    .padding(.leading, 20)
+                    .background(UI.neutralLight)
+            }
+        }
+    }
+}
+
 #Preview {
-    AppNavigationView()
+    AppNavigationView(onLogout: {
+        print("Logout tapped")
+    })
 }
 
 struct WeekViewPlaceholder: View {

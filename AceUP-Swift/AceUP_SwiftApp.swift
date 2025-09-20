@@ -14,7 +14,7 @@ struct AceUP_SwiftApp: App {
     
     var body: some Scene {
         WindowGroup {
-            AppNavigationView() 
+            ContentView() 
         }
     }
 }
@@ -26,7 +26,11 @@ struct ContentView: View {
     var body: some View {
         if isLoggedIn {
             
-            AppNavigationView()
+            AppNavigationView(onLogout: {
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    isLoggedIn = false
+                }
+            })
         } else {
 
             LoginView(onLoginSuccess: {
