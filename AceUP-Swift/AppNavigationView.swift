@@ -136,7 +136,6 @@ struct ProfileView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             VStack {
                 HStack {
                     Button(action: onMenuTapped) {
@@ -203,7 +202,6 @@ struct SettingsView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header con altura fija
             VStack {
                 HStack {
                     Button(action: onMenuTapped) {
@@ -232,11 +230,9 @@ struct SettingsView: View {
             
             ScrollView {
                 VStack(spacing: 0) {
-                    // Sección de perfil de usuario
                     VStack(spacing: 16) {
                         Spacer().frame(height: 32)
                         
-                        // Avatar del usuario con botón de editar
                         ZStack {
                             Circle()
                                 .fill(UI.neutralMedium)
@@ -246,7 +242,6 @@ struct SettingsView: View {
                                 .font(.system(size: 36))
                                 .foregroundColor(UI.neutralLight)
                             
-                            // Botón de editar
                             Circle()
                                 .fill(UI.navy)
                                 .frame(width: 28, height: 28)
@@ -272,7 +267,6 @@ struct SettingsView: View {
                         Spacer().frame(height: 32)
                     }
                     
-                    // Lista de opciones de configuración
                     VStack(spacing: 0) {
                         SettingsOptionView(title: "Saved Messages", showDivider: true)
                         SettingsOptionView(title: "Recent Calls", showDivider: true)
@@ -287,7 +281,6 @@ struct SettingsView: View {
                     
                     Spacer().frame(height: 40)
                     
-                    // Botón de logout
                     Button(action: {
                         onLogout()
                     }) {
