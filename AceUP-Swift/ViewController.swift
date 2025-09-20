@@ -13,7 +13,7 @@ class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        view.backgroundColor = UIColor(red: 0.97, green: 0.96, blue: 0.94, alpha: 1.0) // UI.neutralLight
+        view.backgroundColor = UIColor(red: 0.97, green: 0.96, blue: 0.94, alpha: 1.0) 
         
         setupSwiftUIIntegration()
     }
@@ -38,15 +38,15 @@ class ViewController: UIViewController {
     }
     
     static func aceUpNavyColor() -> UIColor {
-        return UIColor(red: 0.07, green: 0.17, blue: 0.29, alpha: 1.0) // #122C4A
+        return UIColor(red: 0.07, green: 0.17, blue: 0.29, alpha: 1.0) 
     }
     
     static func aceUpPrimaryColor() -> UIColor {
-        return UIColor(red: 0.31, green: 0.89, blue: 0.76, alpha: 1.0) // #50E3C2
+        return UIColor(red: 0.31, green: 0.89, blue: 0.76, alpha: 1.0) 
     }
     
     static func aceUpNeutralLightColor() -> UIColor {
-        return UIColor(red: 0.97, green: 0.96, blue: 0.94, alpha: 1.0) // #F8F6F0
+        return UIColor(red: 0.97, green: 0.96, blue: 0.94, alpha: 1.0) 
     }
 }
 

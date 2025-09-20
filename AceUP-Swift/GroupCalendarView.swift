@@ -100,11 +100,11 @@ struct WeeklyCalendarView: View {
                     Text("\(dayNumbers[index])")
                         .font(.title3)
                         .fontWeight(.semibold)
-                        .foregroundColor(index == 3 ? .white : UI.navy) // Día 22 (jueves) seleccionado
+                        .foregroundColor(index == 3 ? .white : UI.navy) 
                         .frame(width: 40, height: 40)
                         .background(
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(index == 3 ? UI.primary : Color.clear) // Día 22 destacado en verde aguamarina
+                                .fill(index == 3 ? UI.primary : Color.clear) 
                         )
                 }
                 .frame(maxWidth: .infinity)
