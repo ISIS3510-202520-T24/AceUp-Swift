@@ -108,10 +108,12 @@ struct StyledTextField: View {
     }
 }
 
-// Campo de contraseña con icono (sin lógica)
+// Campo de contraseña personalizado que evita completamente el autocompletado de iOS
 struct StyledSecureField: View {
     let placeholder: String
     @Binding var text: String
+    @State private var isSecured: Bool = true
+    @State private var maskedText: String = ""
 
     init(_ placeholder: String, text: Binding<String>) {
         self.placeholder = placeholder
@@ -120,14 +122,54 @@ struct StyledSecureField: View {
 
     var body: some View {
         HStack {
-            SecureField(placeholder, text: $text)
+            // Usamos siempre TextField normal y manejamos el masking manualmente
+            TextField(placeholder, text: isSecured ? $maskedText : $text)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .textContentType(.none) 
+                .textContentType(.none) // Desactiva sugerencias automáticas
                 .disableAutocorrection(true)
+                .keyboardType(.asciiCapable) // Teclado ASCII sin sugerencias
+                .submitLabel(.done)
+                .font(.body)
+                .onChange(of: maskedText) { oldValue, newValue in
+                    if isSecured {
+                        // Si se añadió un carácter, lo agregamos al texto real
+                        if newValue.count > oldValue.count {
+                            let newChar = String(newValue.suffix(1))
+                            text.append(newChar)
+                        }
+                        // Si se eliminó un carácter, lo eliminamos del texto real
+                        else if newValue.count < oldValue.count {
+                            if !text.isEmpty {
+                                text.removeLast()
+                            }
+                        }
+                        // Actualizar el texto maskeado
+                        maskedText = String(repeating: "●", count: text.count)
+                    }
+                }
+                .onChange(of: text) { oldValue, newValue in
+                    if isSecured {
+                        maskedText = String(repeating: "●", count: newValue.count)
+                    }
+                }
+                .onAppear {
+                    if isSecured {
+                        maskedText = String(repeating: "●", count: text.count)
+                    }
+                }
 
-            Image(systemName: "eye.slash")
-                .foregroundColor(UI.muted)
+            Button(action: {
+                isSecured.toggle()
+                if isSecured {
+                    maskedText = String(repeating: "●", count: text.count)
+                } else {
+                    maskedText = text
+                }
+            }) {
+                Image(systemName: isSecured ? "eye.slash" : "eye")
+                    .foregroundColor(UI.muted)
+            }
         }
         .padding(.horizontal, 16)
         .frame(height: 48)
