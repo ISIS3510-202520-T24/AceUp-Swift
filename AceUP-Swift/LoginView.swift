@@ -26,7 +26,7 @@ struct LoginView: View {
                             .frame(width: 225, height: 225)
                         
                         Text("AceUp")
-                            .font(.custom("Sansita One", size: 36))
+                            .font(.system(size: 36, weight: .semibold))
                             .foregroundColor(UI.navy)
                             .frame(maxWidth: .infinity, alignment: .center)
 
