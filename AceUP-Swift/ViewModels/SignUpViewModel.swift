@@ -48,7 +48,7 @@ final class SignUpViewModel: ObservableObject {
     }
     
     var firstValidationError: String? {
-        if !agree { return "you ahve to accept privacity policy" }
+        if !agree { return "you have to accept privacity policy" }
         if nick.isEmpty { return "nickname is required" }
         if !emailIsValid { return "email is invalid" }
         if !passwordsmatch { return "passwords do not match" }
@@ -74,13 +74,6 @@ final class SignUpViewModel: ObservableObject {
         do {
             //primero se crea el usuario en firebase
             _ = try await authService.signUp(email: email, password: password, nick: nick)
-            
-            // solicitar el Face ID inmediatamente
-            guard biometricService.canEvaluateBiometrics() else {
-                errorMessage = "Face ID is not available on this device"
-                return
-            }
-            try await biometricService.authenticateUser(reason: "Confirm your identity")
             
             //mostar si se pudo guardar e identificar
             
