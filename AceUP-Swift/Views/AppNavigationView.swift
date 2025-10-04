@@ -75,8 +75,8 @@ struct AppNavigationView: View {
                         }
                     })
                 case .assignments:
-                    AssignmentsPlaceholder(onMenuTapped: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
+                    AssignmentsListView(onMenuTapped: {
+                        withAnimation {
                             isSidebarPresented.toggle()
                         }
                     })
@@ -106,7 +106,7 @@ struct AppNavigationView: View {
                     }, onLogout: onLogout)
                 }
             }
-            .disabled(isSidebarPresented) 
+            .disabled(isSidebarPresented)
             
             if isSidebarPresented {
                 Color.black.opacity(0.3)
@@ -350,8 +350,8 @@ struct WeekViewPlaceholder: View {
     
     var body: some View {
         PlaceholderView(
-            title: "Week View", 
-            icon: "calendar.day.timeline.left", 
+            title: "Week View",
+            icon: "calendar.day.timeline.left",
             message: "Weekly calendar view will be implemented here",
             onMenuTapped: onMenuTapped
         )
@@ -363,8 +363,8 @@ struct CalendarPlaceholder: View {
     
     var body: some View {
         PlaceholderView(
-            title: "Calendar", 
-            icon: "calendar", 
+            title: "Calendar",
+            icon: "calendar",
             message: "Monthly calendar view will be implemented here",
             onMenuTapped: onMenuTapped
         )
@@ -376,8 +376,8 @@ struct PlannerPlaceholder: View {
     
     var body: some View {
         PlaceholderView(
-            title: "Planner", 
-            icon: "book.fill", 
+            title: "Planner",
+            icon: "book.fill",
             message: "Academic planner and schedule management",
             onMenuTapped: onMenuTapped
         )
@@ -389,8 +389,8 @@ struct AssignmentsPlaceholder: View {
     
     var body: some View {
         PlaceholderView(
-            title: "Assignments", 
-            icon: "doc.text.fill", 
+            title: "Assignments",
+            icon: "doc.text.fill",
             message: "Assignment tracking and management",
             onMenuTapped: onMenuTapped
         )
@@ -402,8 +402,8 @@ struct TeachersPlaceholder: View {
     
     var body: some View {
         PlaceholderView(
-            title: "Teachers", 
-            icon: "person.2.fill", 
+            title: "Teachers",
+            icon: "person.2.fill",
             message: "Teacher contacts and information",
             onMenuTapped: onMenuTapped
         )

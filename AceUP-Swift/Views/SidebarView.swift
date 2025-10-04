@@ -99,6 +99,8 @@ struct SidebarView: View {
                         }
                     )
                     
+                    
+                    
                     MenuItemView(
                         icon: nil,
                         title: "Assignments",

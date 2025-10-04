@@ -5,19 +5,21 @@
 //  Created by Ana M. Sánchez on 19/09/25.
 //
 
+// AppDelegate.swift
 import UIKit
-import SwiftUI
+import Firebase
 
 class AppDelegate: UIResponder, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
 
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-       
+        FirebaseApp.configure()                 // <- aquí, una sola vez
         configureAppearance()
-        
+        NotificationService.shared.requestPermission()  // si la usas
+
         return true
     }
-    
-    
+
     private func configureAppearance() {
 
         let appearance = UINavigationBarAppearance()
