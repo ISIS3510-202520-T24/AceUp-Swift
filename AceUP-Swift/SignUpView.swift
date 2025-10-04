@@ -7,7 +7,12 @@
 import SwiftUI
 
 struct SignUpView: View {
-    @StateObject private var vm = SignUpViewModel()
+    @State private var nick = ""
+    @State private var email = ""
+    @State private var emailConfirm = ""
+    @State private var pass = ""
+    @State private var passConfirm = ""
+    @State private var agree = false
 
     var body: some View {
         ZStack {
@@ -25,19 +30,19 @@ struct SignUpView: View {
 
                     Group {
                         sectionHeader("Choose Your Nick")
-                        StyledTextField("Luc", text: $vm.nick)
+                        StyledTextField("Luc", text: $nick)
 
                         sectionHeader("Email Address")
-                        StyledTextField("name@email.com", text: $vm.email, keyboard: .emailAddress)
-                        StyledTextField("Confirm email", text: $vm.emailConfirm, keyboard: .emailAddress)
+                        StyledTextField("name@email.com", text: $email, keyboard: .emailAddress)
+                        StyledTextField("Confirm email", text: $emailConfirm, keyboard: .emailAddress)
 
                         sectionHeader("Password")
-                        StyledSecureField("Create a password", text: $vm.password)
-                        StyledSecureField("Confirm password", text: $vm.passwordConfirm)
+                        StyledSecureField("Create a password", text: $pass)
+                        StyledSecureField("Confirm password", text: $passConfirm)
                     }
 
                     HStack(alignment: .top, spacing: 10) {
-                        Toggle("", isOn: $vm.agree)
+                        Toggle("", isOn: $agree)
                             .labelsHidden()
                             .toggleStyle(CheckToggleStyle())
                             .padding(.top, 2)
@@ -48,34 +53,16 @@ struct SignUpView: View {
                     }
                     .padding(.top, 4)
 
-                    Button(action: {
-                        Task {await vm.signUp()}
-                    }){
-                        if vm.isLoading {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                        }else {
-                            Text("Create account")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                                .foregroundColor(UI.navy)
-                        }
+                    Button(action: {}) {
+                        Text("Create account")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .foregroundColor(UI.navy)
                     }
                     .buttonStyle(PrimaryButtonStyle())
                     .padding(.top, 8)
-                    .disabled(!vm.formIsValid || vm.isLoading)
-                    if let err = vm.errorMessage {
-                        Text(err)
-                            .font(.footnote)
-                            .foregroundColor(.red)
-                    }
-                    if vm.didComplete {
-                        Text("You're all set!.")
-                            .foregroundColor(.green)
-                            .font(.footnote)
-                    }
+
                     Spacer(minLength: 12)
                 }
                 .frame(maxWidth: 520)
