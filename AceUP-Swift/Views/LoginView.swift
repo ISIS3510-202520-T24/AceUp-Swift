@@ -8,8 +8,7 @@
 import SwiftUI
 
 struct LoginView: View {
-    @State private var email = ""
-    @State private var password = ""
+    @StateObject private var vm = LoginViewModel()
     let onLoginSuccess: () -> Void
 
     init(onLoginSuccess: @escaping () -> Void = {}) {
@@ -24,12 +23,12 @@ struct LoginView: View {
                 ScrollView {
                     VStack(spacing: 24) {
                         Spacer().frame(height: 32)
-                        
+
                         Image("Blue")
                             .resizable()
                             .scaledToFit()
                             .frame(width: 225, height: 225)
-                        
+
                         Text("AceUp")
                             .font(.system(size: 36, weight: .semibold))
                             .foregroundColor(UI.navy)
@@ -41,26 +40,26 @@ struct LoginView: View {
                                 .foregroundColor(UI.navy)
 
                             VStack(spacing: 14) {
-                                StyledTextField("Email Address", text: $email, keyboard: .emailAddress)
-                                StyledSecureField("Password", text: $password)
+                                StyledTextField("Email Address", text: $vm.email, keyboard: .emailAddress)
+                                StyledSecureField("Password", text: $vm.password)
 
                                 HStack {
                                     Spacer()
-                                    Button("Forgot password?") {}
-                                        .font(.footnote)
-                                        .foregroundColor(UI.muted)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    Button("Forgot password?") {
+                                        Task { await vm.forgotPassword() }
+                                    }
+                                    .font(.footnote)
+                                    .foregroundColor(UI.muted)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                             }
                         }
                         .frame(maxWidth: 480)
                         .padding(.top, 8)
 
-                        Button(action: {
-                           
-                            onLoginSuccess()
-                        }) {
-                            Text("Login")
+                        // ---- BOTÓN LOGIN (funcional, MVVM) ----
+                        Button(action: { Task { await vm.login() } }) {
+                            Text(vm.isLoading ? "Signing in..." : "Login")
                                 .font(.headline)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 50)
@@ -68,6 +67,19 @@ struct LoginView: View {
                         }
                         .buttonStyle(PrimaryButtonStyle())
                         .frame(maxWidth: 480)
+                        .disabled(vm.isLoading || vm.email.isEmpty || vm.password.isEmpty)
+
+                        // ---- BOTÓN BIOMÉTRICO (debajo, igual estilo) ----
+                        Button(action: { Task { await vm.biometricLogin() } }) {
+                            Text(vm.isBioLoading ? "Authenticating..." : "Login with biometrics")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50)
+                                .foregroundColor(UI.navy)
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .frame(maxWidth: 480)
+                        .disabled(vm.isBioLoading)
 
                         HStack(spacing: 6) {
                             Text("New to AceUp?")
@@ -84,6 +96,24 @@ struct LoginView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+
+            // Alerta única (error o info)
+            .alert((vm.errorMessage ?? vm.alertMessage) ?? "",
+                   isPresented: Binding(
+                    get: { (vm.errorMessage ?? vm.alertMessage) != nil },
+                    set: { if !$0 { vm.errorMessage = nil; vm.alertMessage = nil } }
+                   )
+            ) {
+                Button("OK", role: .cancel) {}
+            }
+
+            // Navegación cuando el VM confirme login
+            .onChange(of: vm.didLogin) { newValue in   // <- valor, NO binding
+                if newValue {
+                    onLoginSuccess()
+                    vm.didLogin = false   // reset
+                }
+            }
         }
     }
 }
