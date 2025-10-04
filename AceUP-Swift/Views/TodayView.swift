@@ -10,6 +10,7 @@ import SwiftUI
 struct TodayView: View {
     let onMenuTapped: () -> Void
     @State private var selectedTab: TodayTab = .assignments
+    @StateObject private var smartAnalytics = SmartCalendarAnalytics()
     
     init(onMenuTapped: @escaping () -> Void = {}) {
         self.onMenuTapped = onMenuTapped
@@ -17,7 +18,7 @@ struct TodayView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            
+            // Header
             VStack {
                 HStack {
                     Button(action: onMenuTapped) {
@@ -43,14 +44,14 @@ struct TodayView: View {
             .frame(height: 60)
             .background(Color(hex: "#B8C8DB"))
             
-            
+            // Main Content
             VStack(spacing: 0) {
-                
+                // Tab Navigation
                 HStack(spacing: 8) {
                     TabButton(
-                        title: "Exams",
-                        isSelected: selectedTab == .exams,
-                        action: { selectedTab = .exams }
+                        title: "Assignments",
+                        isSelected: selectedTab == .assignments,
+                        action: { selectedTab = .assignments }
                     )
                     
                     TabButton(
@@ -60,31 +61,42 @@ struct TodayView: View {
                     )
                     
                     TabButton(
-                        title: "Assignments",
-                        isSelected: selectedTab == .assignments,
-                        action: { selectedTab = .assignments }
+                        title: "Exams",
+                        isSelected: selectedTab == .exams,
+                        action: { selectedTab = .exams }
+                    )
+                    
+                    TabButton(
+                        title: "Insights",
+                        isSelected: selectedTab == .insights,
+                        action: { selectedTab = .insights }
                     )
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
                 
-                
+                // Tab Content
                 ScrollView {
-                    switch selectedTab {
-                    case .exams:
-                        ExamsTabContent()
-                    case .timetable:
-                        TimetableTabContent()
-                    case .assignments:
-                        AssignmentsTabContent()
+                    VStack(spacing: 20) {
+                        switch selectedTab {
+                        case .assignments:
+                            AssignmentsTabContent()
+                        case .timetable:
+                            TimetableTabContent()
+                        case .exams:
+                            ExamsTabContent()
+                        case .insights:
+                            SmartInsightsTabContent(analytics: smartAnalytics)
+                        }
                     }
+                    .padding(.bottom, 100) // Extra padding for FAB
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .background(UI.neutralLight)
         }
         .overlay(
-            
+            // Floating Action Button
             VStack {
                 Spacer()
                 HStack {
@@ -108,13 +120,226 @@ struct TodayView: View {
     }
 }
 
-
-enum TodayTab {
-    case exams
-    case timetable
-    case assignments
+// MARK: - Updated Tab Enum
+enum TodayTab: String, CaseIterable {
+    case assignments = "Assignments"
+    case timetable = "Timetable"
+    case exams = "Exams"
+    case insights = "Insights"
 }
 
+// MARK: - Smart Insights Tab Content
+struct SmartInsightsTabContent: View {
+    @ObservedObject var analytics: SmartCalendarAnalytics
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            // Today's Smart Highlights
+            todayHighlights
+            
+            // Weekly Insights
+            if let latestInsight = analytics.weeklyInsights.first {
+                SmartInsightsCard(insight: latestInsight)
+                    .padding(.horizontal, 20)
+            }
+            
+            // Productivity Trends
+            if !analytics.productivityTrends.isEmpty {
+                ProductivityChart(trends: analytics.productivityTrends)
+                    .padding(.horizontal, 20)
+            }
+            
+            // Study Patterns
+            if !analytics.studyPatterns.isEmpty {
+                StudyPatternsView(patterns: analytics.studyPatterns)
+                    .padding(.horizontal, 20)
+            }
+            
+            // Collaboration Metrics
+            if let metrics = analytics.collaborationMetrics {
+                CollaborationMetricsView(metrics: metrics)
+                    .padding(.horizontal, 20)
+            }
+        }
+    }
+    
+    // MARK: - Today's Highlights
+    private var todayHighlights: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            HStack {
+                Image(systemName: "sparkles")
+                    .foregroundColor(UI.primary)
+                
+                Text("Today's Highlights")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(UI.navy)
+                
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 15) {
+                    TodayHighlightCard(
+                        icon: "calendar.badge.clock",
+                        title: "Next Meeting",
+                        subtitle: "Mobile Dev Team",
+                        time: "2:00 PM",
+                        color: UI.primary
+                    )
+                    
+                    TodayHighlightCard(
+                        icon: "clock.badge.checkmark",
+                        title: "Focus Time",
+                        subtitle: "Best for deep work",
+                        time: "10:00 AM",
+                        color: UI.success
+                    )
+                    
+                    TodayHighlightCard(
+                        icon: "person.3.fill",
+                        title: "Group Available",
+                        subtitle: "Study Buddies",
+                        time: "4:00 PM",
+                        color: UI.warning
+                    )
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+    }
+}
+
+struct TodayHighlightCard: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let time: String
+    let color: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundColor(color)
+                    .font(.title3)
+                
+                Spacer()
+                
+                Text(time)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(color)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(UI.navy)
+                
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(UI.muted)
+            }
+        }
+        .padding(15)
+        .frame(width: 140, height: 100)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.white)
+                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+        )
+    }
+}
+
+struct CollaborationMetricsView: View {
+    let metrics: CollaborationMetrics
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "person.3.sequence.fill")
+                    .foregroundColor(UI.primary)
+                
+                Text("Collaboration Overview")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(UI.navy)
+                
+                Spacer()
+            }
+            
+            HStack(spacing: 20) {
+                CollaborationMetric(
+                    icon: "person.2.circle.fill",
+                    value: "\(metrics.totalGroups)",
+                    label: "Active Groups",
+                    color: UI.primary
+                )
+                
+                CollaborationMetric(
+                    icon: "checkmark.circle.fill",
+                    value: "\(Int(metrics.meetingSuccessRate * 100))%",
+                    label: "Success Rate",
+                    color: UI.success
+                )
+                
+                CollaborationMetric(
+                    icon: "clock.fill",
+                    value: "\(metrics.averageResponseTime)m",
+                    label: "Avg Response",
+                    color: UI.warning
+                )
+            }
+            
+            HStack {
+                Text("Most productive hour: **\(metrics.mostProductiveHour):00**")
+                    .font(.caption)
+                    .foregroundColor(UI.muted)
+                
+                Spacer()
+                
+                Text("\(metrics.activeCollaborations) active collaborations")
+                    .font(.caption)
+                    .foregroundColor(UI.muted)
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.white)
+                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+        )
+    }
+}
+
+struct CollaborationMetric: View {
+    let icon: String
+    let value: String
+    let label: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .foregroundColor(color)
+                .font(.title3)
+            
+            Text(value)
+                .font(.headline)
+                .fontWeight(.bold)
+                .foregroundColor(UI.navy)
+            
+            Text(label)
+                .font(.caption)
+                .foregroundColor(UI.muted)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
 
 struct TabButton: View {
     let title: String
