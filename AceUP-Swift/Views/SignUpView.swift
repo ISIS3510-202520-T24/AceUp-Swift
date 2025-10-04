@@ -8,6 +8,7 @@ import SwiftUI
 
 struct SignUpView: View {
     @StateObject private var vm = SignUpViewModel()
+    @State private var showTerms = false
 
     var body: some View {
         ZStack {
@@ -42,20 +43,29 @@ struct SignUpView: View {
                             .toggleStyle(CheckToggleStyle())
                             .padding(.top, 2)
 
-                        Text("I've read and agree with the *Terms and Conditions* and the *Privacy Policy*.")
+                        // Una sola oración + link a Terms (interceptado)
+                        Text("I've read and agree with the [Terms and\u{00A0}Conditions](app://terms) and the Privacy Policy.")
                             .font(.footnote)
                             .foregroundColor(UI.muted)
+                            .tint(UI.muted)
+                            .environment(\.openURL, OpenURLAction { url in
+                                if url.scheme == "app", url.host == "terms" {
+                                    showTerms = true
+                                    return .handled
+                                }
+                                return .discarded
+                            })
                     }
                     .padding(.top, 4)
 
                     Button(action: {
-                        Task {await vm.signUp()}
-                    }){
+                        Task { await vm.signUp() }
+                    }) {
                         if vm.isLoading {
                             ProgressView()
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 50)
-                        }else {
+                        } else {
                             Text("Create account")
                                 .font(.headline)
                                 .frame(maxWidth: .infinity)
@@ -66,6 +76,7 @@ struct SignUpView: View {
                     .buttonStyle(PrimaryButtonStyle())
                     .padding(.top, 8)
                     .disabled(!vm.formIsValid || vm.isLoading)
+
                     if let err = vm.errorMessage {
                         Text(err)
                             .font(.footnote)
@@ -84,6 +95,14 @@ struct SignUpView: View {
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+
+        // Sheet para términos y condiciones
+        .sheet(isPresented: $showTerms) {
+            TermsAndConditionsSheet { showTerms = false }
+                .presentationDetents([.fraction(0.85), .large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(28)
+        }
     }
 
     @ViewBuilder
@@ -94,4 +113,3 @@ struct SignUpView: View {
             .padding(.top, 6)
     }
 }
-

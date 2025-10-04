@@ -108,7 +108,7 @@ struct LoginView: View {
             }
 
             // Navegación cuando el VM confirme login
-            .onChange(of: vm.didLogin) { newValue in   // <- valor, NO binding
+            .onChange(of: vm.didLogin) { newValue in   
                 if newValue {
                     onLoginSuccess()
                     vm.didLogin = false   // reset
