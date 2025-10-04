@@ -7,6 +7,8 @@
 
 import Foundation
 import Combine
+import FirebaseFirestore
+import FirebaseAuth
 
 @MainActor
 class SharedCalendarService: ObservableObject {
@@ -20,13 +22,52 @@ class SharedCalendarService: ObservableObject {
     @Published var errorMessage: String?
     
     // MARK: - Private Properties
-    private let baseURL = "https://api.aceup.app"
+    private let db = Firestore.firestore()
     private var cancellables = Set<AnyCancellable>()
+    private var currentUserId: String {
+        return Auth.auth().currentUser?.uid ?? "anonymous_user"
+    }
     
     // MARK: - Initialization
     init() {
-        loadMockData()
-        generateSmartSuggestions()
+        Task {
+            await loadGroupsFromFirebase()
+            await generateSmartSuggestions()
+        }
+    }
+    
+    // MARK: - Firebase Data Loading
+    func loadGroupsFromFirebase() async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            let groupsSnapshot = try await db.collection("groups")
+                .whereField("members", arrayContains: currentUserId)
+                .getDocuments()
+            
+            var loadedGroups: [CalendarGroup] = []
+            
+            for document in groupsSnapshot.documents {
+                if let group = try? document.data(as: CalendarGroupFirestore.self) {
+                    
+                    let calendarGroup = await convertFirestoreGroupToCalendarGroup(group, documentId: document.documentID)
+                    loadedGroups.append(calendarGroup)
+                }
+            }
+            
+            self.groups = loadedGroups
+            
+            if groups.isEmpty {
+                await createSampleGroupsInFirebase()
+            }
+            
+        } catch {
+            errorMessage = "Error loading groups: \(error.localizedDescription)"
+            print("Error loading groups from Firebase: \(error)")
+           
+            loadMockData()
+        }
     }
     
     // MARK: - Group Management
@@ -34,53 +75,141 @@ class SharedCalendarService: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         
-        let newGroup = CalendarGroup(
-            id: UUID().uuidString,
-            name: name,
-            description: description,
-            members: [createCurrentUserMember()],
-            createdAt: Date(),
-            createdBy: "current_user_id",
-            color: generateRandomColor(),
-            isPublic: isPublic
-        )
-        
-        groups.append(newGroup)
-        await generateSharedSchedule(for: newGroup)
+        do {
+            let groupId = UUID().uuidString
+            
+            
+            let groupCode = generateGroupCode()
+            let groupData: [String: Any] = [
+                "name": name,
+                "ownerId": currentUserId,
+                "members": [currentUserId], 
+                "createdAt": Timestamp(date: Date()),
+                "isPublic": isPublic,
+                "description": description,
+                "color": generateRandomColor(),
+                "inviteCode": groupCode 
+            ]
+            
+            try await db.collection("groups").document(groupId).setData(groupData)
+            
+           
+            let welcomeEventData: [String: Any] = [
+                "title": "Grupo creado: \(name)",
+                "createdBy": currentUserId,
+                "timestamp": Timestamp(date: Date()),
+                "type": "group_created"
+            ]
+            
+            try await db.collection("groups").document(groupId)
+                .collection("events").addDocument(data: welcomeEventData)
+            
+            
+            await loadGroupsFromFirebase()
+            
+        } catch {
+            errorMessage = "Error creating group: \(error.localizedDescription)"
+            print("Error creating group in Firebase: \(error)")
+        }
     }
     
     func joinGroup(groupId: String, inviteCode: String? = nil) async {
         isLoading = true
         defer { isLoading = false }
         
-        // Simulate API call
-        try? await Task.sleep(nanoseconds: 1_000_000_000)
-        
-        // Mock adding user to existing group
-        if let groupIndex = groups.firstIndex(where: { $0.id == groupId }) {
-            let newMember = createCurrentUserMember()
-            groups[groupIndex] = CalendarGroup(
-                id: groups[groupIndex].id,
-                name: groups[groupIndex].name,
-                description: groups[groupIndex].description,
-                members: groups[groupIndex].members + [newMember],
-                createdAt: groups[groupIndex].createdAt,
-                createdBy: groups[groupIndex].createdBy,
-                color: groups[groupIndex].color,
-                isPublic: groups[groupIndex].isPublic
-            )
+        do {
+            var groupDoc: DocumentSnapshot
+            
+            if let code = inviteCode {
+                
+                let groupsQuery = try await db.collection("groups")
+                    .whereField("inviteCode", isEqualTo: code)
+                    .getDocuments()
+                
+                guard let foundGroup = groupsQuery.documents.first else {
+                    errorMessage = "Código de grupo inválido"
+                    return
+                }
+                
+                groupDoc = foundGroup
+            } else {
+                
+                groupDoc = try await db.collection("groups").document(groupId).getDocument()
+                
+                guard groupDoc.exists else {
+                    errorMessage = "Grupo no encontrado"
+                    return
+                }
+            }
+            
+            
+            if let data = groupDoc.data(),
+               let members = data["members"] as? [String],
+               members.contains(currentUserId) {
+                errorMessage = "Ya eres miembro de este grupo"
+                return
+            }
+            
+            try await db.collection("groups").document(groupDoc.documentID).updateData([
+                "members": FieldValue.arrayUnion([currentUserId])
+            ])
+            
+           
+            let joinEventData: [String: Any] = [
+                "title": "Miembro se unió al grupo",
+                "createdBy": currentUserId,
+                "timestamp": Timestamp(date: Date()),
+                "type": "member_joined"
+            ]
+            
+            try await db.collection("groups").document(groupDoc.documentID)
+                .collection("events").addDocument(data: joinEventData)
+            
+           
+            await loadGroupsFromFirebase()
+            
+        } catch {
+            errorMessage = "Error joining group: \(error.localizedDescription)"
+            print("Error joining group in Firebase: \(error)")
         }
+    }
+    
+    func joinGroupByCode(_ inviteCode: String) async {
+        await joinGroup(groupId: "", inviteCode: inviteCode)
     }
     
     func leaveGroup(groupId: String) async {
         isLoading = true
         defer { isLoading = false }
         
-        groups.removeAll { $0.id == groupId }
-        
-        if currentGroup?.id == groupId {
-            currentGroup = nil
-            sharedSchedule = nil
+        do {
+            
+            try await db.collection("groups").document(groupId).updateData([
+                "members": FieldValue.arrayRemove([currentUserId])
+            ])
+            
+            
+            let leaveEventData: [String: Any] = [
+                "title": "Miembro dejó el grupo",
+                "createdBy": currentUserId,
+                "timestamp": Timestamp(date: Date()),
+                "type": "member_left"
+            ]
+            
+            try await db.collection("groups").document(groupId)
+                .collection("events").addDocument(data: leaveEventData)
+            
+            
+            groups.removeAll { $0.id == groupId }
+            
+            if currentGroup?.id == groupId {
+                currentGroup = nil
+                sharedSchedule = nil
+            }
+            
+        } catch {
+            errorMessage = "Error leaving group: \(error.localizedDescription)"
+            print("Error leaving group in Firebase: \(error)")
         }
     }
     
@@ -114,6 +243,91 @@ class SharedCalendarService: ObservableObject {
         
         sharedSchedule = newSchedule
         smartSuggestions = suggestions
+    }
+    
+    func saveSharedEventToFirebase(event: CalendarEvent, groupId: String) async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            let eventData: [String: Any] = [
+                "title": event.title,
+                "description": event.description ?? "",
+                "startTime": Timestamp(date: event.startTime),
+                "endTime": Timestamp(date: event.endTime),
+                "type": event.type.rawValue,
+                "priority": event.priority.rawValue,
+                "createdBy": currentUserId,
+                "attendees": event.attendees,
+                "location": event.location ?? "",
+                "isRecurring": event.isRecurring,
+                "reminderMinutes": event.reminderMinutes,
+                "createdAt": Timestamp(date: Date())
+            ]
+            
+            try await db.collection("groups").document(groupId)
+                .collection("events").addDocument(data: eventData)
+            
+            print("Event saved to Firebase successfully")
+            
+        } catch {
+            errorMessage = "Error saving event: \(error.localizedDescription)"
+            print("Error saving event to Firebase: \(error)")
+        }
+    }
+    
+    func loadSharedEventsFromFirebase(groupId: String) async -> [CalendarEvent] {
+        do {
+            let eventsSnapshot = try await db.collection("groups").document(groupId)
+                .collection("events")
+                .order(by: "startTime")
+                .getDocuments()
+            
+            var events: [CalendarEvent] = []
+            
+            for doc in eventsSnapshot.documents {
+                let data = doc.data()
+                
+                if let title = data["title"] as? String,
+                   let startTimeTimestamp = data["startTime"] as? Timestamp,
+                   let endTimeTimestamp = data["endTime"] as? Timestamp,
+                   let typeString = data["type"] as? String,
+                   let type = AvailabilityType(rawValue: typeString),
+                   let priorityString = data["priority"] as? String,
+                   let priority = Priority(rawValue: priorityString),
+                   let createdBy = data["createdBy"] as? String,
+                   let attendees = data["attendees"] as? [String],
+                   let isRecurring = data["isRecurring"] as? Bool,
+                   let reminderMinutes = data["reminderMinutes"] as? [Int] {
+                    
+                    let event = CalendarEvent(
+                        id: doc.documentID,
+                        title: title,
+                        description: data["description"] as? String,
+                        startTime: startTimeTimestamp.dateValue(),
+                        endTime: endTimeTimestamp.dateValue(),
+                        type: type,
+                        priority: priority,
+                        isShared: true,
+                        groupId: groupId,
+                        createdBy: createdBy,
+                        attendees: attendees,
+                        location: data["location"] as? String,
+                        isRecurring: isRecurring,
+                        recurrencePattern: nil, 
+                        reminderMinutes: reminderMinutes
+                    )
+                    
+                    events.append(event)
+                }
+            }
+            
+            return events
+            
+        } catch {
+            print("Error loading events from Firebase: \(error)")
+            return []
+        }
     }
     
     // MARK: - Public Methods for ViewModels
@@ -408,32 +622,76 @@ class SharedCalendarService: ObservableObject {
         return colors.randomElement() ?? "#4ECDC4"
     }
     
-    private func generateSmartSuggestions() {
-        // Generate general smart suggestions
-        smartSuggestions = [
-            SmartSuggestion(
-                id: UUID().uuidString,
-                type: .deadlineReminder,
-                title: "Upcoming Deadline Alert",
-                description: "Mobile App project due in 3 days - Consider scheduling group review",
-                confidence: 0.9,
-                actionRequired: true,
-                suggestedTime: TimeOfDay(hour: 14, minute: 0),
-                affectedMembers: [],
-                createdAt: Date()
-            ),
-            SmartSuggestion(
-                id: UUID().uuidString,
-                type: .workloadBalance,
-                title: "Heavy Week Ahead",
-                description: "Next week has 3 exams - Plan study sessions accordingly",
-                confidence: 0.85,
-                actionRequired: false,
-                suggestedTime: nil,
-                affectedMembers: [],
-                createdAt: Date()
-            )
-        ]
+    private func generateGroupCode() -> String {
+        
+        let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        let code = String((0..<6).map { _ in chars.randomElement()! })
+        return code
+    }
+    
+    private func generateSmartSuggestions() async {
+       
+        var suggestions: [SmartSuggestion] = []
+        
+        do {
+            let suggestionsSnapshot = try await db.collection("users")
+                .document(currentUserId)
+                .collection("smartSuggestions")
+                .order(by: "createdAt", descending: true)
+                .limit(to: 10)
+                .getDocuments()
+            
+            for doc in suggestionsSnapshot.documents {
+                if let suggestion = try? doc.data(as: SmartSuggestionFirestore.self) {
+                    let smartSuggestion = SmartSuggestion(
+                        id: doc.documentID,
+                        type: SuggestionType(rawValue: suggestion.type) ?? .optimalMeetingTime,
+                        title: suggestion.title,
+                        description: suggestion.description,
+                        confidence: suggestion.confidence,
+                        actionRequired: suggestion.actionRequired,
+                        suggestedTime: suggestion.suggestedTime.map { 
+                            TimeOfDay(hour: $0.hour, minute: $0.minute) 
+                        },
+                        affectedMembers: suggestion.affectedMembers,
+                        createdAt: suggestion.createdAt.dateValue()
+                    )
+                    suggestions.append(smartSuggestion)
+                }
+            }
+        } catch {
+            print("Error loading smart suggestions from Firebase: \(error)")
+        }
+        
+        
+        if suggestions.isEmpty {
+            suggestions = [
+                SmartSuggestion(
+                    id: UUID().uuidString,
+                    type: .deadlineReminder,
+                    title: "Próximo Deadline",
+                    description: "Proyecto de Mobile App vence en 3 días - Considera programar revisión grupal",
+                    confidence: 0.9,
+                    actionRequired: true,
+                    suggestedTime: TimeOfDay(hour: 14, minute: 0),
+                    affectedMembers: [],
+                    createdAt: Date()
+                ),
+                SmartSuggestion(
+                    id: UUID().uuidString,
+                    type: .workloadBalance,
+                    title: "Semana Pesada",
+                    description: "La próxima semana tienes 3 exámenes - Planifica sesiones de estudio",
+                    confidence: 0.85,
+                    actionRequired: false,
+                    suggestedTime: nil,
+                    affectedMembers: [],
+                    createdAt: Date()
+                )
+            ]
+        }
+        
+        self.smartSuggestions = suggestions
     }
     
     // MARK: - Mock Data
@@ -467,7 +725,8 @@ class SharedCalendarService: ObservableObject {
                 createdAt: Date().addingTimeInterval(-86400 * 14),
                 createdBy: "current_user_id",
                 color: "#4ECDC4",
-                isPublic: false
+                isPublic: false,
+                inviteCode: "ABC123"
             ),
             CalendarGroup(
                 id: "2",
@@ -506,7 +765,8 @@ class SharedCalendarService: ObservableObject {
                 createdAt: Date().addingTimeInterval(-86400 * 21),
                 createdBy: "5",
                 color: "#FF6B6B",
-                isPublic: true
+                isPublic: true,
+                inviteCode: "XYZ789"
             ),
             CalendarGroup(
                 id: "3",
@@ -520,15 +780,156 @@ class SharedCalendarService: ObservableObject {
                         email: "david@example.com",
                         avatar: nil,
                         isAdmin: false,
-                        joinedAt: Date().addingTimeInterval(-86400),
+                        joinedAt: Date().addingTimeInterval(-86400 * 4),
                         availability: generateMockAvailability()
                     )
                 ],
                 createdAt: Date().addingTimeInterval(-86400 * 7),
                 createdBy: "current_user_id",
                 color: "#45B7D1",
-                isPublic: false
+                isPublic: false,
+                inviteCode: "DEF456"
             )
         ]
+    }
+}
+
+// MARK: - Firebase Models
+struct CalendarGroupFirestore: Codable {
+    let name: String
+    let ownerId: String
+    let members: [String] // Array de User IDs
+    let createdAt: Timestamp
+    let isPublic: Bool
+    let description: String
+    let color: String
+    let inviteCode: String? 
+}
+
+struct UserFirestore: Codable {
+    let email: String
+    let nick: String?
+    let uid: String?
+    let avatar: String?
+    
+    // Computed property to get display name
+    var displayName: String {
+        return nick ?? email.components(separatedBy: "@").first ?? "Usuario"
+    }
+}
+
+struct GroupEventFirestore: Codable {
+    let title: String
+    let createdBy: String
+    let timestamp: Timestamp
+    let type: String
+    let description: String?
+}
+
+struct SmartSuggestionFirestore: Codable {
+    let type: String
+    let title: String
+    let description: String
+    let confidence: Double
+    let actionRequired: Bool
+    let suggestedTime: TimeOfDayFirestore?
+    let affectedMembers: [String]
+    let createdAt: Timestamp
+}
+
+struct TimeOfDayFirestore: Codable {
+    let hour: Int
+    let minute: Int
+}
+
+// MARK: - Firebase Conversion Methods
+extension SharedCalendarService {
+    
+    private func convertFirestoreGroupToCalendarGroup(_ firestoreGroup: CalendarGroupFirestore, documentId: String) async -> CalendarGroup {
+        
+        var members: [GroupMember] = []
+        
+        for memberId in firestoreGroup.members {
+            if let member = await loadUserData(userId: memberId) {
+                let groupMember = GroupMember(
+                    id: memberId,
+                    name: member.displayName,
+                    email: member.email,
+                    avatar: member.avatar,
+                    isAdmin: memberId == firestoreGroup.ownerId,
+                    joinedAt: firestoreGroup.createdAt.dateValue(),
+                    availability: generateMockAvailability() 
+                )
+                members.append(groupMember)
+            }
+        }
+        
+        return CalendarGroup(
+            id: documentId,
+            name: firestoreGroup.name,
+            description: firestoreGroup.description,
+            members: members,
+            createdAt: firestoreGroup.createdAt.dateValue(),
+            createdBy: firestoreGroup.ownerId,
+            color: firestoreGroup.color,
+            isPublic: firestoreGroup.isPublic,
+            inviteCode: firestoreGroup.inviteCode
+        )
+    }
+    
+    private func loadUserData(userId: String) async -> UserFirestore? {
+        do {
+            let userDoc = try await db.collection("users").document(userId).getDocument()
+            
+            if userDoc.exists, let data = userDoc.data() {
+                // Manual parsing to handle missing fields gracefully
+                let email = data["email"] as? String ?? "user@example.com"
+                let nick = data["nick"] as? String
+                let uid = data["uid"] as? String
+                let avatar = data["avatar"] as? String
+                
+                print("Loaded user data for \(userId): email=\(email), nick=\(nick ?? "nil")")
+                
+                return UserFirestore(
+                    email: email,
+                    nick: nick,
+                    uid: uid,
+                    avatar: avatar
+                )
+            } else {
+                print("User document doesn't exist for \(userId)")
+                return nil
+            }
+        } catch {
+            print("Error loading user data for \(userId): \(error)")
+            return nil
+        }
+    }
+    
+    private func getCurrentUserData() async -> UserFirestore {
+        if let userData = await loadUserData(userId: currentUserId) {
+            return userData
+        } else {
+            
+            let currentUserEmail = Auth.auth().currentUser?.email ?? "user@example.com"
+            return UserFirestore(
+                email: currentUserEmail,
+                nick: currentUserEmail.components(separatedBy: "@").first,
+                uid: currentUserId,
+                avatar: nil
+            )
+        }
+    }
+    
+    private func createSampleGroupsInFirebase() async {
+        
+        let sampleGroups = [
+            (name: "Mobile Dev Team", description: "iOS Development Project Group"),
+            (name: "Study Group - Algorithms", description: "Data Structures and Algorithms Study")
+        ]
+        
+        for group in sampleGroups {
+            await createGroup(name: group.name, description: group.description, isPublic: false)
+        }
     }
 }

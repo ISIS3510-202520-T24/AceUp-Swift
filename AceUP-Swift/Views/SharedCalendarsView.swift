@@ -13,6 +13,8 @@ struct SharedCalendarsView: View {
     
     @StateObject private var viewModel = SharedCalendarViewModel()
     @State private var showingActionSheet = false
+    @State private var showingJoinGroup = false
+    @State private var showingGroupQR: CalendarGroup?
     
     init(onMenuTapped: @escaping () -> Void = {}, onGroupSelected: @escaping (CalendarGroup) -> Void = { _ in }) {
         self.onMenuTapped = onMenuTapped
@@ -51,7 +53,11 @@ struct SharedCalendarsView: View {
                 CreateGroupView(viewModel: viewModel)
             }
             .sheet(isPresented: $viewModel.showingJoinGroup) {
-                JoinGroupView(viewModel: viewModel)
+                JoinGroupView {
+                    // Reload groups when a new group is joined
+                    viewModel.loadGroups()
+                    viewModel.showingJoinGroup = false
+                }
             }
             .actionSheet(isPresented: $showingActionSheet) {
                 ActionSheet(
@@ -61,11 +67,19 @@ struct SharedCalendarsView: View {
                             viewModel.showingCreateGroup = true
                         },
                         .default(Text("Join Existing Group")) {
-                            viewModel.showingJoinGroup = true
+                            showingJoinGroup = true
                         },
                         .cancel()
                     ]
                 )
+            }
+            .sheet(isPresented: $showingJoinGroup) {
+                JoinGroupView {
+                    viewModel.loadGroups()
+                }
+            }
+            .sheet(item: $showingGroupQR) { group in
+                GroupQRCodeView(group: group)
             }
         }
         .navigationBarHidden(true)
@@ -212,6 +226,9 @@ struct SharedCalendarsView: View {
                                 onTapped: {
                                     viewModel.selectGroup(group)
                                     onGroupSelected(group)
+                                },
+                                onQRTapped: { group in
+                                    showingGroupQR = group
                                 }
                             )
                             
@@ -350,10 +367,12 @@ struct SharedCalendarsView: View {
 struct GroupRow: View {
     let group: CalendarGroup
     let onTapped: () -> Void
+    let onQRTapped: ((CalendarGroup) -> Void)?
     
-    init(group: CalendarGroup, onTapped: @escaping () -> Void = {}) {
+    init(group: CalendarGroup, onTapped: @escaping () -> Void = {}, onQRTapped: ((CalendarGroup) -> Void)? = nil) {
         self.group = group
         self.onTapped = onTapped
+        self.onQRTapped = onQRTapped
     }
     
     var body: some View {
@@ -390,15 +409,28 @@ struct GroupRow: View {
             
             Spacer()
             
-            VStack(alignment: .trailing, spacing: 4) {
-                Image(systemName: "chevron.right")
-                    .foregroundColor(UI.muted)
-                    .font(.caption)
+            HStack(spacing: 10) {
+                if group.inviteCode != nil {
+                    Button(action: {
+                        onQRTapped?(group)
+                    }) {
+                        Image(systemName: "qrcode")
+                            .foregroundColor(UI.primary)
+                            .font(.body)
+                    }
+                    .buttonStyle(BorderlessButtonStyle())
+                }
                 
-                if group.isPublic {
-                    Image(systemName: "globe")
-                        .foregroundColor(UI.primary)
-                        .font(.caption2)
+                VStack(alignment: .trailing, spacing: 4) {
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(UI.muted)
+                        .font(.caption)
+                    
+                    if group.isPublic {
+                        Image(systemName: "globe")
+                            .foregroundColor(UI.primary)
+                            .font(.caption2)
+                    }
                 }
             }
         }
@@ -606,79 +638,6 @@ struct CreateGroupView: View {
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .disabled(viewModel.newGroupName.isEmpty)
-            }
-            .padding(20)
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: Button("Cancel") {
-                    presentationMode.wrappedValue.dismiss()
-                }
-            )
-        }
-    }
-}
-
-// MARK: - Join Group View
-struct JoinGroupView: View {
-    @ObservedObject var viewModel: SharedCalendarViewModel
-    @Environment(\.presentationMode) var presentationMode
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 15) {
-                    Text("Join Group")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(UI.navy)
-                    
-                    Text("Enter the group code shared by your friend or scan their QR code")
-                        .font(.body)
-                        .foregroundColor(UI.muted)
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Group Code")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(UI.navy)
-                        
-                        StyledTextField("Enter group code", text: $viewModel.joinGroupCode)
-                    }
-                }
-                
-                Spacer()
-                
-                VStack(spacing: 15) {
-                    Button(action: {
-                        // QR Code scanner functionality
-                    }) {
-                        HStack {
-                            Image(systemName: "qrcode.viewfinder")
-                            Text("Scan QR Code")
-                        }
-                        .font(.headline)
-                        .foregroundColor(UI.navy)
-                        .frame(height: 50)
-                        .frame(maxWidth: .infinity)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(UI.navy, lineWidth: 2)
-                        )
-                    }
-                    
-                    Button(action: {
-                        viewModel.joinGroup()
-                        presentationMode.wrappedValue.dismiss()
-                    }) {
-                        Text("Join Group")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(height: 50)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .disabled(viewModel.joinGroupCode.isEmpty)
-                }
             }
             .padding(20)
             .navigationBarTitleDisplayMode(.inline)

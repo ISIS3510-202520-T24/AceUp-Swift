@@ -97,7 +97,6 @@ struct LoginView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
 
-            // Alerta única (error o info)
             .alert((vm.errorMessage ?? vm.alertMessage) ?? "",
                    isPresented: Binding(
                     get: { (vm.errorMessage ?? vm.alertMessage) != nil },
@@ -107,8 +106,8 @@ struct LoginView: View {
                 Button("OK", role: .cancel) {}
             }
 
-            // Navegación cuando el VM confirme login
-            .onChange(of: vm.didLogin) { newValue in   // <- valor, NO binding
+            
+            .onChange(of: vm.didLogin) { _, newValue in   // <- valor, NO binding
                 if newValue {
                     onLoginSuccess()
                     vm.didLogin = false   // reset
