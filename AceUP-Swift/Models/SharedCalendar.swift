@@ -180,6 +180,8 @@ enum SuggestionType: String, Codable, CaseIterable {
     case scheduleConflict = "schedule_conflict"
     case groupAvailability = "group_availability"
     case workloadBalance = "workload_balance"
+    case scheduleOptimization = "schedule_optimization"
+    case conflictReduction = "conflict_reduction"
     
     var displayName: String {
         switch self {
@@ -189,6 +191,8 @@ enum SuggestionType: String, Codable, CaseIterable {
         case .scheduleConflict: return "Schedule Conflict"
         case .groupAvailability: return "Group Availability"
         case .workloadBalance: return "Workload Balance"
+        case .scheduleOptimization: return "Schedule Optimization"
+        case .conflictReduction: return "Conflict Reduction"
         }
     }
     
@@ -198,8 +202,10 @@ enum SuggestionType: String, Codable, CaseIterable {
         case .studySession: return "book.closed"
         case .deadlineReminder: return "bell.badge"
         case .scheduleConflict: return "exclamationmark.triangle"
-        case .groupAvailability: return "person.3"
+        case .groupAvailability: return "person.3.sequence"
         case .workloadBalance: return "scale.3d"
+        case .scheduleOptimization: return "gearshape.2"
+        case .conflictReduction: return "checkmark.shield"
         }
     }
 }
