@@ -17,9 +17,15 @@ struct CalendarGroup: Codable, Identifiable, Hashable {
     let createdBy: String
     let color: String
     let isPublic: Bool
+    let inviteCode: String? 
     
     var memberCount: Int {
         members.count
+    }
+    
+    var qrCodeURL: String? {
+        guard let code = inviteCode else { return nil }
+        return "aceup://join/\(code)"
     }
 }
 
