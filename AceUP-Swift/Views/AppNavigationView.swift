@@ -79,7 +79,7 @@ struct AppNavigationView: View {
                         }
                     })
                 case .assignments:
-                    AssignmentsPlaceholder(onMenuTapped: {
+                    AssignmentsListView(onMenuTapped: {
                         withAnimation(.easeInOut(duration: 0.3)) {
                             isSidebarPresented.toggle()
                         }

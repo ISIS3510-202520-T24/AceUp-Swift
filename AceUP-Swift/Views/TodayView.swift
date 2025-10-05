@@ -11,6 +11,8 @@ struct TodayView: View {
     let onMenuTapped: () -> Void
     @State private var selectedTab: TodayTab = .assignments
     @StateObject private var smartAnalytics = SmartCalendarAnalytics()
+    @State private var showingCreateAssignment = false
+    @StateObject private var assignmentViewModel = AssignmentViewModel()
     
     init(onMenuTapped: @escaping () -> Void = {}) {
         self.onMenuTapped = onMenuTapped
@@ -80,7 +82,7 @@ struct TodayView: View {
                     VStack(spacing: 20) {
                         switch selectedTab {
                         case .assignments:
-                            AssignmentsTabContent()
+                            AssignmentsTabContent(assignmentViewModel: assignmentViewModel)
                         case .timetable:
                             TimetableTabContent()
                         case .exams:
@@ -101,7 +103,9 @@ struct TodayView: View {
                 Spacer()
                 HStack {
                     Spacer()
-                    Button(action: {}) {
+                    Button(action: {
+                        showingCreateAssignment = true
+                    }) {
                         Image(systemName: "plus")
                             .font(.title2)
                             .fontWeight(.semibold)
@@ -117,6 +121,9 @@ struct TodayView: View {
             }
         )
         .navigationBarHidden(true)
+        .sheet(isPresented: $showingCreateAssignment) {
+            CreateAssignmentView(viewModel: assignmentViewModel)
+        }
     }
 }
 
@@ -419,13 +426,23 @@ struct TimetableTabContent: View {
 }
 
 struct AssignmentsTabContent: View {
+    @ObservedObject var assignmentViewModel: AssignmentViewModel
     @State private var days: Int? = nil
     @State private var sending = false
     private let userKey = UserKeyManager.shared.userKey()
+    
+    init(assignmentViewModel: AssignmentViewModel) {
+        self.assignmentViewModel = assignmentViewModel
+    }
 
     var body: some View {
         VStack(spacing: 16) {
-            // Card de la BQ
+            // Type 2 BQ Card - How many of today's assignments completed vs pending?
+            if let summary = assignmentViewModel.todaysSummary {
+                TodaysSummaryCard(summary: summary)
+            }
+            
+            // Days since last progress (existing BQ)
             VStack(spacing: 8) {
                 Text("Days since last progress").font(.headline)
                 if let d = days {
@@ -440,14 +457,21 @@ struct AssignmentsTabContent: View {
             .background(Color(.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            // Botón para enviar progreso
+            // Smart Feature: Workload Analysis
+            if let analysis = assignmentViewModel.workloadAnalysis {
+                WorkloadInsightCard(analysis: analysis)
+            }
+            
+            // Today's Assignments List
+            TodaysAssignmentsList(viewModel: assignmentViewModel)
+            
+            // Test button for existing analytics
             Button {
                 sending = true
                 AnalyticsClient.sendAssignmentCompleted(
                     userKey: userKey,
                     assignmentId: UUID().uuidString
                 ) { _ in
-                    // pequeño delay 
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                         AnalyticsClient.fetchDaysSinceLastProgress(userKey: userKey) { val in
                             DispatchQueue.main.async {
@@ -460,11 +484,11 @@ struct AssignmentsTabContent: View {
             } label: {
                 HStack {
                     Image(systemName: "checkmark.circle.fill")
-                    Text(sending ? "Sending..." : "Mark dummy assignment as completed")
+                    Text(sending ? "Sending..." : "Test Analytics Event")
                 }
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
             .disabled(sending)
 
             Spacer()
@@ -474,6 +498,9 @@ struct AssignmentsTabContent: View {
             AnalyticsClient.fetchDaysSinceLastProgress(userKey: userKey) { val in
                 DispatchQueue.main.async { days = val }
             }
+        }
+        .task {
+            await assignmentViewModel.loadAssignments()
         }
     }
 
@@ -513,4 +540,225 @@ struct AssignmentsTabContent: View {
     TodayView(onMenuTapped: {
         print("Menu tapped")
     })
+}
+
+// MARK: - Today's Summary Card (Type 2 BQ)
+/// Created by Ángel Farfán Arcila on 4/10/25
+struct TodaysSummaryCard: View {
+    let summary: TodaysSummary
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "calendar")
+                    .foregroundColor(UI.primary)
+                Text("Today's Progress")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(UI.navy)
+                Spacer()
+            }
+            
+            // Progress visualization
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(summary.progressMessage)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(UI.navy)
+                    
+                    Spacer()
+                    
+                    if summary.totalAssignments > 0 {
+                        Text("\(Int(summary.completionPercentage * 100))%")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(UI.primary)
+                            .cornerRadius(8)
+                    }
+                }
+                
+                if summary.totalAssignments > 0 {
+                    ProgressView(value: summary.completionPercentage)
+                        .progressViewStyle(LinearProgressViewStyle(tint: UI.primary))
+                }
+                
+                Text(summary.motivationalMessage)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(16)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+    }
+}
+
+// MARK: - Workload Insight Card (Smart Feature)
+/// Created by Ángel Farfán Arcila on 4/10/25
+struct WorkloadInsightCard: View {
+    let analysis: WorkloadAnalysis
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "brain")
+                    .foregroundColor(UI.primary)
+                Text("Smart Insights")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(UI.navy)
+                Spacer()
+                
+                // Balance indicator
+                HStack(spacing: 4) {
+                    Image(systemName: analysis.workloadBalance.icon)
+                        .font(.caption)
+                    Text(analysis.workloadBalance.displayName)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+                .foregroundColor(Color(hex: analysis.workloadBalance.color))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(Color(hex: analysis.workloadBalance.color).opacity(0.1))
+                .cornerRadius(6)
+            }
+            
+            if let recommendation = analysis.recommendations.first {
+                Text(recommendation)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(3)
+            } else {
+                Text("Great workload distribution! Your assignments are well balanced.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(16)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+    }
+}
+
+// MARK: - Today's Assignments List
+/// Created by Ángel Farfán Arcila on 4/10/25
+struct TodaysAssignmentsList: View {
+    @ObservedObject var viewModel: AssignmentViewModel
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Due Today")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(UI.navy)
+                Spacer()
+                
+                if !viewModel.todaysAssignments.isEmpty {
+                    Text("\(viewModel.todaysAssignments.count)")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(UI.primary)
+                        .cornerRadius(8)
+                }
+            }
+            
+            if viewModel.todaysAssignments.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "party.popper")
+                        .font(.title)
+                        .foregroundColor(UI.success)
+                    
+                    Text("No assignments due today!")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(UI.navy)
+                    
+                    Text("Great job staying on top of your work.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
+                .background(UI.success.opacity(0.1))
+                .cornerRadius(8)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(viewModel.todaysAssignments.prefix(3)) { assignment in
+                        TodayAssignmentRow(assignment: assignment) {
+                            Task {
+                                await viewModel.markAsCompleted(assignment.id)
+                            }
+                        }
+                    }
+                    
+                    if viewModel.todaysAssignments.count > 3 {
+                        Text("+ \(viewModel.todaysAssignments.count - 3) more")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+    }
+}
+
+// MARK: - Today Assignment Row
+/// Created by Ángel Farfán Arcila on 4/10/25
+struct TodayAssignmentRow: View {
+    let assignment: Assignment
+    let onComplete: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Status indicator
+            Button(action: onComplete) {
+                Image(systemName: assignment.status == .completed ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(assignment.status == .completed ? UI.success : .secondary)
+                    .font(.title3)
+            }
+            .disabled(assignment.status == .completed)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(assignment.title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(UI.navy)
+                    .strikethrough(assignment.status == .completed)
+                
+                HStack {
+                    Text(assignment.courseName)
+                        .font(.caption)
+                        .foregroundColor(Color(hex: assignment.courseColor))
+                    
+                    Spacer()
+                    
+                    Text("\(assignment.weightPercentage)%")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            // Priority indicator
+            Circle()
+                .fill(Color(hex: assignment.priority.color))
+                .frame(width: 8, height: 8)
+        }
+        .padding(.vertical, 4)
+    }
 }

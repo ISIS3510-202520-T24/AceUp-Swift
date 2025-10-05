@@ -41,7 +41,7 @@ struct AcademicEvent: Codable, Identifiable, Hashable {
         // Factors: weight, days until due, course importance
         let weightFactor = weight * 100 // 0-100
         let urgencyFactor = max(0, 14 - Double(daysUntilDue)) * 5 // More urgent = higher score
-        let statusPenalty = status == .pending ? 0 : -50 // Completed items get penalty
+        let statusPenalty = status == .pending ? 0.0 : -50.0 // Completed items get penalty
         
         return weightFactor + urgencyFactor + statusPenalty
     }
@@ -226,13 +226,22 @@ struct HighestWeightEventData: Codable {
     let recommendations: [String]
 }
 
-struct EventAnalysis: Codable {
+struct EventAnalysis: Codable, Equatable {
     let totalPendingEvents: Int
     let averageWeight: Double
     let daysToDue: Int
     let urgencyLevel: UrgencyLevel
     let impactScore: Double
     let courseLoad: String
+    
+    static func == (lhs: EventAnalysis, rhs: EventAnalysis) -> Bool {
+        return lhs.totalPendingEvents == rhs.totalPendingEvents &&
+               lhs.averageWeight == rhs.averageWeight &&
+               lhs.daysToDue == rhs.daysToDue &&
+               lhs.urgencyLevel == rhs.urgencyLevel &&
+               lhs.impactScore == rhs.impactScore &&
+               lhs.courseLoad == rhs.courseLoad
+    }
 }
 
 enum UrgencyLevel: String, Codable, CaseIterable {

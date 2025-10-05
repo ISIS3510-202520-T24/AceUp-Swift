@@ -40,7 +40,7 @@ struct GroupMember: Codable, Identifiable, Hashable {
 }
 
 // MARK: - Availability Models
-struct AvailabilitySlot: Codable, Identifiable, Hashable {
+struct AvailabilitySlot: Codable, Identifiable, Hashable, Equatable {
     let id: String
     let dayOfWeek: Int // 0 = Sunday, 1 = Monday, etc.
     let startTime: TimeOfDay
@@ -48,6 +48,10 @@ struct AvailabilitySlot: Codable, Identifiable, Hashable {
     let title: String?
     let type: AvailabilityType
     let priority: Priority
+    
+    static func == (lhs: AvailabilitySlot, rhs: AvailabilitySlot) -> Bool {
+        return lhs.id == rhs.id
+    }
 }
 
 struct TimeOfDay: Codable, Hashable, Comparable {
@@ -104,30 +108,7 @@ enum AvailabilityType: String, Codable, CaseIterable {
     }
 }
 
-enum Priority: String, Codable, CaseIterable {
-    case low = "low"
-    case medium = "medium"
-    case high = "high"
-    case urgent = "urgent"
-    
-    var color: String {
-        switch self {
-        case .low: return "#95A5A6"
-        case .medium: return "#F39C12"
-        case .high: return "#E74C3C"
-        case .urgent: return "#8E44AD"
-        }
-    }
-    
-    var displayName: String {
-        switch self {
-        case .low: return "Low"
-        case .medium: return "Medium"
-        case .high: return "High"
-        case .urgent: return "Urgent"
-        }
-    }
-}
+// Priority enum is defined in AcademicModels.swift to avoid duplication
 
 // MARK: - Shared Schedule Models
 struct SharedSchedule: Codable, Identifiable, Hashable {
@@ -217,7 +198,7 @@ enum SuggestionType: String, Codable, CaseIterable {
 }
 
 // MARK: - Calendar Event Models
-struct CalendarEvent: Codable, Identifiable, Hashable {
+struct CalendarEvent: Codable, Identifiable, Hashable, Equatable {
     let id: String
     let title: String
     let description: String?
@@ -233,6 +214,10 @@ struct CalendarEvent: Codable, Identifiable, Hashable {
     let isRecurring: Bool
     let recurrencePattern: RecurrencePattern?
     let reminderMinutes: [Int] // Minutes before event
+    
+    static func == (lhs: CalendarEvent, rhs: CalendarEvent) -> Bool {
+        return lhs.id == rhs.id
+    }
 }
 
 struct RecurrencePattern: Codable, Hashable {

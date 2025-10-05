@@ -57,6 +57,7 @@ enum UI {
     static let accent = Color(hex: "#FF6B6B")      
     static let success = Color(hex: "#4ECDC4")     
     static let warning = Color(hex: "#FFE66D")    
+    static let secondary = Color(hex: "#6C757D")   // Added for assignment views
 
     static let muted = Color(hex: "#8B8680")      
 }

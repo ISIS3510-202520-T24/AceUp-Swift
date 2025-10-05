@@ -481,7 +481,7 @@ class SharedCalendarService: ObservableObject {
         // Check member's availability slots
         for availability in member.availability {
             if availability.dayOfWeek == dayOfWeek {
-                if availability.type == .busy || availability.type == .lecture || availability.type == .exam {
+                if availability.type == AvailabilityType.busy || availability.type == AvailabilityType.lecture || availability.type == AvailabilityType.exam {
                     // Check if time slot overlaps with busy period
                     if timeSlot.start >= availability.startTime && timeSlot.end <= availability.endTime {
                         return false
@@ -499,14 +499,14 @@ class SharedCalendarService: ObservableObject {
         
         for availability in member.availability {
             if availability.dayOfWeek == dayOfWeek {
-                if availability.type != .free && timeSlot.start >= availability.startTime && timeSlot.end <= availability.endTime {
+                if availability.type != AvailabilityType.free && timeSlot.start >= availability.startTime && timeSlot.end <= availability.endTime {
                     return MemberConflict(
                         id: UUID().uuidString,
                         memberId: member.id,
                         memberName: member.name,
                         conflictType: availability.type,
                         conflictTitle: availability.title ?? availability.type.displayName,
-                        canBeRescheduled: availability.type == .meeting || availability.type == .assignment,
+                        canBeRescheduled: availability.type == AvailabilityType.meeting || availability.type == AvailabilityType.assignment,
                         alternativeTimes: []
                     )
                 }
@@ -573,8 +573,8 @@ class SharedCalendarService: ObservableObject {
                 startTime: TimeOfDay(hour: 9, minute: 0),
                 endTime: TimeOfDay(hour: 11, minute: 0),
                 title: "Mobile Development",
-                type: .lecture,
-                priority: .high
+                type: AvailabilityType.lecture,
+                priority: Priority.high
             ),
             AvailabilitySlot(
                 id: UUID().uuidString,
@@ -582,8 +582,8 @@ class SharedCalendarService: ObservableObject {
                 startTime: TimeOfDay(hour: 14, minute: 0),
                 endTime: TimeOfDay(hour: 16, minute: 0),
                 title: "Software Architecture",
-                type: .lecture,
-                priority: .high
+                type: AvailabilityType.lecture,
+                priority: Priority.high
             ),
             // Tuesday - Free time
             AvailabilitySlot(
@@ -592,8 +592,8 @@ class SharedCalendarService: ObservableObject {
                 startTime: TimeOfDay(hour: 10, minute: 0),
                 endTime: TimeOfDay(hour: 18, minute: 0),
                 title: "Available",
-                type: .free,
-                priority: .low
+                type: AvailabilityType.free,
+                priority: Priority.low
             ),
             // Wednesday - Mixed
             AvailabilitySlot(
@@ -602,8 +602,8 @@ class SharedCalendarService: ObservableObject {
                 startTime: TimeOfDay(hour: 8, minute: 0),
                 endTime: TimeOfDay(hour: 12, minute: 0),
                 title: "Database Systems",
-                type: .lecture,
-                priority: .high
+                type: AvailabilityType.lecture,
+                priority: Priority.high
             ),
             AvailabilitySlot(
                 id: UUID().uuidString,
@@ -611,8 +611,8 @@ class SharedCalendarService: ObservableObject {
                 startTime: TimeOfDay(hour: 15, minute: 0),
                 endTime: TimeOfDay(hour: 17, minute: 0),
                 title: "Project Meeting",
-                type: .meeting,
-                priority: .medium
+                type: AvailabilityType.meeting,
+                priority: Priority.medium
             )
         ]
     }
