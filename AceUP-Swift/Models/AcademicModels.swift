@@ -2,7 +2,7 @@
 //  AcademicModels.swift
 //  AceUP-Swift
 //
-//  Created by Ángel Farfán Arcila on 4/10/25.
+//  Created by Ana M. Sánchez on 4/10/25.
 //
 
 import Foundation
