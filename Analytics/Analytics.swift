@@ -3,7 +3,7 @@ import CryptoKit
 import Security
 import UIKit
 
-// MARK: - Config
+// Config
 enum AnalyticsConfig {
     // Cambia por tu collector (Cloud Run/API Gateway).
     static let COLLECTOR_URL = URL(string: "https://console.firebase.google.com/project/aceup-app-123/overview")!
@@ -14,7 +14,7 @@ enum AnalyticsConfig {
     static let APP = "AceUp"
 }
 
-// MARK: - JSONValue para props heterogéneas
+// JSONValue para props heterogéneas
 enum JSONValue: Codable {
     case string(String), int(Int), double(Double), bool(Bool), object([String: JSONValue]), array([JSONValue]), null
 
@@ -32,7 +32,7 @@ enum JSONValue: Codable {
     }
 }
 
-// MARK: - Evento
+// Evento
 struct AnalyticsEvent: Codable {
     let event: String
     let ts: String               // ISO8601
@@ -43,7 +43,7 @@ struct AnalyticsEvent: Codable {
     let props: [String: JSONValue]
 }
 
-// MARK: - Keychain helper muy simple
+// Keychain helper muy simple
 enum KeychainHelper {
     static func set(_ value: Data, key: String) {
         let query: [String: Any] = [
@@ -70,7 +70,7 @@ enum KeychainHelper {
     }
 }
 
-// MARK: - Analytics singleton
+// Analytics singleton
 final class Analytics {
     static let shared = Analytics()
     private init() {}
@@ -103,17 +103,20 @@ final class Analytics {
         return key
     }
 
-    // Debe llamarse al hacer login/sign up exitoso
     @discardableResult
     func identify(userId uid: String) -> String {
         let key = deriveUserKey(from: uid)
-        // Optional: marca super-prop persistente (no la mandamos ahora para mantenerlo simple)
         return key
     }
 
     func track(_ name: String, props: [String: Any?] = [:]) {
+        // BQ 2.4: Si es progreso académico, actualiza el último timestamp local
+        if name == "grade_recorded" || name == "assignment_completed" {
+            LastProgress.shared.update()
+        }
+
         guard let userKey = cachedUserKey ?? (KeychainHelper.get(AnalyticsConfig.USER_KEYCHAIN_KEY).flatMap { String(data: $0, encoding: .utf8) }) else {
-            print("⚠️ Analytics.track: no userKey (llama identify() después del login)."); return
+            print("Analytics.track: no userKey (llama identify() después del login)."); return
         }
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -143,9 +146,9 @@ final class Analytics {
         req.httpBody = try? JSONEncoder().encode(evt)
 
         URLSession.shared.dataTask(with: req) { _, resp, err in
-            if let err = err { print("❌ Analytics POST error:", err.localizedDescription) }
+            if let err = err { print("Analytics POST error:", err.localizedDescription) }
             else if let http = resp as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-                print("❌ Analytics POST status:", http.statusCode)
+                print("Analytics POST status:", http.statusCode)
             }
         }.resume()
     }

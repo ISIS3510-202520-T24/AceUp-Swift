@@ -16,33 +16,33 @@ struct TodayView: View {
         self.onMenuTapped = onMenuTapped
     }
     
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            VStack {
-                HStack {
-                    Button(action: onMenuTapped) {
-                        Image(systemName: "line.3.horizontal")
-                            .foregroundColor(UI.navy)
-                            .font(.body)
-                    }
+     var body: some View {
+         VStack(spacing: 0) {
+             // Header
+             VStack {
+                 HStack {
+                     Button(action: onMenuTapped) {
+                         Image(systemName: "line.3.horizontal")
+                             .foregroundColor(UI.navy)
+                             .font(.body)
+                     }
                     
-                    Spacer()
+                     Spacer()
                     
-                    Text("Today")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(UI.navy)
+                     Text("Today")
+                         .font(.headline)
+                         .fontWeight(.semibold)
+                         .foregroundColor(UI.navy)
                     
-                    Spacer()
+                     Spacer()
                     
-                    Color.clear
-                        .frame(width: 24)
-                }
-                .padding(.horizontal, 16)
-            }
-            .frame(height: 60)
-            .background(Color(hex: "#B8C8DB"))
+                     Color.clear
+                         .frame(width: 24)
+                 }
+                 .padding(.horizontal, 16)
+             }
+             .frame(height: 60)
+             .background(Color(hex: "#B8C8DB"))
             
             // Main Content
             VStack(spacing: 0) {
@@ -419,36 +419,94 @@ struct TimetableTabContent: View {
 }
 
 struct AssignmentsTabContent: View {
+    @State private var days: Int? = nil
+    @State private var sending = false
+    private let userKey = UserKeyManager.shared.userKey()
+
     var body: some View {
-        VStack(spacing: 20) {
-            Spacer().frame(height: 100)
-            
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(hex: "#E8E8E8"))
-                .frame(width: 120, height: 120)
-                .overlay(
-                    Image(systemName: "photo")
-                        .font(.system(size: 40))
-                        .foregroundColor(UI.muted)
-                )
-            
+        VStack(spacing: 16) {
+            // Card de la BQ
             VStack(spacing: 8) {
-                Text("You have no assignments due for the next 7 days")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                    .multilineTextAlignment(.center)
-                
-                Text("Time to work on a hobby of yours!")
-                    .font(.body)
-                    .foregroundColor(UI.muted)
-                    .multilineTextAlignment(.center)
+                Text("Days since last progress").font(.headline)
+                if let d = days {
+                    Text("\(d) day\(d == 1 ? "" : "s")")
+                        .font(.title).fontWeight(.semibold)
+                } else {
+                    Text("No progress yet").foregroundColor(.secondary)
+                }
             }
-            
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(Color(.secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            // Botón para enviar progreso
+            Button {
+                sending = true
+                AnalyticsClient.sendAssignmentCompleted(
+                    userKey: userKey,
+                    assignmentId: UUID().uuidString
+                ) { _ in
+                    // pequeño delay 
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                        AnalyticsClient.fetchDaysSinceLastProgress(userKey: userKey) { val in
+                            DispatchQueue.main.async {
+                                days = val
+                                sending = false
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                    Text(sending ? "Sending..." : "Mark dummy assignment as completed")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(sending)
+
             Spacer()
         }
-        .padding(.horizontal, 40)
+        .padding(.horizontal, 20)
+        .onAppear {
+            AnalyticsClient.fetchDaysSinceLastProgress(userKey: userKey) { val in
+                DispatchQueue.main.async { days = val }
+            }
+        }
     }
+
+    // var body: some View {
+    //     VStack(spacing: 20) {
+    //         Spacer().frame(height: 100)
+            
+    //         RoundedRectangle(cornerRadius: 12)
+    //             .fill(Color(hex: "#E8E8E8"))
+    //             .frame(width: 120, height: 120)
+    //             .overlay(
+    //                 Image(systemName: "photo")
+    //                     .font(.system(size: 40))
+    //                     .foregroundColor(UI.muted)
+    //             )
+            
+    //         VStack(spacing: 8) {
+    //             Text("You have no assignments due for the next 7 days")
+    //                 .font(.title3)
+    //                 .fontWeight(.semibold)
+    //                 .foregroundColor(UI.navy)
+    //                 .multilineTextAlignment(.center)
+                
+    //             Text("Time to work on a hobby of yours!")
+    //                 .font(.body)
+    //                 .foregroundColor(UI.muted)
+    //                 .multilineTextAlignment(.center)
+    //         }
+            
+    //         Spacer()
+    //     }
+    //     .padding(.horizontal, 40)
+    // }
 }
 
 #Preview {
