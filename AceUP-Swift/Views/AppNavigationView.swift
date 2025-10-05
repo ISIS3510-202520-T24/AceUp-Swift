@@ -11,6 +11,7 @@ import SwiftUI
 struct AppNavigationView: View {
     @State private var selectedView: AppView = .today
     @State private var isSidebarPresented = false
+    @State private var selectedGroup: CalendarGroup?
     let onLogout: () -> Void
     
     init(onLogout: @escaping () -> Void = {}) {
@@ -19,7 +20,7 @@ struct AppNavigationView: View {
     
     var body: some View {
         ZStack {
-            
+            // Main content
             Group {
                 switch selectedView {
                 case .login:
@@ -53,7 +54,8 @@ struct AppNavigationView: View {
                                 isSidebarPresented.toggle()
                             }
                         },
-                        onGroupSelected: { groupName in
+                        onGroupSelected: { group in
+                            selectedGroup = group
                             selectedView = .groupCalendar
                         }
                     )
@@ -66,7 +68,9 @@ struct AppNavigationView: View {
                         },
                         onBackTapped: {
                             selectedView = .sharedCalendars
-                        }
+                            selectedGroup = nil
+                        },
+                        group: selectedGroup
                     )
                 case .planner:
                     PlannerPlaceholder(onMenuTapped: {
@@ -75,7 +79,7 @@ struct AppNavigationView: View {
                         }
                     })
                 case .assignments:
-                    AssignmentsPlaceholder(onMenuTapped: {
+                    AssignmentsListView(onMenuTapped: {
                         withAnimation(.easeInOut(duration: 0.3)) {
                             isSidebarPresented.toggle()
                         }
@@ -106,7 +110,7 @@ struct AppNavigationView: View {
                     }, onLogout: onLogout)
                 }
             }
-            .disabled(isSidebarPresented) 
+            .disabled(isSidebarPresented) // Disable interaction when sidebar is open 
             
             if isSidebarPresented {
                 Color.black.opacity(0.3)

@@ -26,7 +26,7 @@ final class LoginViewModel: ObservableObject {
     private let auth = AuthService()
     private let keychain = BiometricKeychain()
 
-    // MARK: - Login normal
+    //Login normal
     func login() async {
         errorMessage = nil
         guard !email.isEmpty, !password.isEmpty else {
@@ -51,7 +51,7 @@ final class LoginViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Login con biometría
+    // Login con biometría
     func biometricLogin() async {
         errorMessage = nil
         isBioLoading = true

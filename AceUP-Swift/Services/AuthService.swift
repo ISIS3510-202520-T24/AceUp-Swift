@@ -45,7 +45,7 @@ final class AuthService {
         return user
     }
 
-    // LOGIN (dejamos el nombre tal cual lo tenías: "SignIn")
+    // LOGIN
     @discardableResult
     func SignIn(email: String, password: String) async throws -> AppUser {
         try await withCheckedThrowingContinuation { continuation in
@@ -63,7 +63,7 @@ final class AuthService {
                     return
                 }
 
-                // (Opcional) Bloquear si no verificó email:
+                // Bloquear si no verificó email:
                 // if !user.isEmailVerified {
                 //     try? self.auth.signOut()
                 //     continuation.resume(throwing: NSError(
@@ -97,8 +97,6 @@ final class AuthService {
         }
         try await user.sendEmailVerification()
     }
-
-    // MARK: - Privados
 
     private func createUser(email: String, password: String) async throws -> AuthDataResult {
         try await withCheckedThrowingContinuation { continuation in
