@@ -9,7 +9,6 @@ import Foundation
 import FirebaseAuth
 import FirebaseFirestore
 
-// Estructura de usuario en tu app
 struct AppUser {
     let uid: String
     let email: String
