@@ -20,17 +20,17 @@ final class AuthService {
     private let auth = Auth.auth()
     private let db = Firestore.firestore()
 
-    // REGISTRO + envío de verificación por correo
+    // SIGNUP + send email verification
     @discardableResult
     func signUp(email: String, password: String, nick: String) async throws -> AppUser {
         let authResult = try await createUser(email: email, password: password)
 
-        // Actualiza displayName
+        // Update displayName
         let changeReq = authResult.user.createProfileChangeRequest()
         changeReq.displayName = nick
         try await changeReq.commitChanges()
 
-        // Envía correo de verificación (loggea resultado)
+        // Send verification email (log result)
         do {
             try await authResult.user.sendEmailVerification()
             print("Verification email dispatched to \(email)")
@@ -39,7 +39,7 @@ final class AuthService {
             throw error
         }
 
-        // Guarda perfil en Firestore
+        // Save profile to Firestore
         let user = AppUser(uid: authResult.user.uid, email: email, nick: nick)
         try await saveUserProfile(user)
         return user
@@ -63,7 +63,7 @@ final class AuthService {
                     return
                 }
 
-                // Bloquear si no verificó email:
+                // Block if email not verified:
                 // if !user.isEmailVerified {
                 //     try? self.auth.signOut()
                 //     continuation.resume(throwing: NSError(
@@ -89,7 +89,7 @@ final class AuthService {
         try await auth.sendPasswordReset(withEmail: email)
     }
 
-    // Reenviar verificación (útil desde una pantalla de aviso)
+    // Resend verification (useful from a notice screen)
     func resendVerificationEmail() async throws {
         guard let user = auth.currentUser else {
             throw NSError(domain: "Auth", code: 404,

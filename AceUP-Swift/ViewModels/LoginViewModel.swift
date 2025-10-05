@@ -11,12 +11,12 @@ import Security
 
 @MainActor
 final class LoginViewModel: ObservableObject {
-    // Campos de la UI
+    // UI Fields
     @Published var email = ""
     @Published var password = ""
     @Published var rememberWithBiometric = false
 
-    // Estado de la UI
+    // UI State
     @Published var isLoading = false           // login normal
     @Published var isBioLoading = false        // login biométrico
     @Published var errorMessage: String?
@@ -26,7 +26,7 @@ final class LoginViewModel: ObservableObject {
     private let auth = AuthService()
     private let keychain = BiometricKeychain()
 
-    //Login normal
+    // Normal login
     func login() async {
         errorMessage = nil
         guard !email.isEmpty, !password.isEmpty else {
@@ -51,7 +51,7 @@ final class LoginViewModel: ObservableObject {
         }
     }
 
-    // Login con biometría
+    // Biometric login
     func biometricLogin() async {
         errorMessage = nil
         isBioLoading = true
@@ -65,7 +65,7 @@ final class LoginViewModel: ObservableObject {
         }
 
         do {
-            // Autenticar con Face ID / Touch ID
+            // Authenticate with Face ID / Touch ID
             try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
                 ctx.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
                                    localizedReason: "Authenticate to login") { ok, err in
@@ -82,10 +82,10 @@ final class LoginViewModel: ObservableObject {
                 }
             } catch let nsErr as NSError
                 where nsErr.domain == NSOSStatusErrorDomain && nsErr.code == Int(errSecItemNotFound) {
-                // No había credenciales guardadas -> caer a 2)
+                // No saved credentials found -> fall back to step 2)
             }
 
-            // 2) Si no hay guardadas pero hay email/clave digitados: guardarlas y loguear
+            // 2) If no saved credentials but email/password entered: save them and login
             guard !email.isEmpty, !password.isEmpty else {
                 errorMessage = "No stored credentials. Type email & password once, then try again."
                 return
@@ -118,7 +118,7 @@ final class LoginViewModel: ObservableObject {
         }
     }
 
-    // (Opcional) Reenviar verificación
+    // (Optional) Resend verification
     func resendVerification() async {
         do {
             try await auth.resendVerificationEmail()

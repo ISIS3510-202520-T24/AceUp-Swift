@@ -669,8 +669,8 @@ class SharedCalendarService: ObservableObject {
                 SmartSuggestion(
                     id: UUID().uuidString,
                     type: .deadlineReminder,
-                    title: "Próximo Deadline",
-                    description: "Proyecto de Mobile App vence en 3 días - Considera programar revisión grupal",
+                    title: "Upcoming Deadline",
+                    description: "Mobile App project is due in 3 days - Consider scheduling a group review",
                     confidence: 0.9,
                     actionRequired: true,
                     suggestedTime: TimeOfDay(hour: 14, minute: 0),
@@ -680,8 +680,8 @@ class SharedCalendarService: ObservableObject {
                 SmartSuggestion(
                     id: UUID().uuidString,
                     type: .workloadBalance,
-                    title: "Semana Pesada",
-                    description: "La próxima semana tienes 3 exámenes - Planifica sesiones de estudio",
+                    title: "Heavy Week",
+                    description: "Next week you have 3 exams - Plan study sessions accordingly",
                     confidence: 0.85,
                     actionRequired: false,
                     suggestedTime: nil,
