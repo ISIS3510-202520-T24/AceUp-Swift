@@ -48,7 +48,7 @@ struct GroupQRCodeView: View {
                     }
                     
                     VStack(spacing: 10) {
-                        Text("Código de invitación")
+                        Text("Invitation Code")
                             .font(.subheadline)
                             .foregroundColor(UI.muted)
                         
@@ -79,11 +79,11 @@ struct GroupQRCodeView: View {
                 }
                 
                 VStack(spacing: 15) {
-                    Text("Comparte este código")
+                    Text("Share this code")
                         .font(.headline)
                         .foregroundColor(UI.navy)
                     
-                    Text("Los usuarios pueden escanear este código QR o introducir el código manualmente para unirse al grupo")
+                    Text("Users can scan this QR code or enter the code manually to join the group")
                         .font(.body)
                         .foregroundColor(UI.muted)
                         .multilineTextAlignment(.center)
@@ -95,7 +95,7 @@ struct GroupQRCodeView: View {
                 Button(action: shareQRCode) {
                     HStack {
                         Image(systemName: "square.and.arrow.up")
-                        Text("Compartir")
+                        Text("Share")
                     }
                     .font(.headline)
                     .foregroundColor(.white)
@@ -109,7 +109,7 @@ struct GroupQRCodeView: View {
             .padding(20)
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
-                trailing: Button("Cerrar") {
+                trailing: Button("Close") {
                     presentationMode.wrappedValue.dismiss()
                 }
             )
@@ -142,7 +142,7 @@ struct GroupQRCodeView: View {
         guard let qrImage = qrCodeImage,
               let inviteCode = group.inviteCode else { return }
         
-        let shareText = "¡Únete a mi grupo \"\(group.name)\" en AceUP! Código: \(inviteCode)"
+        let shareText = "Join my group \"\(group.name)\" on AceUP! Code: \(inviteCode)"
         let activityController = UIActivityViewController(
             activityItems: [shareText, qrImage],
             applicationActivities: nil

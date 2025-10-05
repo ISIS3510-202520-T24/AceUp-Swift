@@ -50,11 +50,11 @@ struct JoinGroupView: View {
                                 .foregroundColor(UI.primary)
                             
                             VStack(alignment: .leading, spacing: 5) {
-                                Text("Escanear Código QR")
+                                Text("Scan QR Code")
                                     .font(.headline)
                                     .foregroundColor(UI.navy)
                                 
-                                Text("Usa la cámara para escanear")
+                                Text("Use camera to scan")
                                     .font(.caption)
                                     .foregroundColor(UI.muted)
                             }
@@ -90,12 +90,12 @@ struct JoinGroupView: View {
                     
                     
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Código del Grupo")
+                        Text("Group Code")
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundColor(UI.navy)
                         
-                        TextField("Ej: ABC123", text: $groupCode)
+                        TextField("Ex: ABC123", text: $groupCode)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .textCase(.uppercase)
                             .autocorrectionDisabled()
@@ -112,7 +112,7 @@ struct JoinGroupView: View {
                                 Image(systemName: "plus.circle.fill")
                             }
                             
-                            Text(sharedCalendarService.isLoading ? "Uniéndose..." : "Unirse al Grupo")
+                            Text(sharedCalendarService.isLoading ? "Joining..." : "Join Group")
                         }
                         .font(.headline)
                         .foregroundColor(.white)
@@ -131,7 +131,7 @@ struct JoinGroupView: View {
             .background(UI.neutralLight)
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
-                leading: Button("Cancelar") {
+                leading: Button("Cancel") {
                     presentationMode.wrappedValue.dismiss()
                 }
             )
@@ -141,7 +141,7 @@ struct JoinGroupView: View {
                 handleScannedCode(scannedCode)
             }
         }
-        .alert("¡Éxito!", isPresented: $showingSuccessAlert) {
+        .alert("Success!", isPresented: $showingSuccessAlert) {
             Button("OK") {
                 onGroupJoined()
                 presentationMode.wrappedValue.dismiss()
@@ -178,7 +178,7 @@ struct JoinGroupView: View {
         let trimmedCode = groupCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         
         guard !trimmedCode.isEmpty else {
-            alertMessage = "Por favor introduce un código válido"
+            alertMessage = "Please enter a valid code"
             showingErrorAlert = true
             return
         }
@@ -188,7 +188,7 @@ struct JoinGroupView: View {
             
             await MainActor.run {
                 if sharedCalendarService.errorMessage == nil {
-                    alertMessage = "Te has unido al grupo exitosamente"
+                    alertMessage = "You have successfully joined the group"
                     showingSuccessAlert = true
                 }
             }

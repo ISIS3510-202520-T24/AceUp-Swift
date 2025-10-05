@@ -154,7 +154,7 @@ class QRScannerViewController: UIViewController {
         
         
         let instructionLabel = UILabel()
-        instructionLabel.text = "Escanea el código QR del grupo"
+        instructionLabel.text = "Scan the group's QR code"
         instructionLabel.textColor = .white
         instructionLabel.textAlignment = .center
         instructionLabel.font = UIFont.systemFont(ofSize: 18, weight: .medium)
@@ -169,7 +169,7 @@ class QRScannerViewController: UIViewController {
         
         
         let cancelButton = UIButton(type: .system)
-        cancelButton.setTitle("Cancelar", for: .normal)
+        cancelButton.setTitle("Cancel", for: .normal)
         cancelButton.setTitleColor(.white, for: .normal)
         cancelButton.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .medium)
         cancelButton.backgroundColor = UIColor.black.withAlphaComponent(0.7)
