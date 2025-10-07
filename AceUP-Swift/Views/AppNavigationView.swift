@@ -84,6 +84,8 @@ struct AppNavigationView: View {
                             isSidebarPresented.toggle()
                         }
                     })
+                case .courses:
+                    CoursesListView()
                 case .teachers:
                     TeachersPlaceholder(onMenuTapped: {
                         withAnimation(.easeInOut(duration: 0.3)) {
@@ -96,6 +98,20 @@ struct AppNavigationView: View {
                             isSidebarPresented.toggle()
                         }
                     })
+                case .calendarEvents:
+                    CalendarEventsView(onMenuTapped: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            isSidebarPresented.toggle()
+                        }
+                    })
+                case .userAvailability:
+                    UserAvailabilityView(onMenuTapped: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            isSidebarPresented.toggle()
+                        }
+                    })
+                case .workloadAnalysis:
+                    WorkloadAnalysisView()
                 case .profile:
                     ProfileView(onMenuTapped: {
                         withAnimation(.easeInOut(duration: 0.3)) {
@@ -198,6 +214,8 @@ struct ProfileView: View {
 struct SettingsView: View {
     let onMenuTapped: () -> Void
     let onLogout: () -> Void
+    @State private var showingMigrationView = false
+    @State private var showingOfflineSyncView = false
     
     init(onMenuTapped: @escaping () -> Void = {}, onLogout: @escaping () -> Void = {}) {
         self.onMenuTapped = onMenuTapped
@@ -279,6 +297,40 @@ struct SettingsView: View {
                         SettingsOptionView(title: "Appearance", showDivider: true)
                         SettingsOptionView(title: "Language", showDivider: true)
                         SettingsOptionView(title: "Privacy & Security", showDivider: true)
+                        
+                        // Offline Sync Option
+                        Button(action: {
+                            showingOfflineSyncView = true
+                        }) {
+                            HStack {
+                                Text("Offline & Sync")
+                                    .font(.body)
+                                    .foregroundColor(UI.navy)
+                                
+                                Spacer()
+                                
+                                OfflineStatusIndicator()
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(UI.muted)
+                                    .padding(.leading, 8)
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Divider()
+                            .padding(.horizontal, 20)
+                        
+                        Button(action: {
+                            showingMigrationView = true
+                        }) {
+                            SettingsOptionView(title: "Data Migration", showDivider: true)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
                         SettingsOptionView(title: "Storage", showDivider: false)
                     }
                     .background(UI.neutralLight)
@@ -310,6 +362,12 @@ struct SettingsView: View {
             .background(UI.neutralLight)
         }
         .navigationBarHidden(true)
+        .sheet(isPresented: $showingMigrationView) {
+            DataMigrationView()
+        }
+        .sheet(isPresented: $showingOfflineSyncView) {
+            OfflineSyncSummaryView()
+        }
     }
 }
 

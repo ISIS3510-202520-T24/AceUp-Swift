@@ -27,12 +27,12 @@ struct JoinGroupView: View {
                         .font(.system(size: 60))
                         .foregroundColor(UI.primary)
                     
-                    Text("Unirse a un Grupo")
+                    Text("Join a Private Group")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(UI.navy)
                     
-                    Text("Escanea un código QR o introduce el código del grupo")
+                    Text("All groups are private. You'll need an invite code or QR code from a group member to join.")
                         .font(.body)
                         .foregroundColor(UI.muted)
                         .multilineTextAlignment(.center)
@@ -54,7 +54,7 @@ struct JoinGroupView: View {
                                     .font(.headline)
                                     .foregroundColor(UI.navy)
                                 
-                                Text("Use camera to scan")
+                                Text("Get QR code from group admin")
                                     .font(.caption)
                                     .foregroundColor(UI.muted)
                             }
@@ -90,12 +90,12 @@ struct JoinGroupView: View {
                     
                     
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Group Code")
+                        Text("Invite Code")
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundColor(UI.navy)
                         
-                        TextField("Ex: ABC123", text: $groupCode)
+                        TextField("Enter invite code (e.g., ABC123)", text: $groupCode)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .textCase(.uppercase)
                             .autocorrectionDisabled()

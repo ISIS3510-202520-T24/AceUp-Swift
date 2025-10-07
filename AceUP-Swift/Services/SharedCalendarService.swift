@@ -71,21 +71,21 @@ class SharedCalendarService: ObservableObject {
     }
     
     // MARK: - Group Management
-    func createGroup(name: String, description: String, isPublic: Bool = false) async {
+    func createGroup(name: String, description: String) async {
         isLoading = true
         defer { isLoading = false }
         
         do {
             let groupId = UUID().uuidString
             
-            
+            // Generate invite code for private access
             let groupCode = generateGroupCode()
             let groupData: [String: Any] = [
                 "name": name,
                 "ownerId": currentUserId,
                 "members": [currentUserId], 
                 "createdAt": Timestamp(date: Date()),
-                "isPublic": isPublic,
+                "isPublic": false, // All groups are private
                 "description": description,
                 "color": generateRandomColor(),
                 "inviteCode": groupCode 
@@ -765,8 +765,7 @@ class SharedCalendarService: ObservableObject {
                 createdAt: Date().addingTimeInterval(-86400 * 21),
                 createdBy: "5",
                 color: "#FF6B6B",
-                isPublic: true,
-                inviteCode: "XYZ789"
+                inviteCode: "XYZ789" // All groups now private with invite codes
             ),
             CalendarGroup(
                 id: "3",
@@ -872,8 +871,7 @@ extension SharedCalendarService {
             createdAt: firestoreGroup.createdAt.dateValue(),
             createdBy: firestoreGroup.ownerId,
             color: firestoreGroup.color,
-            isPublic: firestoreGroup.isPublic,
-            inviteCode: firestoreGroup.inviteCode
+            inviteCode: firestoreGroup.inviteCode ?? generateGroupCode() // Ensure all groups have invite codes
         )
     }
     

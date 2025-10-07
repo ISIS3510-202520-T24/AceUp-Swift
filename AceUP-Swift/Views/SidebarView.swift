@@ -111,6 +111,16 @@ struct SidebarView: View {
                     
                     MenuItemView(
                         icon: nil,
+                        title: "Courses",
+                        isSelected: selectedView == .courses,
+                        action: {
+                            selectedView = .courses
+                            isPresented = false
+                        }
+                    )
+                    
+                    MenuItemView(
+                        icon: nil,
                         title: "Teachers",
                         isSelected: selectedView == .teachers,
                         action: {
@@ -125,6 +135,47 @@ struct SidebarView: View {
                         isSelected: selectedView == .holidays,
                         action: {
                             selectedView = .holidays
+                            isPresented = false
+                        }
+                    )
+                }
+                
+                // Phase 2: Smart Features
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Smart Features")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .foregroundColor(UI.navy)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 20)
+                        .padding(.bottom, 10)
+                    
+                    MenuItemView(
+                        icon: nil,
+                        title: "Calendar Events",
+                        isSelected: selectedView == .calendarEvents,
+                        action: {
+                            selectedView = .calendarEvents
+                            isPresented = false
+                        }
+                    )
+                    
+                    MenuItemView(
+                        icon: nil,
+                        title: "Availability",
+                        isSelected: selectedView == .userAvailability,
+                        action: {
+                            selectedView = .userAvailability
+                            isPresented = false
+                        }
+                    )
+                    
+                    MenuItemView(
+                        icon: nil,
+                        title: "Workload Analysis",
+                        isSelected: selectedView == .workloadAnalysis,
+                        action: {
+                            selectedView = .workloadAnalysis
                             isPresented = false
                         }
                     )
@@ -199,8 +250,12 @@ enum AppView {
     case groupCalendar
     case planner
     case assignments
+    case courses
     case teachers
     case holidays
+    case calendarEvents
+    case userAvailability
+    case workloadAnalysis
     case profile
     case settings
 }

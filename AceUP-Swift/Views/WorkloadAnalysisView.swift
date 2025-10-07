@@ -1,401 +1,470 @@
-//
-//  WorkloadAnalysisView.swift
-//  AceUP-Swift
-//
-//  Created by Ángel Farfán Arcila on 4/10/25.
-//
-
 import SwiftUI
+import FirebaseFirestore
 
 struct WorkloadAnalysisView: View {
-    let analysis: WorkloadAnalysis?
-    @Environment(\.dismiss) private var dismiss
+    @StateObject private var repository = OfflineWorkloadAnalysisRepository()
+    @StateObject private var assignmentRepository = OfflineAssignmentRepository()
+    @State private var selectedAnalysis: WorkloadAnalysis?
+    @State private var isGeneratingAnalysis = false
+    @State private var showingGenerateAnalysis = false
+    
+    var currentAnalysis: WorkloadAnalysis? {
+        repository.analyses.first
+    }
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    if let analysis = analysis {
-                        // Overview Cards
-                        overviewSection(analysis)
-                        
-                        // Weekly Distribution Chart
-                        weeklyDistributionSection(analysis)
-                        
-                        // Recommendations
-                        recommendationsSection(analysis)
-                        
-                        // Workload Balance
-                        workloadBalanceSection(analysis)
-                    } else {
-                        emptyStateView
-                    }
+            VStack(spacing: 0) {
+                // Offline Status Indicator
+                if repository.isOfflineMode || repository.syncStatus != .synced {
+                    OfflineStatusIndicator()
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 30)
+                
+                ScrollView {
+                    LazyVStack(spacing: 20) {
+                        headerSection
+                        
+                        if let analysis = selectedAnalysis ?? currentAnalysis {
+                            latestAnalysisCard(analysis)
+                            workloadChartCard(analysis)
+                            recommendationsCard(analysis)
+                            analysisHistoryCard
+                        } else {
+                            emptyStateCard
+                        }
+                    }
+                    .padding()
+                }
             }
+            .background(Color(.systemGray6))
             .navigationTitle("Workload Analysis")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
+            .navigationBarTitleDisplayMode(.large)
+            .onAppear {
+                setupView()
             }
         }
     }
     
-    // MARK: - Overview Section
-    
-    private func overviewSection(_ analysis: WorkloadAnalysis) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
+    // MARK: - Header Section
+    private var headerSection: some View {
+        VStack(spacing: 0) {
             HStack {
-                Image(systemName: "chart.bar.doc.horizontal")
-                    .foregroundColor(UI.primary)
-                Text("Overview")
+                Text("Smart Workload Analysis")
                     .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                Spacer()
-            }
-            
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 12) {
-                OverviewCard(
-                    title: "Total Assignments",
-                    value: "\(analysis.totalAssignments)",
-                    icon: "doc.text",
-                    color: UI.primary
-                )
-                
-                OverviewCard(
-                    title: "Daily Average",
-                    value: String(format: "%.1f", analysis.averageDaily),
-                    icon: "calendar",
-                    color: UI.secondary
-                )
-                
-                OverviewCard(
-                    title: "Overload Days",
-                    value: "\(analysis.overloadDays.count)",
-                    icon: "exclamationmark.triangle",
-                    color: analysis.hasOverload ? Color.orange : UI.success
-                )
-                
-                OverviewCard(
-                    title: "Balance Score",
-                    value: analysis.workloadBalance.displayName,
-                    icon: analysis.workloadBalance.icon,
-                    color: Color(hex: analysis.workloadBalance.color)
-                )
-            }
-        }
-        .padding(.top, 16)
-    }
-    
-    // MARK: - Weekly Distribution
-    
-    private func weeklyDistributionSection(_ analysis: WorkloadAnalysis) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Image(systemName: "chart.bar")
-                    .foregroundColor(UI.primary)
-                Text("Weekly Distribution")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                Spacer()
-            }
-            
-            WeeklyDistributionChart(dailyWorkload: analysis.dailyWorkload)
-        }
-    }
-    
-    // MARK: - Recommendations
-    
-    private func recommendationsSection(_ analysis: WorkloadAnalysis) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Image(systemName: "lightbulb")
-                    .foregroundColor(UI.primary)
-                Text("Smart Recommendations")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                Spacer()
-            }
-            
-            if analysis.recommendations.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle")
-                        .font(.title)
-                        .foregroundColor(UI.success)
-                    
-                    Text("Great workload distribution!")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(UI.navy)
-                    
-                    Text("Your assignments are well balanced across the week.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.vertical, 20)
-                .frame(maxWidth: .infinity)
-                .background(UI.success.opacity(0.1))
-                .cornerRadius(12)
-            } else {
-                VStack(spacing: 12) {
-                    ForEach(Array(analysis.recommendations.enumerated()), id: \.offset) { index, recommendation in
-                        RecommendationCard(
-                            recommendation: recommendation,
-                            index: index + 1
-                        )
-                    }
-                }
-            }
-        }
-    }
-    
-    // MARK: - Workload Balance
-    
-    private func workloadBalanceSection(_ analysis: WorkloadAnalysis) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Image(systemName: "scale.3d")
-                    .foregroundColor(UI.primary)
-                Text("Workload Balance")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                Spacer()
-            }
-            
-            WorkloadBalanceCard(balance: analysis.workloadBalance)
-        }
-    }
-    
-    // MARK: - Empty State
-    
-    private var emptyStateView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "chart.bar.xaxis")
-                .font(.system(size: 60))
-                .foregroundColor(.secondary)
-            
-            VStack(spacing: 8) {
-                Text("No Analysis Available")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                
-                Text("Add some assignments to see your workload analysis")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-        }
-        .padding(.top, 100)
-    }
-}
-
-// MARK: - Supporting Views
-
-struct OverviewCard: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Image(systemName: icon)
-                    .foregroundColor(color)
-                    .font(.title2)
-                Spacer()
-            }
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(value)
-                    .font(.title)
                     .fontWeight(.bold)
                     .foregroundColor(UI.navy)
                 
-                Text(title)
+                Spacer()
+                
+                Button(action: { 
+                    if isGeneratingAnalysis {
+                        return
+                    } else {
+                        generateQuickAnalysis()
+                    }
+                }) {
+                    if isGeneratingAnalysis {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: UI.primary))
+                            .scaleEffect(0.8)
+                    } else {
+                        Image(systemName: "chart.bar.xaxis")
+                            .font(.title2)
+                            .foregroundColor(UI.primary)
+                    }
+                }
+                .disabled(isGeneratingAnalysis)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            
+            Divider()
+        }
+        .background(.white)
+    }
+    
+    // MARK: - Latest Analysis Card
+    private func latestAnalysisCard(_ analysis: WorkloadAnalysis) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Current Workload")
+                    .font(.headline)
+                    .foregroundColor(UI.navy)
+                
+                Spacer()
+                
+                Text(DateFormatter.mediumDate.string(from: analysis.analysisDate))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(16)
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-    }
-}
-
-struct WeeklyDistributionChart: View {
-    let dailyWorkload: [Date: [Assignment]]
-    
-    var body: some View {
-        VStack(spacing: 12) {
-            // Chart
-            HStack(alignment: .bottom, spacing: 8) {
-                ForEach(sortedDays, id: \.self) { day in
-                    let count = dailyWorkload[day]?.count ?? 0
-                    let maxCount = dailyWorkload.values.map { $0.count }.max() ?? 1
-                    let height = count == 0 ? 8.0 : max(8.0, CGFloat(count) / CGFloat(maxCount) * 100)
+            
+            // Balance indicator
+            HStack(spacing: 16) {
+                // Balance status
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Balance")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                     
-                    VStack(spacing: 4) {
-                        // Bar
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(barColor(for: count))
-                            .frame(width: 30, height: height)
-                            .animation(.easeInOut(duration: 0.3), value: height)
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(Color(hex: analysis.workloadBalance.color))
+                            .frame(width: 12, height: 12)
                         
-                        // Count label
-                        Text("\(count)")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .foregroundColor(UI.navy)
-                        
-                        // Day label
-                        Text(dayLabel(for: day))
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                        Text(analysis.workloadBalance.displayName)
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(Color(hex: analysis.workloadBalance.color))
+                    }
+                }
+                
+                Spacer()
+                
+                // Key metrics
+                VStack(alignment: .trailing, spacing: 4) {
+                    HStack(spacing: 12) {
+                        metricPill(title: "\(analysis.totalAssignments)", subtitle: "Assignments", color: UI.primary)
+                        metricPill(title: String(format: "%.1f", analysis.averageDaily), subtitle: "Avg Daily", color: .orange)
+                    }
+                    
+                    if !analysis.overloadDays.isEmpty {
+                        metricPill(title: "\(analysis.overloadDays.count)", subtitle: "Overload Days", color: .red)
                     }
                 }
             }
-            .frame(height: 140)
             
-            // Legend
-            HStack(spacing: 16) {
-                LegendItem(color: UI.success, label: "Light (0-1)")
-                LegendItem(color: UI.primary, label: "Normal (2)")
-                LegendItem(color: .orange, label: "Heavy (3+)")
-            }
-            .font(.caption2)
+            // Description
+            Text(analysis.workloadBalance.description)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
         }
-        .padding(16)
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.white)
+                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+        )
     }
     
-    private var sortedDays: [Date] {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        
-        return (0..<7).compactMap { dayOffset in
-            calendar.date(byAdding: .day, value: dayOffset, to: today)
-        }
-    }
-    
-    private func barColor(for count: Int) -> Color {
-        if count == 0 || count == 1 { return UI.success }
-        if count == 2 { return UI.primary }
-        return .orange
-    }
-    
-    private func dayLabel(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE"
-        return formatter.string(from: date)
-    }
-}
-
-struct LegendItem: View {
-    let color: Color
-    let label: String
-    
-    var body: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-            Text(label)
-        }
-    }
-}
-
-struct RecommendationCard: View {
-    let recommendation: String
-    let index: Int
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // Number badge
-            Text("\(index)")
-                .font(.caption)
+    private func metricPill(title: String, subtitle: String, color: Color) -> some View {
+        VStack(spacing: 2) {
+            Text(title)
+                .font(.headline)
                 .fontWeight(.bold)
-                .foregroundColor(.white)
-                .frame(width: 20, height: 20)
-                .background(UI.primary)
-                .clipShape(Circle())
+                .foregroundColor(color)
             
-            // Recommendation text
+            Text(subtitle)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(color.opacity(0.1))
+        )
+    }
+    
+    // MARK: - Empty State Card
+    private var emptyStateCard: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "chart.line.uptrend.xyaxis")
+                .font(.system(size: 50))
+                .foregroundColor(.gray)
+            
+            Text("No Analysis Available")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            
+            Text("Generate your first workload analysis to understand your assignment distribution and get personalized recommendations.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            
+            Button("Generate Analysis") {
+                generateQuickAnalysis()
+            }
+            .foregroundColor(.white)
+            .font(.headline)
+            .padding()
+            .background(UI.primary)
+            .cornerRadius(10)
+        }
+        .padding(.vertical, 20)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.white)
+                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+        )
+    }
+    
+    // MARK: - Workload Chart Card
+    private func workloadChartCard(_ analysis: WorkloadAnalysis) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Daily Workload Distribution")
+                .font(.headline)
+                .foregroundColor(UI.navy)
+            
+            if !analysis.dailyWorkload.isEmpty {
+                workloadChart(analysis.dailyWorkload)
+            } else {
+                Text("No daily workload data available")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(height: 200)
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.white)
+                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+        )
+    }
+    
+    @ViewBuilder
+    private func workloadChart(_ dailyWorkload: [Date: Double]) -> some View {
+        let sortedData = dailyWorkload.sorted { $0.key < $1.key }
+        
+        // Fallback chart for all iOS versions
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(sortedData.enumerated()), id: \.offset) { index, data in
+                HStack {
+                    Text(DateFormatter.shortDay.string(from: data.key))
+                        .font(.caption)
+                        .frame(width: 40, alignment: .leading)
+                    
+                    GeometryReader { geometry in
+                        HStack(spacing: 0) {
+                            Rectangle()
+                                .fill(workloadColor(data.value))
+                                .frame(width: max(4, (data.value / 10.0) * geometry.size.width))
+                                .cornerRadius(2)
+                            
+                            Spacer()
+                        }
+                    }
+                    .frame(height: 16)
+                    
+                    Text(String(format: "%.1f", data.value))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .frame(width: 30, alignment: .trailing)
+                }
+            }
+        }
+        .frame(height: 200)
+    }
+    
+    private func workloadColor(_ value: Double) -> Color {
+        switch value {
+        case 0..<2:
+            return .green
+        case 2..<4:
+            return .yellow
+        case 4..<6:
+            return .orange
+        default:
+            return .red
+        }
+    }
+    
+    // MARK: - Recommendations Card
+    private func recommendationsCard(_ analysis: WorkloadAnalysis) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "lightbulb")
+                    .foregroundColor(.yellow)
+                Text("Recommendations")
+                    .font(.headline)
+                    .foregroundColor(UI.navy)
+            }
+            
+            if analysis.recommendations.isEmpty {
+                Text("No specific recommendations at this time.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .italic()
+            } else {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(analysis.recommendations.enumerated()), id: \.offset) { index, recommendation in
+                        recommendationRow(recommendation, index: index)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.white)
+                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+        )
+    }
+    
+    private func recommendationRow(_ recommendation: String, index: Int) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("\(index + 1).")
+                .font(.caption)
+                .foregroundColor(UI.primary)
+                .fontWeight(.semibold)
+            
             Text(recommendation)
                 .font(.subheadline)
-                .foregroundColor(UI.navy)
+                .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             
             Spacer()
         }
-        .padding(16)
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+    }
+    
+    // MARK: - Analysis History Card
+    private var analysisHistoryCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Analysis History")
+                .font(.headline)
+                .foregroundColor(UI.navy)
+            
+            if repository.analyses.isEmpty {
+                Text("No previous analyses available")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .italic()
+            } else {
+                LazyVStack(spacing: 8) {
+                    ForEach(repository.analyses.prefix(5)) { analysis in
+                        analysisHistoryRow(analysis)
+                    }
+                    
+                    if repository.analyses.count > 5 {
+                        Button("View All Analyses") {
+                            // TODO: Navigate to full history
+                        }
+                        .foregroundColor(UI.primary)
+                        .font(.caption)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.white)
+                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+        )
+    }
+    
+    private func analysisHistoryRow(_ analysis: WorkloadAnalysis) -> some View {
+        Button(action: {
+            selectedAnalysis = analysis
+        }) {
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(Color(hex: analysis.workloadBalance.color))
+                    .frame(width: 8, height: 8)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(DateFormatter.mediumDate.string(from: analysis.analysisDate))
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(UI.navy)
+                    
+                    Text("\(analysis.totalAssignments) assignments • \(analysis.workloadBalance.displayName)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func setupView() {
+        Task {
+            if repository.isOfflineMode {
+                repository.refreshData()
+                assignmentRepository.refreshData()
+            } else {
+                try? await repository.syncWithFirebase()
+                try? await assignmentRepository.syncWithFirebase()
+            }
+        }
+    }
+    
+    private func generateQuickAnalysis() {
+        isGeneratingAnalysis = true
+        
+        Task {
+            do {
+                _ = try await repository.generateAnalysis()
+                
+                await MainActor.run {
+                    isGeneratingAnalysis = false
+                }
+                
+            } catch {
+                await MainActor.run {
+                    isGeneratingAnalysis = false
+                    // Handle error - show alert or toast
+                }
+            }
+        }
     }
 }
 
-struct WorkloadBalanceCard: View {
-    let balance: WorkloadBalance
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            // Balance icon
-            Image(systemName: balance.icon)
-                .font(.title)
-                .foregroundColor(Color(hex: balance.color))
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Balance: \(balance.displayName)")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                
-                Text(balanceDescription)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
+// MARK: - Extensions
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
         }
-        .padding(16)
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+        
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue:  Double(b) / 255,
+            opacity: Double(a) / 255
+        )
     }
+}
+
+extension DateFormatter {
+    static let shortDay: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "E"
+        return formatter
+    }()
     
-    private var balanceDescription: String {
-        switch balance {
-        case .excellent:
-            return "Perfect distribution with no overload days"
-        case .good:
-            return "Well balanced with minimal conflicts"
-        case .fair:
-            return "Some heavy days that could be redistributed"
-        case .poor:
-            return "Multiple overload days - consider redistributing work"
-        }
-    }
+    static let mediumDate: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
 }
 
 #Preview {
-    WorkloadAnalysisView(analysis: nil)
+    WorkloadAnalysisView()
 }

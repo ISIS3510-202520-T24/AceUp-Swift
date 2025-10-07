@@ -1,34 +1,49 @@
-//
-//  CreateAssignmentView.swift
-//  AceUP-Swift
-//
-//  Created by Ana M. Sánchez on 4/10/25.
-//
-
 import SwiftUI
 
 struct CreateAssignmentView: View {
     @ObservedObject var viewModel: AssignmentViewModel
+    let offlineRepository: OfflineAssignmentRepository?
     @Environment(\.dismiss) private var dismiss
     @State private var showingAdvancedOptions = false
     
+    // Default initializer for backward compatibility
+    init(viewModel: AssignmentViewModel) {
+        self.viewModel = viewModel
+        self.offlineRepository = nil
+    }
+    
+    // New initializer with offline support
+    init(viewModel: AssignmentViewModel, offlineRepository: OfflineAssignmentRepository) {
+        self.viewModel = viewModel
+        self.offlineRepository = offlineRepository
+    }
+    
     var body: some View {
         NavigationView {
-            Form {
-                basicInfoSection
-                
-                if showingAdvancedOptions {
-                    advancedOptionsSection
+            VStack(spacing: 0) {
+                // Offline Status Indicator
+                if let repository = offlineRepository, (repository.isOfflineMode || repository.syncStatus != .synced) {
+                    OfflineStatusIndicator()
+                        .padding()
+                        .background(Color(.systemGroupedBackground))
                 }
                 
-                Section {
-                    Button(action: { showingAdvancedOptions.toggle() }) {
-                        HStack {
-                            Text(showingAdvancedOptions ? "Hide Advanced Options" : "Show Advanced Options")
-                            Spacer()
-                            Image(systemName: showingAdvancedOptions ? "chevron.up" : "chevron.down")
+                Form {
+                    basicInfoSection
+                    
+                    if showingAdvancedOptions {
+                        advancedOptionsSection
+                    }
+                    
+                    Section {
+                        Button(action: { showingAdvancedOptions.toggle() }) {
+                            HStack {
+                                Text(showingAdvancedOptions ? "Hide Advanced Options" : "Show Advanced Options")
+                                Spacer()
+                                Image(systemName: showingAdvancedOptions ? "chevron.up" : "chevron.down")
+                            }
+                            .foregroundColor(UI.primary)
                         }
-                        .foregroundColor(UI.primary)
                     }
                 }
             }
@@ -44,10 +59,70 @@ struct CreateAssignmentView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
-                        Task {
-                            await viewModel.createAssignment()
-                            if !viewModel.showingCreateAssignment {
+                    saveButton
+                }
+            }
+        }
+    }
+    
+    // MARK: - Save Button
+    private var saveButton: some View {
+        Button("Save") {
+            Task {
+                await saveAssignment()
+            }
+        }
+        .disabled(!isFormValid)
+        .foregroundColor(isFormValid ? UI.primary : .gray)
+    }
+    
+    // MARK: - Save Assignment with Offline Support
+    private func saveAssignment() async {
+        if let offlineRepository = offlineRepository {
+            // Create assignment for offline repository
+            let assignment = createAssignmentFromForm()
+            offlineRepository.addAssignment(assignment)
+            
+            // Also save with view model for compatibility
+            await viewModel.createAssignment()
+        } else {
+            // Use existing view model save
+            await viewModel.createAssignment()
+        }
+        
+        if !viewModel.showingCreateAssignment {
+            dismiss()
+        }
+    }
+    
+    private func createAssignmentFromForm() -> Assignment {
+        return Assignment(
+            id: UUID().uuidString,
+            title: viewModel.newAssignmentTitle,
+            description: viewModel.newAssignmentDescription,
+            dueDate: viewModel.newAssignmentDueDate,
+            priority: viewModel.newAssignmentPriority,
+            status: .pending,
+            subject: viewModel.newAssignmentSubject,
+            courseName: viewModel.newAssignmentCourse,
+            courseColor: viewModel.courseColors[viewModel.newAssignmentCourse] ?? "#007AFF",
+            weightPercentage: viewModel.newAssignmentWeight,
+            estimatedDuration: viewModel.newAssignmentDuration,
+            subtasks: [],
+            attachments: [],
+            notes: viewModel.newAssignmentNotes,
+            createdDate: Date(),
+            lastModified: Date(),
+            completedDate: nil,
+            userId: "currentUser" // In real app, get from auth
+        )
+    }
+    
+    private var isFormValid: Bool {
+        !viewModel.newAssignmentTitle.isEmpty &&
+        !viewModel.newAssignmentSubject.isEmpty &&
+        !viewModel.newAssignmentCourse.isEmpty
+    }
                                 dismiss()
                             }
                         }

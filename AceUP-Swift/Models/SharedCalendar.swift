@@ -16,16 +16,17 @@ struct CalendarGroup: Codable, Identifiable, Hashable {
     let createdAt: Date
     let createdBy: String
     let color: String
-    let isPublic: Bool
-    let inviteCode: String? 
+    let inviteCode: String // Always required for private groups
+    
+    // All groups are now private by default
+    var isPublic: Bool { false }
     
     var memberCount: Int {
         members.count
     }
     
     var qrCodeURL: String? {
-        guard let code = inviteCode else { return nil }
-        return "aceup://join/\(code)"
+        return "aceup://join/\(inviteCode)"
     }
 }
 

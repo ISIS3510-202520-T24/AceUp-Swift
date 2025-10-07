@@ -79,11 +79,11 @@ struct GroupQRCodeView: View {
                 }
                 
                 VStack(spacing: 15) {
-                    Text("Share this code")
+                    Text("Private Group Access")
                         .font(.headline)
                         .foregroundColor(UI.navy)
                     
-                    Text("Users can scan this QR code or enter the code manually to join the group")
+                    Text("This is a private group. Share this QR code or invitation code with users you want to invite. Only users with this code can join the group.")
                         .font(.body)
                         .foregroundColor(UI.muted)
                         .multilineTextAlignment(.center)

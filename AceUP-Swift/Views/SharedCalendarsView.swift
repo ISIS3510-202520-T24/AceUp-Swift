@@ -426,11 +426,10 @@ struct GroupRow: View {
                         .foregroundColor(UI.muted)
                         .font(.caption)
                     
-                    if group.isPublic {
-                        Image(systemName: "globe")
-                            .foregroundColor(UI.primary)
-                            .font(.caption2)
-                    }
+                    // All groups are private
+                    Image(systemName: "lock.fill")
+                        .foregroundColor(UI.primary)
+                        .font(.caption2)
                 }
             }
         }
@@ -606,21 +605,31 @@ struct CreateGroupView: View {
                         StyledTextField("Describe your group's purpose", text: $viewModel.newGroupDescription)
                     }
                     
-                    HStack {
-                        Toggle("Public Group", isOn: $viewModel.newGroupIsPublic)
-                            .toggleStyle(CheckToggleStyle())
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Public Group")
-                                .font(.subheadline)
-                                .foregroundColor(UI.navy)
+                    // Private Group Information
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "lock.shield")
+                                .foregroundColor(UI.primary)
+                                .font(.title3)
                             
-                            Text("Anyone can find and join this group")
-                                .font(.caption)
-                                .foregroundColor(UI.muted)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Private Group")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(UI.navy)
+                                
+                                Text("Members can only join with an invite code or QR scan")
+                                    .font(.caption)
+                                    .foregroundColor(UI.muted)
+                            }
+                            
+                            Spacer()
                         }
-                        
-                        Spacer()
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(UI.primary.opacity(0.1))
+                        )
                     }
                 }
                 

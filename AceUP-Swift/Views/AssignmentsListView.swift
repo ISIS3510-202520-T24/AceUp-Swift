@@ -1,16 +1,10 @@
-//
-//  AssignmentsListView.swift
-//  AceUP-Swift
-//
-//  Created by Ana M. Sánchez on 4/10/25.
-//
-
 import SwiftUI
 
 /// Main assignments list view with smart features and analytics
 struct AssignmentsListView: View {
     let onMenuTapped: () -> Void
     @StateObject private var viewModel = AssignmentViewModel()
+    @StateObject private var offlineRepository = OfflineAssignmentRepository()
     @State private var selectedFilter: AssignmentFilter = .all
     @State private var searchText = ""
     @State private var showingWorkloadAnalysis = false
@@ -21,6 +15,13 @@ struct AssignmentsListView: View {
     
     var body: some View {
         VStack(spacing: 0) {
+            // Offline Status Indicator
+            if offlineRepository.isOfflineMode || offlineRepository.syncStatus != .synced {
+                OfflineStatusIndicator()
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+            }
+            
             // Header
             headerView
             
@@ -32,19 +33,22 @@ struct AssignmentsListView: View {
                 smartRecommendationsView
             }
             
-            // Assignment List
-            assignmentListView
+            // Assignment List with Offline Support
+            offlineAwareAssignmentListView
         }
         .navigationBarHidden(true)
-        .overlay(fabButton, alignment: .bottomTrailing)
+        .overlay(offlineFabButton, alignment: .bottomTrailing)
         .sheet(isPresented: $viewModel.showingCreateAssignment) {
-            CreateAssignmentView(viewModel: viewModel)
+            CreateAssignmentView(viewModel: viewModel, offlineRepository: offlineRepository)
         }
         .sheet(isPresented: $showingWorkloadAnalysis) {
-            WorkloadAnalysisView(analysis: viewModel.workloadAnalysis)
+            WorkloadAnalysisView()
         }
         .task {
-            await viewModel.loadAssignments()
+            await loadAssignmentsWithOfflineSupport()
+        }
+        .onAppear {
+            offlineRepository.refreshData()
         }
     }
     
@@ -158,6 +162,29 @@ struct AssignmentsListView: View {
         .background(Color(.systemGroupedBackground))
     }
     
+    // MARK: - Offline-Aware Assignment List
+    
+    private var offlineAwareAssignmentListView: some View {
+        OfflineAwareListView(
+            items: filteredOfflineAssignments,
+            isOfflineMode: offlineRepository.isOfflineMode,
+            syncStatus: offlineRepository.syncStatus
+        ) { assignment in
+            AssignmentCard(
+                assignment: assignment,
+                isOfflineMode: offlineRepository.isOfflineMode,
+                onToggleComplete: {
+                    handleOfflineToggleComplete(assignment)
+                },
+                onEdit: {
+                    viewModel.selectedAssignment = assignment
+                }
+            )
+            .padding(.horizontal, 16)
+        }
+        .background(UI.neutralLight)
+    }
+    
     // MARK: - Assignment List
     
     private var assignmentListView: some View {
@@ -187,6 +214,22 @@ struct AssignmentsListView: View {
             .padding(.bottom, 100) // Space for FAB
         }
         .background(UI.neutralLight)
+    }
+    
+    // MARK: - Offline-Aware FAB
+    
+    private var offlineFabButton: some View {
+        OfflineAwareButton(
+            title: "+",
+            isOfflineMode: offlineRepository.isOfflineMode
+        ) {
+            viewModel.showingCreateAssignment = true
+        }
+        .frame(width: 56, height: 56)
+        .clipShape(Circle())
+        .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+        .padding(.trailing, 20)
+        .padding(.bottom, 30)
     }
     
     // MARK: - FAB
@@ -281,8 +324,25 @@ struct AssignmentsListView: View {
 
 struct AssignmentCard: View {
     let assignment: Assignment
+    let isOfflineMode: Bool
     let onToggleComplete: () -> Void
     let onEdit: () -> Void
+    
+    // Default initializer for backward compatibility
+    init(assignment: Assignment, onToggleComplete: @escaping () -> Void, onEdit: @escaping () -> Void) {
+        self.assignment = assignment
+        self.isOfflineMode = false
+        self.onToggleComplete = onToggleComplete
+        self.onEdit = onEdit
+    }
+    
+    // New initializer with offline support
+    init(assignment: Assignment, isOfflineMode: Bool, onToggleComplete: @escaping () -> Void, onEdit: @escaping () -> Void) {
+        self.assignment = assignment
+        self.isOfflineMode = isOfflineMode
+        self.onToggleComplete = onToggleComplete
+        self.onEdit = onEdit
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -304,7 +364,18 @@ struct AssignmentCard: View {
                 Spacer()
                 
                 VStack(alignment: .trailing, spacing: 4) {
-                    PriorityBadge(priority: assignment.priority)
+                    HStack(spacing: 4) {
+                        if isOfflineMode {
+                            Image(systemName: "wifi.slash")
+                                .font(.caption2)
+                                .foregroundColor(.orange)
+                                .padding(2)
+                                .background(Color.orange.opacity(0.1))
+                                .clipShape(Circle())
+                        }
+                        
+                        PriorityBadge(priority: assignment.priority)
+                    }
                     StatusBadge(status: assignment.status)
                 }
             }
@@ -527,6 +598,167 @@ struct EmptyAssignmentsView: View {
     
     private var emptyMessage: String {
         switch filter {
+        case .completed: return "Keep working on your assignments to see completed ones here"
+        case .overdue: return "Great! You're caught up with your assignments"
+        case .dueToday: return "No assignments due today. Take a break or work ahead!"
+        case .dueTomorrow: return "No assignments due tomorrow. You're in good shape!"
+        case .highPriority: return "No urgent assignments. Keep up the good work!"
+        default: return "Add some assignments to get started"
+        }
+    }
+    
+    // MARK: - Offline-Specific Properties and Methods
+    
+    private var filteredOfflineAssignments: [Assignment] {
+        let assignments = offlineRepository.assignments
+        let searchFiltered = searchText.isEmpty ? 
+            assignments : 
+            assignments.filter { assignment in
+                assignment.title.localizedCaseInsensitiveContains(searchText) ||
+                assignment.subject.localizedCaseInsensitiveContains(searchText) ||
+                assignment.description.localizedCaseInsensitiveContains(searchText)
+            }
+        
+        switch selectedFilter {
+        case .all:
+            return searchFiltered
+        case .pending:
+            return searchFiltered.filter { $0.status == .pending }
+        case .inProgress:
+            return searchFiltered.filter { $0.status == .inProgress }
+        case .completed:
+            return searchFiltered.filter { $0.status == .completed }
+        case .overdue:
+            return searchFiltered.filter { $0.isOverdue }
+        case .dueToday:
+            return searchFiltered.filter { $0.isDueToday }
+        case .dueTomorrow:
+            return searchFiltered.filter { $0.isDueTomorrow }
+        case .highPriority:
+            return searchFiltered.filter { $0.priority == .high || $0.priority == .critical }
+        }
+    }
+    
+    private func loadAssignmentsWithOfflineSupport() async {
+        if offlineRepository.isOfflineMode {
+            // Load from local storage
+            offlineRepository.refreshData()
+        } else {
+            // Sync with Firebase
+            try? await offlineRepository.syncWithFirebase()
+            // Also load with existing view model for compatibility
+            await viewModel.loadAssignments()
+        }
+    }
+    
+    private func handleOfflineToggleComplete(_ assignment: Assignment) {
+        var updatedAssignment = assignment
+        updatedAssignment.status = assignment.status == .completed ? .pending : .completed
+        updatedAssignment.completedDate = assignment.status == .completed ? nil : Date()
+        
+        offlineRepository.updateAssignment(updatedAssignment)
+        
+        // Also update view model for compatibility
+        Task {
+            await viewModel.markAsCompleted(assignment.id)
+        }
+    }
+}
+
+// MARK: - Offline-Aware Assignment Card
+struct OfflineAssignmentCard: View {
+    let assignment: Assignment
+    let isOfflineMode: Bool
+    let onToggleComplete: () -> Void
+    let onEdit: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header with offline indicator
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(assignment.title)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(UI.navy)
+                    
+                    Text(assignment.subject)
+                        .font(.subheadline)
+                        .foregroundColor(UI.primary)
+                }
+                
+                Spacer()
+                
+                if isOfflineMode {
+                    Image(systemName: "wifi.slash")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .padding(4)
+                        .background(Color.orange.opacity(0.1))
+                        .clipShape(Circle())
+                }
+                
+                Button(action: onToggleComplete) {
+                    Image(systemName: assignment.status == .completed ? "checkmark.circle.fill" : "circle")
+                        .font(.title2)
+                        .foregroundColor(assignment.status == .completed ? .green : .gray)
+                }
+            }
+            
+            // Description
+            if !assignment.description.isEmpty {
+                Text(assignment.description)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+            
+            // Due date and priority
+            HStack {
+                Label(DateFormatter.shortDate.string(from: assignment.dueDate), systemImage: "calendar")
+                    .font(.caption)
+                    .foregroundColor(assignment.isOverdue ? .red : .secondary)
+                
+                Spacer()
+                
+                PriorityBadge(priority: assignment.priority)
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.white)
+                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+        )
+        .onTapGesture {
+            onEdit()
+        }
+    }
+}
+
+// MARK: - Extensions for Assignment Properties
+extension Assignment {
+    var isOverdue: Bool {
+        return dueDate < Date() && status != .completed
+    }
+    
+    var isDueToday: Bool {
+        return Calendar.current.isDateInToday(dueDate)
+    }
+    
+    var isDueTomorrow: Bool {
+        return Calendar.current.isDateInTomorrow(dueDate)
+    }
+}
+
+extension DateFormatter {
+    static let shortDate: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .none
+        return formatter
+    }()
+}
         case .completed: return "Complete some assignments to see them here"
         case .overdue: return "Great! You're staying on top of your work"
         case .dueToday: return "Enjoy your free day or work on upcoming assignments"
