@@ -6,8 +6,8 @@
 //
 
 import Foundation
-//Aqui no es necesario pero solo se hace para mapear errores comodamente
 import Firebase
+import FirebaseAuth
 
 @MainActor
 final class SignUpViewModel: ObservableObject {
@@ -60,25 +60,60 @@ final class SignUpViewModel: ObservableObject {
     //Accion principal
     
     func signUp() async {
+        print("🔥 SignUpViewModel: Starting signup process")
         errorMessage = nil
         didComplete = false
         
+        // Check if there's already a logged-in user
+        if authService.isLoggedIn {
+            print("🔥 SignUpViewModel: User already logged in, signing out first")
+            do {
+                try authService.signOut()
+            } catch {
+                print("🔥 SignUpViewModel: Failed to sign out existing user: \(error)")
+            }
+        }
+        
         // Valdiación previa
         if let vErr = firstValidationError {
+            print("🔥 SignUpViewModel: Validation error - \(vErr)")
             errorMessage = vErr
             return
         }
         
         isLoading = true
-        defer {isLoading  = false}
+        defer { isLoading = false }
+        
         do {
             //primero se crea el usuario en firebase
+            print("🔥 SignUpViewModel: Creating user with email: \(email)")
             _ = try await authService.signUp(email: email, password: password, nick: nick)
             
             //mostar si se pudo guardar e identificar
-            
+            print("🔥 SignUpViewModel: Signup completed successfully")
             didComplete = true
+            
+        } catch let error as NSError {
+            print("🔥 SignUpViewModel: Signup failed with NSError - \(error.localizedDescription)")
+            print("🔥 SignUpViewModel: Error domain: \(error.domain), code: \(error.code)")
+            
+            // Handle specific Firebase auth errors
+            switch error.code {
+            case 17007: // FIRAuthErrorCodeEmailAlreadyInUse
+                errorMessage = "This email is already registered. Try signing in instead."
+            case 17026: // FIRAuthErrorCodeWeakPassword
+                errorMessage = "Password is too weak. Please choose a stronger password."
+            case 17008: // FIRAuthErrorCodeInvalidEmail
+                errorMessage = "Invalid email address format."
+            case 17020: // FIRAuthErrorCodeNetworkError
+                errorMessage = "Network error. Please check your internet connection."
+            case 17999: // FIRAuthErrorCodeInternalError
+                errorMessage = "Internal error occurred. Please try again."
+            default:
+                errorMessage = error.localizedDescription
+            }
         } catch {
+            print("🔥 SignUpViewModel: Signup failed with error - \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }

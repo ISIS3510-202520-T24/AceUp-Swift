@@ -14,6 +14,12 @@ class FirebaseConfig {
     private init() {}
     
     func configure() {
+        // Check if Firebase is already configured
+        if FirebaseApp.app() != nil {
+            print("Firebase already configured, skipping")
+            return
+        }
+        
         if let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
            FileManager.default.fileExists(atPath: path) {
             FirebaseApp.configure()
@@ -66,9 +72,26 @@ class FirebaseConfig {
                                     gcmSenderID: "372482326957")
         options.apiKey = apiKey
         options.projectID = "aceup-app-123"
-        options.bundleID = "com.aceup.app"
+        options.bundleID = "prueba.AceUP-Swift"
         options.storageBucket = "aceup-app-123.firebasestorage.app"
         
         FirebaseApp.configure(options: options)
+    }
+    
+    /// Verify that Firebase is properly configured
+    func verifyConfiguration() -> Bool {
+        guard let app = FirebaseApp.app() else {
+            print("Firebase app not configured")
+            return false
+        }
+        
+        let options = app.options
+        
+        print("Firebase configured successfully")
+        print("Bundle ID: \(String(describing: options.bundleID))")
+        print("Project ID: \(String(describing: options.projectID))")
+        print("App ID: \(String(describing: options.googleAppID))")
+        
+        return true
     }
 }

@@ -38,8 +38,15 @@ class SharedCalendarService: ObservableObject {
     
     // MARK: - Firebase Data Loading
     func loadGroupsFromFirebase() async {
-        isLoading = true
-        defer { isLoading = false }
+        await MainActor.run {
+            isLoading = true
+        }
+        
+        defer { 
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
         
         do {
             let groupsSnapshot = try await db.collection("groups")
@@ -56,24 +63,37 @@ class SharedCalendarService: ObservableObject {
                 }
             }
             
-            self.groups = loadedGroups
+            await MainActor.run {
+                self.groups = loadedGroups
+            }
             
-            if groups.isEmpty {
+            if loadedGroups.isEmpty {
                 await createSampleGroupsInFirebase()
             }
             
         } catch {
-            errorMessage = "Error loading groups: \(error.localizedDescription)"
+            await MainActor.run {
+                errorMessage = "Error loading groups: \(error.localizedDescription)"
+            }
             print("Error loading groups from Firebase: \(error)")
            
-            loadMockData()
+            await MainActor.run {
+                loadMockData()
+            }
         }
     }
     
     // MARK: - Group Management
     func createGroup(name: String, description: String) async {
-        isLoading = true
-        defer { isLoading = false }
+        await MainActor.run {
+            isLoading = true
+        }
+        
+        defer { 
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
         
         do {
             let groupId = UUID().uuidString
@@ -107,14 +127,23 @@ class SharedCalendarService: ObservableObject {
             await loadGroupsFromFirebase()
             
         } catch {
-            errorMessage = "Error creating group: \(error.localizedDescription)"
+            await MainActor.run {
+                errorMessage = "Error creating group: \(error.localizedDescription)"
+            }
             print("Error creating group in Firebase: \(error)")
         }
     }
     
     func joinGroup(groupId: String, inviteCode: String? = nil) async {
-        isLoading = true
-        defer { isLoading = false }
+        await MainActor.run {
+            isLoading = true
+        }
+        
+        defer { 
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
         
         do {
             var groupDoc: DocumentSnapshot
@@ -126,7 +155,9 @@ class SharedCalendarService: ObservableObject {
                     .getDocuments()
                 
                 guard let foundGroup = groupsQuery.documents.first else {
-                    errorMessage = "Código de grupo inválido"
+                    await MainActor.run {
+                        errorMessage = "Código de grupo inválido"
+                    }
                     return
                 }
                 
@@ -136,7 +167,9 @@ class SharedCalendarService: ObservableObject {
                 groupDoc = try await db.collection("groups").document(groupId).getDocument()
                 
                 guard groupDoc.exists else {
-                    errorMessage = "Grupo no encontrado"
+                    await MainActor.run {
+                        errorMessage = "Grupo no encontrado"
+                    }
                     return
                 }
             }
@@ -145,7 +178,9 @@ class SharedCalendarService: ObservableObject {
             if let data = groupDoc.data(),
                let members = data["members"] as? [String],
                members.contains(currentUserId) {
-                errorMessage = "Ya eres miembro de este grupo"
+                await MainActor.run {
+                    errorMessage = "Ya eres miembro de este grupo"
+                }
                 return
             }
             
@@ -168,7 +203,9 @@ class SharedCalendarService: ObservableObject {
             await loadGroupsFromFirebase()
             
         } catch {
-            errorMessage = "Error joining group: \(error.localizedDescription)"
+            await MainActor.run {
+                errorMessage = "Error joining group: \(error.localizedDescription)"
+            }
             print("Error joining group in Firebase: \(error)")
         }
     }

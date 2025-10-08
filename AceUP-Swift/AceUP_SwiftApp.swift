@@ -21,6 +21,11 @@ struct AceUP_SwiftApp: App {
     init(){
         FirebaseConfig.shared.configure()
         
+        // Verify Firebase configuration
+        if !FirebaseConfig.shared.verifyConfiguration() {
+            print("⚠️ Firebase configuration verification failed")
+        }
+        
         // Initialize analytics with current user if logged in
         if let currentUser = Auth.auth().currentUser {
             Analytics.shared.identify(userId: currentUser.uid)
@@ -32,6 +37,28 @@ struct AceUP_SwiftApp: App {
             ContentView()
                 .environment(\.managedObjectContext, persistenceController.viewContext)
                 .environmentObject(UserPreferencesManager.shared)
+                .onOpenURL { url in
+                    handleDeepLink(url: url)
+                }
+        }
+        .handlesExternalEvents(matching: ["aceup"])
+    }
+    
+    // MARK: - Deep Link Handling
+    private func handleDeepLink(url: URL) {
+        print("📱 Deep link received: \(url)")
+        
+        // Handle aceup://join/inviteCode URLs
+        if url.scheme == "aceup" && url.host == "join" {
+            let inviteCode = String(url.path.dropFirst()) // Remove leading "/"
+            if !inviteCode.isEmpty {
+                print("🔗 Processing group invitation with code: \(inviteCode)")
+                // Post notification to handle the invite code
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("HandleGroupInviteCode"),
+                    object: inviteCode
+                )
+            }
         }
     }
 }
@@ -43,6 +70,7 @@ struct ContentView: View {
     @State private var needsMigration = false
     @StateObject private var migrationService = DataMigrationService.shared
     @StateObject private var offlineManager = OfflineManager.shared
+    @StateObject private var authService = AuthService()
     
     var body: some View {
         Group {
@@ -59,8 +87,8 @@ struct ContentView: View {
                     OfflineBannerView()
                     
                     AppNavigationView(onLogout: {
-                        withAnimation(.easeInOut(duration: 0.5)) {
-                            isLoggedIn = false
+                        Task {
+                            await handleLogout()
                         }
                     })
                 }
@@ -75,6 +103,33 @@ struct ContentView: View {
         .onChange(of: migrationService.isMigrating) { _, isMigrating in
             if !isMigrating && needsMigration {
                 needsMigration = false
+            }
+        }
+    }
+    
+    @MainActor
+    private func handleLogout() async {
+        print("🔥 Starting logout process")
+        
+        do {
+            try authService.signOut()
+            print("🔥 Firebase sign-out successful")
+            
+            // Clear any cached data
+            await offlineManager.clearOfflineData()
+            print("🔥 Offline data cleared")
+            
+            // Update UI state
+            withAnimation(.easeInOut(duration: 0.5)) {
+                isLoggedIn = false
+            }
+            print("🔥 Logout completed successfully")
+            
+        } catch {
+            print("🔥 Logout failed with error: \(error)")
+            // Even if Firebase signout fails, update UI state
+            withAnimation(.easeInOut(duration: 0.5)) {
+                isLoggedIn = false
             }
         }
     }

@@ -9,6 +9,7 @@ import SwiftUI
 import Foundation
 
 // MARK: - Smart Calendar Analytics Service
+@MainActor
 class SmartCalendarAnalytics: ObservableObject {
     
     @Published var weeklyInsights: [WeeklyInsight] = []
@@ -42,7 +43,7 @@ class SmartCalendarAnalytics: ObservableObject {
             // Create a deferred repository that will be initialized on main actor when needed
             self.assignmentRepository = DeferredAssignmentRepository()
         }
-        Task {
+        Task { @MainActor in
             await refreshData()
         }
     }

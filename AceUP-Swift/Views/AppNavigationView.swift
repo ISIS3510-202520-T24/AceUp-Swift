@@ -12,6 +12,8 @@ struct AppNavigationView: View {
     @State private var selectedView: AppView = .today
     @State private var isSidebarPresented = false
     @State private var selectedGroup: CalendarGroup?
+    @State private var showJoinGroupView = false
+    @State private var pendingInviteCode: String?
     let onLogout: () -> Void
     
     init(onLogout: @escaping () -> Void = {}) {
@@ -130,6 +132,21 @@ struct AppNavigationView: View {
                     
                     Spacer()
                 }
+            }
+        }
+        .sheet(isPresented: $showJoinGroupView) {
+            JoinGroupView(initialInviteCode: pendingInviteCode, onGroupJoined: {
+                showJoinGroupView = false
+                pendingInviteCode = nil
+                selectedView = .sharedCalendars
+            })
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("HandleGroupInviteCode"))) { notification in
+            if let inviteCode = notification.object as? String {
+                print("🔗 AppNavigationView received deep link invite code: \(inviteCode)")
+                pendingInviteCode = inviteCode
+                selectedView = .sharedCalendars
+                showJoinGroupView = true
             }
         }
     }
