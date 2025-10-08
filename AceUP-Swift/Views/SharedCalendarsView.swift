@@ -410,7 +410,7 @@ struct GroupRow: View {
             Spacer()
             
             HStack(spacing: 10) {
-                if group.inviteCode != nil {
+                if !group.inviteCode.isEmpty {
                     Button(action: {
                         onQRTapped?(group)
                     }) {

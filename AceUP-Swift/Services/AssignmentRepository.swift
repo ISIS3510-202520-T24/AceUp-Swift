@@ -12,9 +12,9 @@ import Combine
 protocol AssignmentRepositoryProtocol {
     func getAllAssignments() async throws -> [Assignment]
     func getAssignmentById(_ id: String) async throws -> Assignment?
-    func getAssignmentsByDate(_ date: Date) async throws -> [Assignment]
-    func getTodaysAssignments() async throws -> [Assignment]
-    func getUpcomingAssignments(days: Int) async throws -> [Assignment]
+    func getAssignmentsByDate(_ date: Date) throws -> [Assignment]
+    func getTodaysAssignments() throws -> [Assignment]
+    func getUpcomingAssignments(days: Int) throws -> [Assignment]
     func saveAssignment(_ assignment: Assignment) async throws
     func updateAssignment(_ assignment: Assignment) async throws
     func deleteAssignment(_ id: String) async throws
@@ -54,18 +54,18 @@ class AssignmentRepository: AssignmentRepositoryProtocol, ObservableObject {
         return try await dataProvider.fetchById(id)
     }
     
-    func getAssignmentsByDate(_ date: Date) async throws -> [Assignment] {
+    func getAssignmentsByDate(_ date: Date) throws -> [Assignment] {
         let calendar = Calendar.current
         return assignments.filter { assignment in
             calendar.isDate(assignment.dueDate, inSameDayAs: date)
         }
     }
     
-    func getTodaysAssignments() async throws -> [Assignment] {
-        return try await getAssignmentsByDate(Date())
+    func getTodaysAssignments() throws -> [Assignment] {
+        return try getAssignmentsByDate(Date())
     }
     
-    func getUpcomingAssignments(days: Int = 7) async throws -> [Assignment] {
+    func getUpcomingAssignments(days: Int = 7) throws -> [Assignment] {
         let endDate = Calendar.current.date(byAdding: .day, value: days, to: Date()) ?? Date()
         return assignments.filter { assignment in
             assignment.dueDate >= Date() && assignment.dueDate <= endDate && assignment.status == .pending
@@ -85,6 +85,7 @@ class AssignmentRepository: AssignmentRepositoryProtocol, ObservableObject {
             id: assignment.id,
             title: assignment.title,
             description: assignment.description,
+            subject: assignment.subject,
             courseId: assignment.courseId,
             courseName: assignment.courseName,
             courseColor: assignment.courseColor,
@@ -123,6 +124,7 @@ class AssignmentRepository: AssignmentRepositoryProtocol, ObservableObject {
             id: assignment.id,
             title: assignment.title,
             description: assignment.description,
+            subject: assignment.subject,
             courseId: assignment.courseId,
             courseName: assignment.courseName,
             courseColor: assignment.courseColor,
@@ -162,6 +164,7 @@ class AssignmentRepository: AssignmentRepositoryProtocol, ObservableObject {
             id: assignment.id,
             title: assignment.title,
             description: assignment.description,
+            subject: assignment.subject,
             courseId: assignment.courseId,
             courseName: assignment.courseName,
             courseColor: assignment.courseColor,
@@ -194,6 +197,7 @@ class AssignmentRepository: AssignmentRepositoryProtocol, ObservableObject {
             id: assignment.id,
             title: assignment.title,
             description: assignment.description,
+            subject: assignment.subject,
             courseId: assignment.courseId,
             courseName: assignment.courseName,
             courseColor: assignment.courseColor,
@@ -223,6 +227,7 @@ class AssignmentRepository: AssignmentRepositoryProtocol, ObservableObject {
             id: assignment.id,
             title: assignment.title,
             description: assignment.description,
+            subject: assignment.subject,
             courseId: assignment.courseId,
             courseName: assignment.courseName,
             courseColor: assignment.courseColor,
@@ -288,6 +293,7 @@ class AssignmentRepository: AssignmentRepositoryProtocol, ObservableObject {
             Assignment(
                 title: "Final Programming Project",
                 description: "Develop a complete web application using React and Node.js",
+                subject: "Computer Science",
                 courseId: "cs101",
                 courseName: "Introduction to Computer Science",
                 courseColor: "#122C4A",
@@ -309,6 +315,7 @@ class AssignmentRepository: AssignmentRepositoryProtocol, ObservableObject {
             Assignment(
                 title: "Calculus Midterm Preparation",
                 description: "Review chapters 8-12 for comprehensive midterm exam",
+                subject: "Mathematics",
                 courseId: "math201",
                 courseName: "Calculus II",
                 courseColor: "#50E3C2",
@@ -322,6 +329,7 @@ class AssignmentRepository: AssignmentRepositoryProtocol, ObservableObject {
             Assignment(
                 title: "Physics Lab Report #3",
                 description: "Analysis of pendulum motion and harmonic oscillation",
+                subject: "Physics",
                 courseId: "phys151",
                 courseName: "Physics I",
                 courseColor: "#FF6B6B",
@@ -335,6 +343,7 @@ class AssignmentRepository: AssignmentRepositoryProtocol, ObservableObject {
             Assignment(
                 title: "Research Paper Draft",
                 description: "First draft of research paper on machine learning applications",
+                subject: "Computer Science",
                 courseId: "cs401",
                 courseName: "Advanced AI",
                 courseColor: "#9C27B0",

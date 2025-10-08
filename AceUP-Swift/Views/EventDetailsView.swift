@@ -9,7 +9,7 @@ import SwiftUI
 
 struct EventDetailsView: View {
     let event: CalendarEvent
-    @ObservedObject let repository: FirebaseCalendarEventsRepository
+    @ObservedObject var repository: FirebaseCalendarEventsRepository
     let onUpdate: () -> Void
     
     @Environment(\.presentationMode) var presentationMode
@@ -244,7 +244,7 @@ struct EventDetailsView: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             
-                            ForEach(daysOfWeek.sorted(), id: \\.self) { dayIndex in
+                            ForEach(daysOfWeek.sorted(), id: \.self) { dayIndex in
                                 Text(Calendar.current.shortWeekdaySymbols[dayIndex])
                                     .font(.caption)
                                     .padding(.horizontal, 6)
@@ -284,7 +284,7 @@ struct EventDetailsView: View {
                     .foregroundColor(UI.navy)
             }
             
-            ForEach(event.reminderMinutes.sorted(), id: \\.self) { minutes in
+            ForEach(event.reminderMinutes.sorted(), id: \.self) { minutes in
                 HStack {
                     Image(systemName: "bell.circle.fill")
                         .foregroundColor(UI.primary)
@@ -322,7 +322,7 @@ struct EventDetailsView: View {
                 .foregroundColor(.secondary)
             
             if !event.attendees.isEmpty {
-                Text("\\(event.attendees.count) attendee\\(event.attendees.count == 1 ? "" : "s")")
+                Text("\(event.attendees.count) attendee\(event.attendees.count == 1 ? "" : "s")")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -406,13 +406,16 @@ struct EventDetailsView: View {
             return .orange
         case .high:
             return .red
+        case .critical:
+            return .purple
         }
     }
     
     private func durationText(from startTime: Date, to endTime: Date) -> String {
         let duration = endTime.timeIntervalSince(startTime)
-        let hours = Int(duration) / 3600
-        let minutes = Int(duration) % 3600 / 60
+        let totalMinutes = Int(duration) / 60
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
         
         if hours > 0 {
             return "\\(hours)h \\(minutes)m"
@@ -425,13 +428,13 @@ struct EventDetailsView: View {
         if minutes == 0 {
             return "At time of event"
         } else if minutes < 60 {
-            return "\\(minutes) minutes before"
+            return "\(minutes) minutes before"
         } else if minutes < 1440 {
             let hours = minutes / 60
-            return "\\(hours) hour\\(hours == 1 ? "" : "s") before"
+            return "\(hours) hour\(hours == 1 ? "" : "s") before"
         } else {
             let days = minutes / 1440
-            return "\\(days) day\\(days == 1 ? "" : "s") before"
+            return "\(days) day\(days == 1 ? "" : "s") before"
         }
     }
     
@@ -469,12 +472,6 @@ extension DateFormatter {
     static let timeOnly: DateFormatter = {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
-        return formatter
-    }()
-    
-    static let mediumDate: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
         return formatter
     }()
 }

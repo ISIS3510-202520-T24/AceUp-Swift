@@ -44,40 +44,6 @@ struct WorkloadAnalysis: Codable, Identifiable, Equatable {
     }
 }
 
-enum WorkloadBalance: String, Codable, CaseIterable {
-    case excellent = "excellent"
-    case good = "good"
-    case fair = "fair"
-    case poor = "poor"
-    
-    var displayName: String {
-        switch self {
-        case .excellent: return "Excellent"
-        case .good: return "Good"
-        case .fair: return "Fair"
-        case .poor: return "Poor"
-        }
-    }
-    
-    var color: String {
-        switch self {
-        case .excellent: return "#4ECDC4"
-        case .good: return "#45B7D1"
-        case .fair: return "#FFA726"
-        case .poor: return "#EF5350"
-        }
-    }
-    
-    var description: String {
-        switch self {
-        case .excellent: return "Your workload is perfectly balanced"
-        case .good: return "Your workload is well managed"
-        case .fair: return "Your workload needs some attention"
-        case .poor: return "Your workload is overwhelming"
-        }
-    }
-}
-
 // MARK: - Workload Analysis Repository Protocol
 protocol WorkloadAnalysisRepositoryProtocol {
     func loadAnalysis() async throws -> [WorkloadAnalysis]
@@ -90,7 +56,6 @@ protocol WorkloadAnalysisRepositoryProtocol {
 }
 
 // MARK: - Firebase Workload Analysis Repository
-@MainActor
 class FirebaseWorkloadAnalysisRepository: ObservableObject, WorkloadAnalysisRepositoryProtocol {
     
     // MARK: - Published Properties
@@ -108,7 +73,8 @@ class FirebaseWorkloadAnalysisRepository: ObservableObject, WorkloadAnalysisRepo
     }
     
     deinit {
-        stopRealtimeListener()
+        analysisListener?.remove()
+        analysisListener = nil
     }
     
     // MARK: - Public Methods
@@ -252,7 +218,6 @@ class FirebaseWorkloadAnalysisRepository: ObservableObject, WorkloadAnalysisRepo
     func generateAnalysis(assignments: [Assignment]) async throws -> WorkloadAnalysis {
         let calendar = Calendar.current
         let now = Date()
-        let oneWeekFromNow = calendar.date(byAdding: .day, value: 7, to: now) ?? now
         let twoWeeksFromNow = calendar.date(byAdding: .day, value: 14, to: now) ?? now
         
         // Filter relevant assignments (upcoming in next 2 weeks)
@@ -321,43 +286,46 @@ class FirebaseWorkloadAnalysisRepository: ObservableObject, WorkloadAnalysisRepo
         return analysis
     }
     
-    func startRealtimeListener() {
-        guard !currentUserId.isEmpty else { return }
+    nonisolated func startRealtimeListener() {
+        let userId = Auth.auth().currentUser?.uid ?? ""
+        guard !userId.isEmpty else { return }
         
-        stopRealtimeListener() // Stop any existing listener
-        
-        analysisListener = db.collection("workload_analysis")
-            .whereField("userId", isEqualTo: currentUserId)
-            .order(by: "analysisDate", descending: true)
-            .limit(to: 30)
-            .addSnapshotListener { [weak self] querySnapshot, error in
-                
-                Task { @MainActor in
-                    guard let self = self else { return }
+        Task { @MainActor in
+            stopRealtimeListener() // Stop any existing listener
+            
+            analysisListener = db.collection("workload_analysis")
+                .whereField("userId", isEqualTo: userId)
+                .order(by: "analysisDate", descending: true)
+                .limit(to: 30)
+                .addSnapshotListener { [weak self] querySnapshot, error in
                     
-                    if let error = error {
-                        self.errorMessage = "Analysis listener error: \(error.localizedDescription)"
-                        return
-                    }
-                    
-                    guard let documents = querySnapshot?.documents else { return }
-                    
-                    do {
-                        let analyses = try documents.compactMap { document in
-                            try self.convertFirestoreToWorkloadAnalysis(document.data(), documentId: document.documentID)
+                    Task { @MainActor in
+                        guard let self = self else { return }
+                        
+                        if let error = error {
+                            self.errorMessage = "Realtime listener error: \(error.localizedDescription)"
+                            return
                         }
                         
-                        self.analyses = analyses
-                        self.latestAnalysis = analyses.first
+                        guard let documents = querySnapshot?.documents else { return }
                         
-                    } catch {
-                        self.errorMessage = "Failed to process analysis updates: \(error.localizedDescription)"
+                        do {
+                            let analyses = try documents.compactMap { document in
+                                try self.convertFirestoreToWorkloadAnalysis(document.data(), documentId: document.documentID)
+                            }
+                            
+                            self.analyses = analyses
+                            self.latestAnalysis = analyses.first
+                            
+                        } catch {
+                            self.errorMessage = "Failed to process realtime updates: \(error.localizedDescription)"
+                        }
                     }
                 }
-            }
+        }
     }
     
-    func stopRealtimeListener() {
+    nonisolated func stopRealtimeListener() {
         analysisListener?.remove()
         analysisListener = nil
     }
@@ -375,11 +343,13 @@ class FirebaseWorkloadAnalysisRepository: ObservableObject, WorkloadAnalysisRepo
             baseWorkload *= 1.0
         case .high:
             baseWorkload *= 1.5
+        case .critical:
+            baseWorkload *= 2.0
         }
         
         // Adjust based on complexity (estimated hours)
-        if assignment.estimatedHours > 0 {
-            baseWorkload = Double(assignment.estimatedHours)
+        if let estimatedHours = assignment.estimatedHours, estimatedHours > 0 {
+            baseWorkload = estimatedHours
         }
         
         // Adjust based on subtasks
@@ -398,7 +368,6 @@ class FirebaseWorkloadAnalysisRepository: ObservableObject, WorkloadAnalysisRepo
         
         let workloads = Array(dailyWorkload.values)
         let average = workloads.reduce(0, +) / Double(workloads.count)
-        let maxWorkload = workloads.max() ?? 0
         let variance = workloads.map { pow($0 - average, 2) }.reduce(0, +) / Double(workloads.count)
         
         // Determine balance based on average workload and variance
@@ -452,7 +421,7 @@ class FirebaseWorkloadAnalysisRepository: ObservableObject, WorkloadAnalysisRepo
     }
     
     private func convertWorkloadAnalysisToFirestore(_ analysis: WorkloadAnalysis) -> WorkloadAnalysisFirestore {
-        let dailyWorkloadStringDict = Dictionary(
+        let dailyWorkloadStringDict: [String: Double] = Dictionary(
             uniqueKeysWithValues: analysis.dailyWorkload.map { (date, workload) in
                 (ISO8601DateFormatter().string(from: date), workload)
             }
@@ -489,7 +458,7 @@ class FirebaseWorkloadAnalysisRepository: ObservableObject, WorkloadAnalysisRepo
         }
         
         let formatter = ISO8601DateFormatter()
-        let dailyWorkload = Dictionary(
+        let dailyWorkload: [Date: Double] = Dictionary(
             uniqueKeysWithValues: dailyWorkloadStringDict.compactMap { (dateString, workload) in
                 guard let date = formatter.date(from: dateString) else { return nil }
                 return (date, workload)

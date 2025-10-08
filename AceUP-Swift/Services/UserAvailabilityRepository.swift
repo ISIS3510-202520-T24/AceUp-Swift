@@ -27,11 +27,6 @@ struct AvailabilitySlotFirestore: Codable {
     let priority: String
 }
 
-struct TimeOfDayFirestore: Codable {
-    let hour: Int
-    let minute: Int
-}
-
 // MARK: - User Availability Repository Protocol
 protocol UserAvailabilityRepositoryProtocol {
     func loadUserAvailability() async throws -> [AvailabilitySlot]
@@ -178,49 +173,54 @@ class FirebaseUserAvailabilityRepository: ObservableObject, UserAvailabilityRepo
         try await updateUserAvailability(currentSlots)
     }
     
-    func startRealtimeListener() {
-        guard !currentUserId.isEmpty else { return }
+    nonisolated func startRealtimeListener() {
+        let userId = Auth.auth().currentUser?.uid ?? ""
+        guard !userId.isEmpty else { return }
         
-        stopRealtimeListener() // Stop any existing listener
-        
-        availabilityListener = db.collection("user_availability")
-            .document(currentUserId)
-            .addSnapshotListener { [weak self] documentSnapshot, error in
-                
-                Task { @MainActor in
-                    guard let self = self else { return }
+        Task { @MainActor in
+            stopRealtimeListener() // Stop any existing listener
+            
+            availabilityListener = db.collection("user_availability")
+                .document(userId)
+                .addSnapshotListener { [weak self] documentSnapshot, error in
                     
-                    if let error = error {
-                        self.errorMessage = "Availability listener error: \(error.localizedDescription)"
-                        return
-                    }
-                    
-                    guard let document = documentSnapshot,
-                          document.exists,
-                          let data = document.data() else {
-                        // No data exists, set empty availability
-                        self.currentUserAvailability = []
-                        self.userAvailabilityCache[self.currentUserId] = []
-                        return
-                    }
-                    
-                    do {
-                        let firestoreAvailability = try self.convertFirestoreToUserAvailability(data)
-                        let availability = self.convertFirestoreAvailabilityToLocal(firestoreAvailability.availability)
+                    Task { @MainActor in
+                        guard let self = self else { return }
                         
-                        self.currentUserAvailability = availability
-                        self.userAvailabilityCache[self.currentUserId] = availability
+                        if let error = error {
+                            self.errorMessage = "Availability listener error: \(error.localizedDescription)"
+                            return
+                        }
                         
-                    } catch {
-                        self.errorMessage = "Failed to process availability update: \(error.localizedDescription)"
+                        guard let document = documentSnapshot,
+                              document.exists,
+                              let data = document.data() else {
+                            // No data exists, set empty availability
+                            self.currentUserAvailability = []
+                            self.userAvailabilityCache[userId] = []
+                            return
+                        }
+                        
+                        do {
+                            let firestoreAvailability = try self.convertFirestoreToUserAvailability(data)
+                            let availability = self.convertFirestoreAvailabilityToLocal(firestoreAvailability.availability)
+                            
+                            self.currentUserAvailability = availability
+                            self.userAvailabilityCache[userId] = availability
+                            
+                        } catch {
+                            self.errorMessage = "Failed to process availability update: \(error.localizedDescription)"
+                        }
                     }
                 }
-            }
+        }
     }
     
-    func stopRealtimeListener() {
-        availabilityListener?.remove()
-        availabilityListener = nil
+    nonisolated func stopRealtimeListener() {
+        Task { @MainActor in
+            availabilityListener?.remove()
+            availabilityListener = nil
+        }
     }
     
     // MARK: - Helper Methods for Group Scheduling

@@ -9,7 +9,7 @@ struct CreateAssignmentView: View {
     // Default initializer for backward compatibility
     init(viewModel: AssignmentViewModel) {
         self.viewModel = viewModel
-        self.offlineRepository = nil
+        self.offlineRepository = nil as OfflineAssignmentRepository?
     }
     
     // New initializer with offline support
@@ -99,39 +99,22 @@ struct CreateAssignmentView: View {
         return Assignment(
             id: UUID().uuidString,
             title: viewModel.newAssignmentTitle,
-            description: viewModel.newAssignmentDescription,
-            dueDate: viewModel.newAssignmentDueDate,
-            priority: viewModel.newAssignmentPriority,
-            status: .pending,
+            description: viewModel.newAssignmentDescription.isEmpty ? nil : viewModel.newAssignmentDescription,
             subject: viewModel.newAssignmentSubject,
+            courseId: viewModel.newAssignmentCourse.lowercased().replacingOccurrences(of: " ", with: "_"),
             courseName: viewModel.newAssignmentCourse,
             courseColor: viewModel.courseColors[viewModel.newAssignmentCourse] ?? "#007AFF",
-            weightPercentage: viewModel.newAssignmentWeight,
-            estimatedDuration: viewModel.newAssignmentDuration,
-            subtasks: [],
-            attachments: [],
-            notes: viewModel.newAssignmentNotes,
-            createdDate: Date(),
-            lastModified: Date(),
-            completedDate: nil,
-            userId: "currentUser" // In real app, get from auth
+            dueDate: viewModel.newAssignmentDueDate,
+            weight: viewModel.newAssignmentWeight,
+            estimatedHours: viewModel.newAssignmentEstimatedHours,
+            priority: viewModel.newAssignmentPriority,
+            tags: viewModel.newAssignmentTags
         )
     }
     
     private var isFormValid: Bool {
         !viewModel.newAssignmentTitle.isEmpty &&
-        !viewModel.newAssignmentSubject.isEmpty &&
         !viewModel.newAssignmentCourse.isEmpty
-    }
-                                dismiss()
-                            }
-                        }
-                    }
-                    .disabled(!isFormValid)
-                    .fontWeight(.semibold)
-                }
-            }
-        }
     }
     
     // MARK: - Form Sections
@@ -199,7 +182,7 @@ struct CreateAssignmentView: View {
                 if viewModel.newAssignmentEstimatedHours != nil {
                     Slider(
                         value: Binding(
-                            get: { viewModel.newAssignmentEstimatedHours ?? 1.0 },
+                            get: { viewModel.newAssignmentEstimatedHours! },
                             set: { viewModel.newAssignmentEstimatedHours = $0 }
                         ),
                         in: 0.5...40.0,
@@ -217,13 +200,6 @@ struct CreateAssignmentView: View {
                 TagInputView(tags: $viewModel.newAssignmentTags)
             }
         }
-    }
-    
-    // MARK: - Computed Properties
-    
-    private var isFormValid: Bool {
-        !viewModel.newAssignmentTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !viewModel.newAssignmentCourse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 

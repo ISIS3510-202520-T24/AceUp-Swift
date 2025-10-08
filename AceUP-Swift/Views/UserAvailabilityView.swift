@@ -48,7 +48,7 @@ struct UserAvailabilityView: View {
                 AddAvailabilitySlotView(repository: repository) {
                     // Refresh after adding
                     Task {
-                        try? await repository.loadUserAvailability()
+                        _ = try? await repository.loadUserAvailability()
                     }
                 }
             }
@@ -59,7 +59,7 @@ struct UserAvailabilityView: View {
                 ) {
                     // Refresh after editing
                     Task {
-                        try? await repository.loadUserAvailability()
+                        _ = try? await repository.loadUserAvailability()
                     }
                     selectedSlot = nil
                 }
@@ -125,7 +125,7 @@ struct UserAvailabilityView: View {
         VStack(spacing: 8) {
             // Days of week header
             HStack {
-                ForEach(Calendar.current.shortWeekdaySymbols, id: \\.self) { day in
+                ForEach(Calendar.current.shortWeekdaySymbols, id: \.self) { day in
                     Text(day)
                         .font(.caption)
                         .fontWeight(.semibold)
@@ -135,14 +135,14 @@ struct UserAvailabilityView: View {
             }
             
             // Time slots grid (simplified - showing morning, afternoon, evening)
-            ForEach(["Morning", "Afternoon", "Evening"], id: \\.self) { period in
+            ForEach(["Morning", "Afternoon", "Evening"], id: \.self) { period in
                 HStack(spacing: 4) {
                     Text(period)
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .frame(width: 60, alignment: .leading)
                     
-                    ForEach(0..<7, id: \\.self) { dayIndex in
+                    ForEach(0..<7, id: \.self) { dayIndex in
                         Rectangle()
                             .fill(availabilityColor(for: dayIndex, period: period))
                             .frame(height: 20)
@@ -208,7 +208,7 @@ struct UserAvailabilityView: View {
                 .font(.headline)
                 .foregroundColor(UI.navy)
             
-            ForEach(0..<7, id: \\.self) { dayIndex in
+            ForEach(0..<7, id: \.self) { dayIndex in
                 dayScheduleCard(for: dayIndex)
             }
         }
@@ -233,7 +233,7 @@ struct UserAvailabilityView: View {
                 
                 Spacer()
                 
-                Text("\\(daySlots.count) slot\\(daySlots.count == 1 ? "" : "s")")
+                Text("\(daySlots.count) slot\(daySlots.count == 1 ? "" : "s")")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -383,7 +383,7 @@ struct UserAvailabilityView: View {
     private func setupView() {
         Task {
             repository.startRealtimeListener()
-            try? await repository.loadUserAvailability()
+            _ = try? await repository.loadUserAvailability()
         }
     }
     
@@ -420,14 +420,18 @@ struct UserAvailabilityView: View {
             return .green
         case .busy:
             return .orange
+        case .tentative:
+            return .yellow
         case .lecture:
             return .blue
-        case .meeting:
+        case .exam:
+            return .red
+        case .assignment:
             return .purple
-        case .study:
+        case .meeting:
             return .cyan
-        case .break:
-            return .yellow
+        case .personal:
+            return .mint
         }
     }
     
@@ -439,6 +443,8 @@ struct UserAvailabilityView: View {
             return .orange
         case .high:
             return .red
+        case .critical:
+            return .purple
         }
     }
     
@@ -463,13 +469,13 @@ struct UserAvailabilityView: View {
         let defaultSlots = repository.generateDefaultAvailability()
         
         Task {
-            try? await repository.updateUserAvailability(defaultSlots)
+            _ = try? await repository.updateUserAvailability(defaultSlots)
         }
     }
     
     private func clearAllAvailability() {
         Task {
-            try? await repository.updateUserAvailability([])
+            _ = try? await repository.updateUserAvailability([])
         }
     }
     
@@ -488,7 +494,7 @@ struct UserAvailabilityView: View {
         }
         
         Task {
-            try? await repository.updateUserAvailability(Array(Set(duplicatedSlots))) // Remove duplicates
+            _ = try? await repository.updateUserAvailability(Array(Set(duplicatedSlots))) // Remove duplicates
         }
     }
     

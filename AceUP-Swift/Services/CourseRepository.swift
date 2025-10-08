@@ -13,13 +13,13 @@ import FirebaseAuth
 @MainActor
 protocol CourseRepositoryProtocol {
     func getAllCourses() async throws -> [Course]
-    func getCourseById(_ id: String) async throws -> Course?
-    func getCoursesByUserId(_ userId: String) async throws -> [Course]
+    func getCourseById(_ id: String) throws -> Course?
+    func getCoursesByUserId(_ userId: String) throws -> [Course]
     func saveCourse(_ course: Course) async throws
     func updateCourse(_ course: Course) async throws
     func deleteCourse(_ id: String) async throws
-    func getActiveCourses() async throws -> [Course]
-    func getCoursesByYear(_ year: Int) async throws -> [Course]
+    func getActiveCourses() throws -> [Course]
+    func getCoursesByYear(_ year: Int) throws -> [Course]
 }
 
 @MainActor
@@ -86,14 +86,15 @@ class FirestoreCourseRepository: CourseRepositoryProtocol, ObservableObject {
     // MARK: - CourseRepositoryProtocol Implementation
     
     func getAllCourses() async throws -> [Course] {
+        await Task.yield()
         return courses
     }
     
-    func getCourseById(_ id: String) async throws -> Course? {
+    func getCourseById(_ id: String) throws -> Course? {
         return courses.first { $0.id == id }
     }
     
-    func getCoursesByUserId(_ userId: String) async throws -> [Course] {
+    func getCoursesByUserId(_ userId: String) throws -> [Course] {
         return courses.filter { _ in userId == currentUserId }
     }
     
@@ -127,11 +128,11 @@ class FirestoreCourseRepository: CourseRepositoryProtocol, ObservableObject {
         try await courseDocument(id: id).delete()
     }
     
-    func getActiveCourses() async throws -> [Course] {
+    func getActiveCourses() throws -> [Course] {
         return courses.filter { $0.isActive }
     }
     
-    func getCoursesByYear(_ year: Int) async throws -> [Course] {
+    func getCoursesByYear(_ year: Int) throws -> [Course] {
         return courses.filter { $0.year == year }
     }
 }

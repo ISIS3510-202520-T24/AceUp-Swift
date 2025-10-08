@@ -50,7 +50,6 @@ protocol CalendarEventsRepositoryProtocol {
 }
 
 // MARK: - Firebase Calendar Events Repository
-@MainActor
 class FirebaseCalendarEventsRepository: ObservableObject, CalendarEventsRepositoryProtocol {
     
     // MARK: - Published Properties
@@ -69,7 +68,14 @@ class FirebaseCalendarEventsRepository: ObservableObject, CalendarEventsReposito
     }
     
     deinit {
-        stopRealtimeListener()
+        eventsListener?.remove()
+        eventsListener = nil
+        
+        // Stop group listeners
+        for (_, listener) in groupEventsListeners {
+            listener.remove()
+        }
+        groupEventsListeners.removeAll()
     }
     
     // MARK: - Public Methods
@@ -149,18 +155,18 @@ class FirebaseCalendarEventsRepository: ObservableObject, CalendarEventsReposito
             
             let docRef = try await db.collection("calendar_events").addDocument(data: [
                 "userId": firestoreEvent.userId,
-                "groupId": firestoreEvent.groupId as Any,
+                "groupId": firestoreEvent.groupId ?? NSNull(),
                 "title": firestoreEvent.title,
-                "description": firestoreEvent.description as Any,
+                "description": firestoreEvent.description ?? NSNull(),
                 "startTime": firestoreEvent.startTime,
                 "endTime": firestoreEvent.endTime,
                 "type": firestoreEvent.type,
                 "priority": firestoreEvent.priority,
                 "isShared": firestoreEvent.isShared,
                 "attendees": firestoreEvent.attendees,
-                "location": firestoreEvent.location as Any,
+                "location": firestoreEvent.location ?? NSNull(),
                 "isRecurring": firestoreEvent.isRecurring,
-                "recurrencePattern": encodeRecurrencePattern(firestoreEvent.recurrencePattern),
+                "recurrencePattern": encodeRecurrencePattern(firestoreEvent.recurrencePattern) ?? NSNull(),
                 "reminderMinutes": firestoreEvent.reminderMinutes,
                 "createdAt": firestoreEvent.createdAt,
                 "updatedAt": firestoreEvent.updatedAt
@@ -189,16 +195,16 @@ class FirebaseCalendarEventsRepository: ObservableObject, CalendarEventsReposito
             
             try await db.collection("calendar_events").document(event.id).updateData([
                 "title": firestoreEvent.title,
-                "description": firestoreEvent.description as Any,
+                "description": firestoreEvent.description ?? NSNull(),
                 "startTime": firestoreEvent.startTime,
                 "endTime": firestoreEvent.endTime,
                 "type": firestoreEvent.type,
                 "priority": firestoreEvent.priority,
                 "isShared": firestoreEvent.isShared,
                 "attendees": firestoreEvent.attendees,
-                "location": firestoreEvent.location as Any,
+                "location": firestoreEvent.location ?? NSNull(),
                 "isRecurring": firestoreEvent.isRecurring,
-                "recurrencePattern": encodeRecurrencePattern(firestoreEvent.recurrencePattern),
+                "recurrencePattern": encodeRecurrencePattern(firestoreEvent.recurrencePattern) ?? NSNull(),
                 "reminderMinutes": firestoreEvent.reminderMinutes,
                 "updatedAt": Timestamp(date: Date())
             ])
@@ -243,41 +249,46 @@ class FirebaseCalendarEventsRepository: ObservableObject, CalendarEventsReposito
         }
     }
     
-    func startRealtimeListener() {
-        guard !currentUserId.isEmpty else { return }
+    nonisolated func startRealtimeListener() {
+        let userId = Auth.auth().currentUser?.uid ?? ""
+        guard !userId.isEmpty else { return }
         
-        stopRealtimeListener() // Stop any existing listener
-        
-        eventsListener = db.collection("calendar_events")
-            .whereField("userId", isEqualTo: currentUserId)
-            .order(by: "startTime", descending: false)
-            .addSnapshotListener { [weak self] querySnapshot, error in
-                
-                Task { @MainActor in
-                    guard let self = self else { return }
-                    
-                    if let error = error {
-                        self.errorMessage = "Realtime listener error: \(error.localizedDescription)"
-                        return
-                    }
-                    
-                    guard let documents = querySnapshot?.documents else { return }
-                    
-                    do {
-                        let events = try documents.compactMap { document in
-                            try self.convertFirestoreEventToCalendarEvent(document.data(), documentId: document.documentID)
+        Task {
+            await stopRealtimeListenerAsync() // Stop any existing listener
+            
+            await MainActor.run {
+                self.eventsListener = self.db.collection("calendar_events")
+                    .whereField("userId", isEqualTo: userId)
+                    .order(by: "startTime", descending: false)
+                    .addSnapshotListener { [weak self] querySnapshot, error in
+                        
+                        Task { @MainActor in
+                            guard let self = self else { return }
+                            
+                            if let error = error {
+                                self.errorMessage = "Realtime listener error: \(error.localizedDescription)"
+                                return
+                            }
+                            
+                            guard let documents = querySnapshot?.documents else { return }
+                            
+                            do {
+                                let events = try documents.compactMap { document in
+                                    try self.convertFirestoreEventToCalendarEvent(document.data(), documentId: document.documentID)
+                                }
+                                
+                                self.events = events
+                                
+                            } catch {
+                                self.errorMessage = "Failed to process realtime updates: \(error.localizedDescription)"
+                            }
                         }
-                        
-                        self.events = events
-                        
-                    } catch {
-                        self.errorMessage = "Failed to process realtime updates: \(error.localizedDescription)"
                     }
-                }
             }
+        }
     }
     
-    func stopRealtimeListener() {
+    nonisolated func stopRealtimeListener() {
         eventsListener?.remove()
         eventsListener = nil
         
@@ -288,40 +299,56 @@ class FirebaseCalendarEventsRepository: ObservableObject, CalendarEventsReposito
         groupEventsListeners.removeAll()
     }
     
+    private func stopRealtimeListenerAsync() async {
+        await MainActor.run {
+            eventsListener?.remove()
+            eventsListener = nil
+            
+            // Stop group listeners
+            for (_, listener) in groupEventsListeners {
+                listener.remove()
+            }
+            groupEventsListeners.removeAll()
+        }
+    }
+    
     func startGroupEventsListener(groupId: String) {
-        guard !currentUserId.isEmpty else { return }
+        let userId = Auth.auth().currentUser?.uid ?? ""
+        guard !userId.isEmpty else { return }
         
-        // Stop existing listener for this group
-        groupEventsListeners[groupId]?.remove()
-        
-        groupEventsListeners[groupId] = db.collection("calendar_events")
-            .whereField("groupId", isEqualTo: groupId)
-            .whereField("isShared", isEqualTo: true)
-            .order(by: "startTime", descending: false)
-            .addSnapshotListener { [weak self] querySnapshot, error in
-                
-                Task { @MainActor in
-                    guard let self = self else { return }
+        Task { @MainActor in
+            // Stop existing listener for this group
+            groupEventsListeners[groupId]?.remove()
+            
+            groupEventsListeners[groupId] = db.collection("calendar_events")
+                .whereField("groupId", isEqualTo: groupId)
+                .whereField("isShared", isEqualTo: true)
+                .order(by: "startTime", descending: false)
+                .addSnapshotListener { [weak self] querySnapshot, error in
                     
-                    if let error = error {
-                        self.errorMessage = "Group events listener error: \(error.localizedDescription)"
-                        return
-                    }
-                    
-                    guard let documents = querySnapshot?.documents else { return }
-                    
-                    do {
-                        let events = try documents.compactMap { document in
-                            try self.convertFirestoreEventToCalendarEvent(document.data(), documentId: document.documentID)
+                    Task { @MainActor in
+                        guard let self = self else { return }
+                        
+                        if let error = error {
+                            self.errorMessage = "Group events listener error: \(error.localizedDescription)"
+                            return
                         }
                         
-                        self.groupEvents[groupId] = events
+                        guard let documents = querySnapshot?.documents else { return }
                         
-                    } catch {
-                        self.errorMessage = "Failed to process group events: \(error.localizedDescription)"
+                        do {
+                            let events = try documents.compactMap { document in
+                                try self.convertFirestoreEventToCalendarEvent(document.data(), documentId: document.documentID)
+                            }
+                            
+                            self.groupEvents[groupId] = events
+                            
+                        } catch {
+                            self.errorMessage = "Failed to process group events: \(error.localizedDescription)"
+                        }
                     }
                 }
-            }
+        }
     }
     
     // MARK: - Private Helper Methods

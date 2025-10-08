@@ -10,13 +10,13 @@ import Network
 import Combine
 
 // MARK: - Offline Operation Types
-enum OfflineOperationType: String, CaseIterable {
+enum OfflineOperationType: String, CaseIterable, Codable {
     case create = "CREATE"
     case update = "UPDATE"
     case delete = "DELETE"
 }
 
-enum DataType: String, CaseIterable {
+enum DataType: String, CaseIterable, Codable {
     case assignment = "Assignment"
     case course = "Course"
     case teacher = "Teacher"
@@ -105,7 +105,9 @@ class OfflineManager: ObservableObject {
     
     private init() {
         setupNetworkMonitoring()
-        loadPendingOperations()
+        let operations = loadPendingOperations()
+        pendingOperationsCount = operations.count
+        lastSyncDate = UserDefaults.standard.object(forKey: lastSyncKey) as? Date
         startPeriodicSync()
     }
     
@@ -232,7 +234,7 @@ class OfflineManager: ObservableObject {
         for operation in operations {
             group.enter()
             
-            processSingleOperation(operation) { [weak self] success in
+            processSingleOperation(operation) { success in
                 if success {
                     successfulOperations.append(operation.id)
                 } else {
@@ -264,7 +266,7 @@ class OfflineManager: ObservableObject {
             if finalOperations.isEmpty {
                 self?.syncStatus = .synced
                 self?.lastSyncDate = Date()
-                UserDefaults.standard.set(Date(), forKey: self?.lastSyncKey ?? "")
+                UserDefaults.standard.set(Date(), forKey: self?.lastSyncKey ?? "LastSyncDate")
             } else {
                 self?.syncStatus = .failed
             }

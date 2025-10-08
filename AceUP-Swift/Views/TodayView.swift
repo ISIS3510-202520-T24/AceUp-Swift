@@ -601,7 +601,7 @@ struct TodaysSummaryCard: View {
 // MARK: - Workload Insight Card (Smart Feature)
 /// Created by Ángel Farfán Arcila on 4/10/25
 struct WorkloadInsightCard: View {
-    let analysis: WorkloadAnalysis
+    let analysis: WorkloadAnalysisResult
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {

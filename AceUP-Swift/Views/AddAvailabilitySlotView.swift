@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct AddAvailabilitySlotView: View {
-    @ObservedObject let repository: FirebaseUserAvailabilityRepository
+    @ObservedObject var repository: FirebaseUserAvailabilityRepository
     let onSave: () -> Void
     
     @Environment(\.presentationMode) var presentationMode
@@ -64,7 +64,7 @@ struct AddAvailabilitySlotView: View {
     private var daySelectionSection: some View {
         Section(header: Text("Day of Week")) {
             Picker("Day", selection: $selectedDayOfWeek) {
-                ForEach(Array(weekdays.enumerated()), id: \\.offset) { index, day in
+                ForEach(Array(weekdays.enumerated()), id: \.offset) { index, day in
                     Text(day).tag(index)
                 }
             }
@@ -121,7 +121,7 @@ struct AddAvailabilitySlotView: View {
         Section(header: Text("Type & Priority")) {
             // Availability Type
             Picker("Type", selection: $availabilityType) {
-                ForEach(AvailabilityType.allCases, id: \\.self) { type in
+                ForEach(AvailabilityType.allCases, id: \.self) { type in
                     HStack {
                         Image(systemName: type.iconName)
                         Text(type.displayName)
@@ -132,7 +132,7 @@ struct AddAvailabilitySlotView: View {
             
             // Priority
             Picker("Priority", selection: $priority) {
-                ForEach(Priority.allCases, id: \\.self) { priority in
+                ForEach(Priority.allCases, id: \.self) { priority in
                     HStack {
                         Circle()
                             .fill(priorityColor(priority))
@@ -163,10 +163,12 @@ struct AddAvailabilitySlotView: View {
         let hours = durationMinutes / 60
         let minutes = durationMinutes % 60
         
-        if hours > 0 {
-            return "\\(hours)h \\(minutes)m"
+        if hours > 0 && minutes > 0 {
+            return "\(hours)h \(minutes)m"
+        } else if hours > 0 {
+            return "\(hours)h"
         } else {
-            return "\\(minutes)m"
+            return "\(minutes)m"
         }
     }
     
@@ -180,6 +182,8 @@ struct AddAvailabilitySlotView: View {
             return .orange
         case .high:
             return .red
+        case .critical:
+            return .purple
         }
     }
     
@@ -248,7 +252,7 @@ struct TimePickerView: View {
         HStack {
             // Hour picker
             Picker("Hour", selection: $time.hour) {
-                ForEach(0..<24, id: \\.self) { hour in
+                ForEach(0..<24, id: \.self) { hour in
                     Text(String(format: "%02d", hour)).tag(hour)
                 }
             }
@@ -262,7 +266,7 @@ struct TimePickerView: View {
             
             // Minute picker
             Picker("Minute", selection: $time.minute) {
-                ForEach(Array(stride(from: 0, to: 60, by: 15)), id: \\.self) { minute in
+                ForEach(Array(stride(from: 0, to: 60, by: 15)), id: \.self) { minute in
                     Text(String(format: "%02d", minute)).tag(minute)
                 }
             }
@@ -301,14 +305,18 @@ extension AvailabilityType {
             return "checkmark.circle"
         case .busy:
             return "exclamationmark.circle"
+        case .tentative:
+            return "questionmark.circle"
         case .lecture:
             return "book"
+        case .exam:
+            return "doc.text"
+        case .assignment:
+            return "pencil.circle"
         case .meeting:
             return "person.2"
-        case .study:
-            return "brain.head.profile"
-        case .break:
-            return "cup.and.saucer"
+        case .personal:
+            return "person.circle"
         }
     }
     
@@ -318,14 +326,18 @@ extension AvailabilityType {
             return "Available for meetings and appointments"
         case .busy:
             return "Unavailable for new commitments"
+        case .tentative:
+            return "Tentatively available, may change"
         case .lecture:
             return "Attending class or lecture"
+        case .exam:
+            return "Taking an exam or test"
+        case .assignment:
+            return "Working on assignments"
         case .meeting:
             return "In a meeting or appointment"
-        case .study:
-            return "Dedicated study time"
-        case .break:
-            return "Break or personal time"
+        case .personal:
+            return "Personal time or activities"
         }
     }
 }

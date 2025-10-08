@@ -13,6 +13,7 @@ struct Assignment: Codable, Identifiable, Hashable, Equatable {
     let id: String
     let title: String
     let description: String?
+    let subject: String
     let courseId: String
     let courseName: String
     let courseColor: String
@@ -21,17 +22,19 @@ struct Assignment: Codable, Identifiable, Hashable, Equatable {
     let estimatedHours: Double?
     let actualHours: Double?
     let priority: Priority
-    let status: AssignmentStatus
+    var status: AssignmentStatus
     let tags: [String]
     let attachments: [AssignmentAttachment]
     let subtasks: [Subtask]
     let createdAt: Date
     let updatedAt: Date
+    var completedDate: Date?
     
     init(
         id: String = UUID().uuidString,
         title: String,
         description: String? = nil,
+        subject: String,
         courseId: String,
         courseName: String,
         courseColor: String = "#122C4A",
@@ -45,11 +48,13 @@ struct Assignment: Codable, Identifiable, Hashable, Equatable {
         attachments: [AssignmentAttachment] = [],
         subtasks: [Subtask] = [],
         createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        completedDate: Date? = nil
     ) {
         self.id = id
         self.title = title
         self.description = description
+        self.subject = subject
         self.courseId = courseId
         self.courseName = courseName
         self.courseColor = courseColor
@@ -64,6 +69,7 @@ struct Assignment: Codable, Identifiable, Hashable, Equatable {
         self.subtasks = subtasks
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.completedDate = completedDate
     }
     
     // MARK: - Computed Properties
@@ -274,6 +280,7 @@ extension Assignment {
             id: academicEvent.id,
             title: academicEvent.title,
             description: academicEvent.description,
+            subject: academicEvent.courseName, // Use courseName as subject
             courseId: academicEvent.courseId,
             courseName: academicEvent.courseName,
             dueDate: academicEvent.dueDate,

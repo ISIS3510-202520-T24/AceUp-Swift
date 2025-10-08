@@ -169,7 +169,7 @@ struct AssignmentsListView: View {
             items: filteredOfflineAssignments,
             isOfflineMode: offlineRepository.isOfflineMode,
             syncStatus: offlineRepository.syncStatus
-        ) { assignment in
+        ) { (assignment: Assignment) in
             AssignmentCard(
                 assignment: assignment,
                 isOfflineMode: offlineRepository.isOfflineMode,
@@ -316,6 +316,63 @@ struct AssignmentsListView: View {
             break
         default:
             break
+        }
+    }
+    
+    // MARK: - Offline-Specific Properties and Methods
+    
+    private var filteredOfflineAssignments: [Assignment] {
+        let assignments = offlineRepository.assignments
+        let searchFiltered = searchText.isEmpty ? 
+            assignments : 
+            assignments.filter { assignment in
+                assignment.title.localizedCaseInsensitiveContains(searchText) ||
+                assignment.subject.localizedCaseInsensitiveContains(searchText) ||
+                assignment.description?.localizedCaseInsensitiveContains(searchText) ?? false
+            }
+        
+        switch selectedFilter {
+        case .all:
+            return searchFiltered
+        case .pending:
+            return searchFiltered.filter { $0.status == .pending }
+        case .inProgress:
+            return searchFiltered.filter { $0.status == .inProgress }
+        case .completed:
+            return searchFiltered.filter { $0.status == .completed }
+        case .overdue:
+            return searchFiltered.filter { $0.isOverdue }
+        case .dueToday:
+            return searchFiltered.filter { $0.isDueToday }
+        case .dueTomorrow:
+            return searchFiltered.filter { $0.isDueTomorrow }
+        case .highPriority:
+            return searchFiltered.filter { $0.priority == .high || $0.priority == .critical }
+        }
+    }
+    
+    private func loadAssignmentsWithOfflineSupport() async {
+        if offlineRepository.isOfflineMode {
+            // Load from local storage
+            offlineRepository.refreshData()
+        } else {
+            // Sync with Firebase
+            try? await offlineRepository.syncWithFirebase()
+            // Also load with existing view model for compatibility
+            await viewModel.loadAssignments()
+        }
+    }
+    
+    private func handleOfflineToggleComplete(_ assignment: Assignment) {
+        var updatedAssignment = assignment
+        updatedAssignment.status = assignment.status == .completed ? .pending : .completed
+        updatedAssignment.completedDate = assignment.status == .completed ? nil : Date()
+        
+        offlineRepository.updateAssignment(updatedAssignment)
+        
+        // Also update view model for compatibility
+        Task {
+            await viewModel.markAsCompleted(assignment.id)
         }
     }
 }
@@ -606,63 +663,6 @@ struct EmptyAssignmentsView: View {
         default: return "Add some assignments to get started"
         }
     }
-    
-    // MARK: - Offline-Specific Properties and Methods
-    
-    private var filteredOfflineAssignments: [Assignment] {
-        let assignments = offlineRepository.assignments
-        let searchFiltered = searchText.isEmpty ? 
-            assignments : 
-            assignments.filter { assignment in
-                assignment.title.localizedCaseInsensitiveContains(searchText) ||
-                assignment.subject.localizedCaseInsensitiveContains(searchText) ||
-                assignment.description.localizedCaseInsensitiveContains(searchText)
-            }
-        
-        switch selectedFilter {
-        case .all:
-            return searchFiltered
-        case .pending:
-            return searchFiltered.filter { $0.status == .pending }
-        case .inProgress:
-            return searchFiltered.filter { $0.status == .inProgress }
-        case .completed:
-            return searchFiltered.filter { $0.status == .completed }
-        case .overdue:
-            return searchFiltered.filter { $0.isOverdue }
-        case .dueToday:
-            return searchFiltered.filter { $0.isDueToday }
-        case .dueTomorrow:
-            return searchFiltered.filter { $0.isDueTomorrow }
-        case .highPriority:
-            return searchFiltered.filter { $0.priority == .high || $0.priority == .critical }
-        }
-    }
-    
-    private func loadAssignmentsWithOfflineSupport() async {
-        if offlineRepository.isOfflineMode {
-            // Load from local storage
-            offlineRepository.refreshData()
-        } else {
-            // Sync with Firebase
-            try? await offlineRepository.syncWithFirebase()
-            // Also load with existing view model for compatibility
-            await viewModel.loadAssignments()
-        }
-    }
-    
-    private func handleOfflineToggleComplete(_ assignment: Assignment) {
-        var updatedAssignment = assignment
-        updatedAssignment.status = assignment.status == .completed ? .pending : .completed
-        updatedAssignment.completedDate = assignment.status == .completed ? nil : Date()
-        
-        offlineRepository.updateAssignment(updatedAssignment)
-        
-        // Also update view model for compatibility
-        Task {
-            await viewModel.markAsCompleted(assignment.id)
-        }
-    }
 }
 
 // MARK: - Offline-Aware Assignment Card
@@ -706,8 +706,8 @@ struct OfflineAssignmentCard: View {
             }
             
             // Description
-            if !assignment.description.isEmpty {
-                Text(assignment.description)
+            if let description = assignment.description, !description.isEmpty {
+                Text(description)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .lineLimit(2)
@@ -737,20 +737,6 @@ struct OfflineAssignmentCard: View {
 }
 
 // MARK: - Extensions for Assignment Properties
-extension Assignment {
-    var isOverdue: Bool {
-        return dueDate < Date() && status != .completed
-    }
-    
-    var isDueToday: Bool {
-        return Calendar.current.isDateInToday(dueDate)
-    }
-    
-    var isDueTomorrow: Bool {
-        return Calendar.current.isDateInTomorrow(dueDate)
-    }
-}
-
 extension DateFormatter {
     static let shortDate: DateFormatter = {
         let formatter = DateFormatter()
@@ -758,15 +744,6 @@ extension DateFormatter {
         formatter.timeStyle = .none
         return formatter
     }()
-}
-        case .completed: return "Complete some assignments to see them here"
-        case .overdue: return "Great! You're staying on top of your work"
-        case .dueToday: return "Enjoy your free day or work on upcoming assignments"
-        case .dueTomorrow: return "Tomorrow looks clear so far"
-        case .highPriority: return "All urgent assignments are under control"
-        default: return "Create your first assignment to get started"
-        }
-    }
 }
 
 // MARK: - Supporting Enums

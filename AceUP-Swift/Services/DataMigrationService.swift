@@ -41,28 +41,23 @@ class DataMigrationService: ObservableObject {
         migrationError = nil
         migrationCompleted = false
         
-        do {
-            // Step 1: Create sample courses
-            migrationMessage = "Creating sample courses..."
-            await createSampleCourses()
-            migrationProgress = 0.3
-            
-            // Step 2: Create sample assignments
-            migrationMessage = "Creating sample assignments..."
-            await createSampleAssignments()
-            migrationProgress = 0.6
-            
-            // Step 3: Verify data integrity
-            migrationMessage = "Verifying data integrity..."
-            await verifyDataIntegrity()
-            migrationProgress = 1.0
-            
-            migrationMessage = "Migration completed successfully!"
-            migrationCompleted = true
-            
-        } catch {
-            migrationError = "Migration failed: \(error.localizedDescription)"
-        }
+        // Step 1: Create sample courses
+        migrationMessage = "Creating sample courses..."
+        await createSampleCourses()
+        migrationProgress = 0.3
+        
+        // Step 2: Create sample assignments
+        migrationMessage = "Creating sample assignments..."
+        await createSampleAssignments()
+        migrationProgress = 0.6
+        
+        // Step 3: Verify data integrity
+        migrationMessage = "Verifying data integrity..."
+        await verifyDataIntegrity()
+        migrationProgress = 1.0
+        
+        migrationMessage = "Migration completed successfully!"
+        migrationCompleted = true
         
         isMigrating = false
     }
@@ -224,6 +219,7 @@ class DataMigrationService: ObservableObject {
                 Assignment(
                     title: "Final Programming Project",
                     description: "Develop a complete web application using React and Node.js",
+                    subject: "Computer Science",
                     courseId: csCourse.id,
                     courseName: csCourse.name,
                     courseColor: csCourse.color,
@@ -245,6 +241,7 @@ class DataMigrationService: ObservableObject {
                 Assignment(
                     title: "Data Structures Quiz",
                     description: "Quiz covering arrays, linked lists, and trees",
+                    subject: "Computer Science",
                     courseId: csCourse.id,
                     courseName: csCourse.name,
                     courseColor: csCourse.color,
@@ -264,6 +261,7 @@ class DataMigrationService: ObservableObject {
                 Assignment(
                     title: "Calculus Midterm Preparation",
                     description: "Review chapters 8-12 for comprehensive midterm exam",
+                    subject: "Mathematics",
                     courseId: mathCourse.id,
                     courseName: mathCourse.name,
                     courseColor: mathCourse.color,
@@ -277,6 +275,7 @@ class DataMigrationService: ObservableObject {
                 Assignment(
                     title: "Integration Homework",
                     description: "Complete problems 1-20 from chapter 9",
+                    subject: "Mathematics",
                     courseId: mathCourse.id,
                     courseName: mathCourse.name,
                     courseColor: mathCourse.color,
@@ -296,6 +295,7 @@ class DataMigrationService: ObservableObject {
                 Assignment(
                     title: "Physics Lab Report #3",
                     description: "Analysis of pendulum motion and harmonic oscillation",
+                    subject: "Physics",
                     courseId: physicsCourse.id,
                     courseName: physicsCourse.name,
                     courseColor: physicsCourse.color,
@@ -315,6 +315,7 @@ class DataMigrationService: ObservableObject {
                 Assignment(
                     title: "Research Paper Draft",
                     description: "First draft of research paper on machine learning applications",
+                    subject: "Computer Science",
                     courseId: aiCourse.id,
                     courseName: aiCourse.name,
                     courseColor: aiCourse.color,

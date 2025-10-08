@@ -22,7 +22,7 @@ class AssignmentViewModel: ObservableObject {
     @Published var completedAssignments: [Assignment] = []
     @Published var overdueAssignments: [Assignment] = []
     
-    @Published var workloadAnalysis: WorkloadAnalysis?
+    @Published var workloadAnalysis: WorkloadAnalysisResult?
     @Published var smartRecommendations: [SmartRecommendation] = []
     @Published var todaysSummary: TodaysSummary?
     
@@ -36,10 +36,25 @@ class AssignmentViewModel: ObservableObject {
     @Published var newAssignmentDescription = ""
     @Published var newAssignmentDueDate = Date()
     @Published var newAssignmentCourse = ""
+    @Published var newAssignmentSubject = ""
     @Published var newAssignmentWeight = 0.1
     @Published var newAssignmentPriority = Priority.medium
     @Published var newAssignmentEstimatedHours: Double?
+    @Published var newAssignmentDuration: Double = 2.0
     @Published var newAssignmentTags: [String] = []
+    @Published var newAssignmentNotes = ""
+    
+    // Course colors mapping
+    @Published var courseColors: [String: String] = [
+        "Mathematics": "#FF6B6B",
+        "Physics": "#4ECDC4", 
+        "Chemistry": "#45B7D1",
+        "Biology": "#96CEB4",
+        "History": "#FECA57",
+        "Literature": "#FF9FF3",
+        "Computer Science": "#54A0FF",
+        "Art": "#5F27CD"
+    ]
     
     // MARK: - Dependencies
     
@@ -89,6 +104,7 @@ class AssignmentViewModel: ObservableObject {
         let assignment = Assignment(
             title: newAssignmentTitle,
             description: newAssignmentDescription.isEmpty ? nil : newAssignmentDescription,
+            subject: newAssignmentSubject,
             courseId: newAssignmentCourse.lowercased().replacingOccurrences(of: " ", with: "_"),
             courseName: newAssignmentCourse,
             dueDate: newAssignmentDueDate,
@@ -203,10 +219,13 @@ class AssignmentViewModel: ObservableObject {
         newAssignmentDescription = ""
         newAssignmentDueDate = Date()
         newAssignmentCourse = ""
+        newAssignmentSubject = ""
         newAssignmentWeight = 0.1
         newAssignmentPriority = .medium
         newAssignmentEstimatedHours = nil
+        newAssignmentDuration = 2.0
         newAssignmentTags = []
+        newAssignmentNotes = ""
     }
     
     // MARK: - Private Methods

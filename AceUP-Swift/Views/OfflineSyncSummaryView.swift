@@ -101,14 +101,14 @@ struct OfflineSyncSummaryView: View {
                 GridItem(.flexible()),
                 GridItem(.flexible())
             ], spacing: 12) {
-                StatCard(
+                OfflineStatCard(
                     title: "Pending Operations",
                     value: "\(offlineManager.pendingOperationsCount)",
                     icon: "clock",
                     color: offlineManager.pendingOperationsCount > 0 ? .orange : .green
                 )
                 
-                StatCard(
+                OfflineStatCard(
                     title: "Sync Status",
                     value: syncStatusText,
                     icon: syncStatusIcon,
@@ -242,7 +242,7 @@ struct OfflineSyncSummaryView: View {
 
 // MARK: - Supporting Views
 
-struct StatCard: View {
+struct OfflineStatCard: View {
     let title: String
     let value: String
     let icon: String

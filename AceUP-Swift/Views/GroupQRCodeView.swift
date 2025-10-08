@@ -52,27 +52,25 @@ struct GroupQRCodeView: View {
                             .font(.subheadline)
                             .foregroundColor(UI.muted)
                         
-                        if let inviteCode = group.inviteCode {
-                            HStack {
-                                Text(inviteCode)
-                                    .font(.title2)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(UI.navy)
-                                    .padding(.horizontal, 20)
-                                    .padding(.vertical, 10)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .fill(UI.neutralLight)
-                                    )
-                                
-                                Button(action: {
-                                    UIPasteboard.general.string = inviteCode
-                                   
-                                }) {
-                                    Image(systemName: "doc.on.doc")
-                                        .foregroundColor(UI.primary)
-                                        .font(.title3)
-                                }
+                        HStack {
+                            Text(group.inviteCode)
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(UI.navy)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 10)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(UI.neutralLight)
+                                )
+                            
+                            Button(action: {
+                                UIPasteboard.general.string = group.inviteCode
+                               
+                            }) {
+                                Image(systemName: "doc.on.doc")
+                                    .foregroundColor(UI.primary)
+                                    .font(.title3)
                             }
                         }
                     }
@@ -120,7 +118,7 @@ struct GroupQRCodeView: View {
     }
     
     private func generateQRCode() {
-        guard let inviteCode = group.inviteCode else { return }
+        let inviteCode = group.inviteCode
         
         let qrString = "aceup://join/\(inviteCode)"
         let context = CIContext()
@@ -139,9 +137,9 @@ struct GroupQRCodeView: View {
     }
     
     private func shareQRCode() {
-        guard let qrImage = qrCodeImage,
-              let inviteCode = group.inviteCode else { return }
+        guard let qrImage = qrCodeImage else { return }
         
+        let inviteCode = group.inviteCode
         let shareText = "Join my group \"\(group.name)\" on AceUP! Code: \(inviteCode)"
         let activityController = UIActivityViewController(
             activityItems: [shareText, qrImage],
@@ -165,7 +163,6 @@ struct GroupQRCodeView: View {
             createdAt: Date(),
             createdBy: "user1",
             color: "#4ECDC4",
-            isPublic: false,
             inviteCode: "ABC123"
         )
     )

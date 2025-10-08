@@ -74,25 +74,27 @@ class FirestoreAssignmentRepository: AssignmentRepositoryProtocol, ObservableObj
     // MARK: - AssignmentRepositoryProtocol Implementation
     
     func getAllAssignments() async throws -> [Assignment] {
+        await Task.yield()
         return assignments
     }
     
     func getAssignmentById(_ id: String) async throws -> Assignment? {
+        await Task.yield()
         return assignments.first { $0.id == id }
     }
     
-    func getAssignmentsByDate(_ date: Date) async throws -> [Assignment] {
+    func getAssignmentsByDate(_ date: Date) throws -> [Assignment] {
         let calendar = Calendar.current
         return assignments.filter { assignment in
             calendar.isDate(assignment.dueDate, inSameDayAs: date)
         }
     }
     
-    func getTodaysAssignments() async throws -> [Assignment] {
-        return try await getAssignmentsByDate(Date())
+    func getTodaysAssignments() throws -> [Assignment] {
+        return try getAssignmentsByDate(Date())
     }
     
-    func getUpcomingAssignments(days: Int = 7) async throws -> [Assignment] {
+    func getUpcomingAssignments(days: Int = 7) throws -> [Assignment] {
         let endDate = Calendar.current.date(byAdding: .day, value: days, to: Date()) ?? Date()
         return assignments.filter { assignment in
             assignment.dueDate >= Date() && assignment.dueDate <= endDate && assignment.status == .pending
@@ -109,6 +111,7 @@ class FirestoreAssignmentRepository: AssignmentRepositoryProtocol, ObservableObj
             id: assignment.id,
             title: assignment.title,
             description: assignment.description,
+            subject: assignment.subject,
             courseId: assignment.courseId,
             courseName: assignment.courseName,
             courseColor: assignment.courseColor,
@@ -142,6 +145,7 @@ class FirestoreAssignmentRepository: AssignmentRepositoryProtocol, ObservableObj
             id: assignment.id,
             title: assignment.title,
             description: assignment.description,
+            subject: assignment.subject,
             courseId: assignment.courseId,
             courseName: assignment.courseName,
             courseColor: assignment.courseColor,
@@ -181,6 +185,7 @@ class FirestoreAssignmentRepository: AssignmentRepositoryProtocol, ObservableObj
             id: assignment.id,
             title: assignment.title,
             description: assignment.description,
+            subject: assignment.subject,
             courseId: assignment.courseId,
             courseName: assignment.courseName,
             courseColor: assignment.courseColor,
@@ -213,6 +218,7 @@ class FirestoreAssignmentRepository: AssignmentRepositoryProtocol, ObservableObj
             id: assignment.id,
             title: assignment.title,
             description: assignment.description,
+            subject: assignment.subject,
             courseId: assignment.courseId,
             courseName: assignment.courseName,
             courseColor: assignment.courseColor,
@@ -242,6 +248,7 @@ class FirestoreAssignmentRepository: AssignmentRepositoryProtocol, ObservableObj
             id: assignment.id,
             title: assignment.title,
             description: assignment.description,
+            subject: assignment.subject,
             courseId: assignment.courseId,
             courseName: assignment.courseName,
             courseColor: assignment.courseColor,
@@ -269,6 +276,7 @@ struct AssignmentFirestore: Codable {
     let userId: String
     let title: String
     let description: String?
+    let subject: String
     let courseId: String
     let courseName: String
     let courseColor: String
@@ -290,6 +298,7 @@ struct AssignmentFirestore: Codable {
             userId: userId,
             title: assignment.title,
             description: assignment.description,
+            subject: assignment.subject,
             courseId: assignment.courseId,
             courseName: assignment.courseName,
             courseColor: assignment.courseColor,
@@ -312,6 +321,7 @@ struct AssignmentFirestore: Codable {
             id: id,
             title: title,
             description: description,
+            subject: subject,
             courseId: courseId,
             courseName: courseName,
             courseColor: courseColor,

@@ -54,7 +54,7 @@ struct CalendarEventsView: View {
                 ) {
                     // Refresh events after creation
                     Task {
-                        try? await eventsRepository.loadEvents()
+                        _ = try? await eventsRepository.loadEvents()
                     }
                 }
             }
@@ -65,7 +65,7 @@ struct CalendarEventsView: View {
                 ) {
                     // Refresh after editing
                     Task {
-                        try? await eventsRepository.loadEvents()
+                        _ = try? await eventsRepository.loadEvents()
                     }
                 }
             }
@@ -321,8 +321,8 @@ struct CalendarEventsView: View {
             availabilityRepository.startRealtimeListener()
             
             // Load initial data
-            try? await eventsRepository.loadEvents()
-            try? await availabilityRepository.loadUserAvailability()
+            _ = try? await eventsRepository.loadEvents()
+            _ = try? await availabilityRepository.loadUserAvailability()
         }
     }
     
@@ -334,6 +334,8 @@ struct CalendarEventsView: View {
             return .orange
         case .high:
             return .red
+        case .critical:
+            return .purple
         }
     }
     
@@ -383,7 +385,7 @@ struct CalendarWidgetView: View {
             
             // Days of week
             HStack {
-                ForEach(["S", "M", "T", "W", "T", "F", "S"], id: \\.self) { day in
+                ForEach(["S", "M", "T", "W", "T", "F", "S"], id: \.self) { day in
                     Text(day)
                         .font(.caption)
                         .fontWeight(.semibold)
@@ -394,7 +396,7 @@ struct CalendarWidgetView: View {
             
             // Calendar grid
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
-                ForEach(calendarDays, id: \\.self) { date in
+                ForEach(calendarDays, id: \.self) { date in
                     dayView(for: date)
                 }
             }
@@ -476,12 +478,6 @@ extension DateFormatter {
     static let shortTime: DateFormatter = {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
-        return formatter
-    }()
-    
-    static let mediumDate: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
         return formatter
     }()
     

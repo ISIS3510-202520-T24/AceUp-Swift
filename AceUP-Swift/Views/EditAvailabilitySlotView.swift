@@ -9,7 +9,7 @@ import SwiftUI
 
 struct EditAvailabilitySlotView: View {
     let slot: AvailabilitySlot
-    @ObservedObject let repository: FirebaseUserAvailabilityRepository
+    @ObservedObject var repository: FirebaseUserAvailabilityRepository
     let onSave: () -> Void
     
     @Environment(\.presentationMode) var presentationMode
@@ -92,7 +92,7 @@ struct EditAvailabilitySlotView: View {
     private var daySelectionSection: some View {
         Section(header: Text("Day of Week")) {
             Picker("Day", selection: $selectedDayOfWeek) {
-                ForEach(Array(weekdays.enumerated()), id: \\.offset) { index, day in
+                ForEach(Array(weekdays.enumerated()), id: \.offset) { index, day in
                     Text(day).tag(index)
                 }
             }
@@ -149,7 +149,7 @@ struct EditAvailabilitySlotView: View {
         Section(header: Text("Type & Priority")) {
             // Availability Type
             Picker("Type", selection: $availabilityType) {
-                ForEach(AvailabilityType.allCases, id: \\.self) { type in
+                ForEach(AvailabilityType.allCases, id: \.self) { type in
                     HStack {
                         Image(systemName: type.iconName)
                         Text(type.displayName)
@@ -160,7 +160,7 @@ struct EditAvailabilitySlotView: View {
             
             // Priority
             Picker("Priority", selection: $priority) {
-                ForEach(Priority.allCases, id: \\.self) { priority in
+                ForEach(Priority.allCases, id: \.self) { priority in
                     HStack {
                         Circle()
                             .fill(priorityColor(priority))
@@ -213,10 +213,12 @@ struct EditAvailabilitySlotView: View {
         let hours = durationMinutes / 60
         let minutes = durationMinutes % 60
         
-        if hours > 0 {
-            return "\\(hours)h \\(minutes)m"
+        if hours > 0 && minutes > 0 {
+            return "\(hours)h \(minutes)m"
+        } else if hours > 0 {
+            return "\(hours)h"
         } else {
-            return "\\(minutes)m"
+            return "\(minutes)m"
         }
     }
     
@@ -230,6 +232,8 @@ struct EditAvailabilitySlotView: View {
             return .orange
         case .high:
             return .red
+        case .critical:
+            return .purple
         }
     }
     

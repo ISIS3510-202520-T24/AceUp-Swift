@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct CreateCalendarEventView: View {
-    @ObservedObject let repository: FirebaseCalendarEventsRepository
+    @ObservedObject var repository: FirebaseCalendarEventsRepository
     let initialDate: Date
     let onSave: () -> Void
     
@@ -104,7 +104,7 @@ struct CreateCalendarEventView: View {
                 selection: $startDate,
                 displayedComponents: [.date, .hourAndMinute]
             )
-            .onChange(of: startDate) { newValue in
+            .onChange(of: startDate) { _, newValue in
                 // Auto-adjust end date to maintain duration
                 let duration = endDate.timeIntervalSince(startDate)
                 if duration <= 0 || duration > 24 * 3600 { // If invalid or too long, set 1 hour
@@ -126,7 +126,7 @@ struct CreateCalendarEventView: View {
     private var eventDetailsSection: some View {
         Section(header: Text("Event Details")) {
             Picker("Type", selection: $eventType) {
-                ForEach(AvailabilityType.allCases, id: \\.self) { type in
+                ForEach(AvailabilityType.allCases, id: \.self) { type in
                     HStack {
                         Image(systemName: type.iconName)
                         Text(type.displayName)
@@ -136,7 +136,7 @@ struct CreateCalendarEventView: View {
             }
             
             Picker("Priority", selection: $priority) {
-                ForEach(Priority.allCases, id: \\.self) { priority in
+                ForEach(Priority.allCases, id: \.self) { priority in
                     HStack {
                         Circle()
                             .fill(priorityColor(priority))
@@ -154,12 +154,12 @@ struct CreateCalendarEventView: View {
     private var recurrenceSection: some View {
         Section(header: Text("Recurrence")) {
             Picker("Repeat", selection: $recurrenceFrequency) {
-                ForEach(RecurrenceFrequency.allCases, id: \\.self) { frequency in
+                ForEach(RecurrenceFrequency.allCases, id: \.self) { frequency in
                     Text(frequency.displayName).tag(frequency)
                 }
             }
             
-            Stepper("Every \\(recurrenceInterval) \\(recurrenceFrequency.displayName.lowercased())", 
+            Stepper("Every \(recurrenceInterval) \(recurrenceFrequency.displayName.lowercased())", 
                     value: $recurrenceInterval, 
                     in: 1...30)
             
@@ -190,7 +190,7 @@ struct CreateCalendarEventView: View {
                 .foregroundColor(.secondary)
             
             HStack {
-                ForEach(Array(Calendar.current.shortWeekdaySymbols.enumerated()), id: \\.offset) { index, day in
+                ForEach(Array(Calendar.current.shortWeekdaySymbols.enumerated()), id: \.offset) { index, day in
                     Button(action: {
                         if selectedDaysOfWeek.contains(index) {
                             selectedDaysOfWeek.remove(index)
@@ -219,7 +219,7 @@ struct CreateCalendarEventView: View {
     
     private var remindersSection: some View {
         Section(header: Text("Reminders")) {
-            ForEach(Array(reminderMinutes.enumerated()), id: \\.offset) { index, minutes in
+            ForEach(Array(reminderMinutes.enumerated()), id: \.offset) { index, minutes in
                 HStack {
                     Text(reminderText(minutes: minutes))
                     
@@ -275,6 +275,8 @@ struct CreateCalendarEventView: View {
             return .orange
         case .high:
             return .red
+        case .critical:
+            return .purple
         }
     }
     
@@ -282,13 +284,13 @@ struct CreateCalendarEventView: View {
         if minutes == 0 {
             return "At time of event"
         } else if minutes < 60 {
-            return "\\(minutes) minutes before"
+            return "\(minutes) minutes before"
         } else if minutes < 1440 {
             let hours = minutes / 60
-            return "\\(hours) hour\\(hours == 1 ? "" : "s") before"
+            return "\(hours) hour\(hours == 1 ? "" : "s") before"
         } else {
             let days = minutes / 1440
-            return "\\(days) day\\(days == 1 ? "" : "s") before"
+            return "\(days) day\(days == 1 ? "" : "s") before"
         }
     }
     
@@ -381,7 +383,7 @@ struct ReminderPickerView: View {
     var body: some View {
         NavigationView {
             List {
-                ForEach(reminderOptions, id: \\.0) { minutes, text in
+                ForEach(reminderOptions, id: \.0) { minutes, text in
                     Button(action: {
                         selectedMinutes = minutes
                         onDismiss()

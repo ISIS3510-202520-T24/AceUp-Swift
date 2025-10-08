@@ -7,6 +7,9 @@
 
 import Foundation
 
+// MARK: - Type Aliases for Firebase
+typealias TimeOfDayFirestore = TimeOfDay
+
 // MARK: - Calendar Group Models
 struct CalendarGroup: Codable, Identifiable, Hashable {
     let id: String
@@ -56,8 +59,8 @@ struct AvailabilitySlot: Codable, Identifiable, Hashable, Equatable {
 }
 
 struct TimeOfDay: Codable, Hashable, Comparable {
-    let hour: Int
-    let minute: Int
+    var hour: Int
+    var minute: Int
     
     var timeString: String {
         String(format: "%02d:%02d", hour, minute)

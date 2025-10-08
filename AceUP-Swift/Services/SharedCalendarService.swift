@@ -725,7 +725,6 @@ class SharedCalendarService: ObservableObject {
                 createdAt: Date().addingTimeInterval(-86400 * 14),
                 createdBy: "current_user_id",
                 color: "#4ECDC4",
-                isPublic: false,
                 inviteCode: "ABC123"
             ),
             CalendarGroup(
@@ -786,7 +785,6 @@ class SharedCalendarService: ObservableObject {
                 createdAt: Date().addingTimeInterval(-86400 * 7),
                 createdBy: "current_user_id",
                 color: "#45B7D1",
-                isPublic: false,
                 inviteCode: "DEF456"
             )
         ]
@@ -834,11 +832,6 @@ struct SmartSuggestionFirestore: Codable {
     let suggestedTime: TimeOfDayFirestore?
     let affectedMembers: [String]
     let createdAt: Timestamp
-}
-
-struct TimeOfDayFirestore: Codable {
-    let hour: Int
-    let minute: Int
 }
 
 // MARK: - Firebase Conversion Methods
@@ -927,7 +920,7 @@ extension SharedCalendarService {
         ]
         
         for group in sampleGroups {
-            await createGroup(name: group.name, description: group.description, isPublic: false)
+            await createGroup(name: group.name, description: group.description)
         }
     }
 }
