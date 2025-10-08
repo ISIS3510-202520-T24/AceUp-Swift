@@ -73,6 +73,12 @@ struct GroupQRCodeView: View {
                                         .foregroundColor(UI.primary)
                                         .font(.title3)
                                 }
+                                
+                                Button(action: shareInviteCode) {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .foregroundColor(UI.primary)
+                                        .font(.title3)
+                                }
                             }
                         }
                     }
@@ -120,38 +126,42 @@ struct GroupQRCodeView: View {
     }
     
     private func generateQRCode() {
-        guard let inviteCode = group.inviteCode else { return }
+        guard let inviteCode = group.inviteCode else { 
+            print("No invite code available for group: \(group.name)")
+            return 
+        }
         
         let qrString = "aceup://join/\(inviteCode)"
+        print("Generating QR code for: \(qrString)")
+        
         let context = CIContext()
         let filter = CIFilter.qrCodeGenerator()
         
-        filter.message = Data(qrString.utf8)
+        let data = Data(qrString.utf8)
+        filter.message = data
         
         if let outputImage = filter.outputImage {
+            // Scale up the QR code for better quality
             let transform = CGAffineTransform(scaleX: 10, y: 10)
             let scaledImage = outputImage.transformed(by: transform)
             
             if let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) {
                 qrCodeImage = UIImage(cgImage: cgImage)
+                print("QR code generated successfully")
+            } else {
+                print("Failed to create CGImage from CIImage")
             }
+        } else {
+            print("Failed to generate QR code output image")
         }
     }
     
     private func shareQRCode() {
-        guard let qrImage = qrCodeImage,
-              let inviteCode = group.inviteCode else { return }
-        
-        let shareText = "Join my group \"\(group.name)\" on AceUP! Code: \(inviteCode)"
-        let activityController = UIActivityViewController(
-            activityItems: [shareText, qrImage],
-            applicationActivities: nil
-        )
-        
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let window = windowScene.windows.first {
-            window.rootViewController?.present(activityController, animated: true)
-        }
+        SharingService.shared.shareGroupInvitationEnhancedFromSwiftUI(group: group)
+    }
+    
+    private func shareInviteCode() {
+        SharingService.shared.shareInvitationCodeFromSwiftUI(group: group)
     }
 }
 
@@ -165,7 +175,6 @@ struct GroupQRCodeView: View {
             createdAt: Date(),
             createdBy: "user1",
             color: "#4ECDC4",
-            isPublic: false,
             inviteCode: "ABC123"
         )
     )

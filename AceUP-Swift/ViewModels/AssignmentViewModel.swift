@@ -216,7 +216,7 @@ class AssignmentViewModel: ObservableObject {
         Timer.publish(every: 300, on: .main, in: .common) // Every 5 minutes
             .autoconnect()
             .sink { [weak self] _ in
-                Task {
+                Task { @MainActor in
                     await self?.loadAssignments()
                 }
             }

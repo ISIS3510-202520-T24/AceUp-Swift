@@ -278,7 +278,6 @@ extension SharedCalendarEntity {
             createdAt: self.createdAt ?? Date(),
             createdBy: self.createdBy ?? "",
             color: self.color ?? "#122C4A",
-            isPublic: self.isPublic,
             inviteCode: self.inviteCode
         )
     }
@@ -291,7 +290,6 @@ extension SharedCalendarEntity {
         self.createdAt = group.createdAt
         self.createdBy = group.createdBy
         self.color = group.color
-        self.isPublic = group.isPublic
         self.inviteCode = group.inviteCode
     }
     

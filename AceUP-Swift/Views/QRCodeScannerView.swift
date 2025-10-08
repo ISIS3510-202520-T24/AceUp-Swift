@@ -11,6 +11,13 @@ import AVFoundation
 struct QRCodeScannerView: UIViewControllerRepresentable {
     @Binding var isPresented: Bool
     let onCodeScanned: (String) -> Void
+    let onError: ((String) -> Void)?
+    
+    init(isPresented: Binding<Bool>, onCodeScanned: @escaping (String) -> Void, onError: ((String) -> Void)? = nil) {
+        self._isPresented = isPresented
+        self.onCodeScanned = onCodeScanned
+        self.onError = onError
+    }
     
     func makeUIViewController(context: Context) -> QRScannerViewController {
         let controller = QRScannerViewController()
@@ -38,6 +45,7 @@ struct QRCodeScannerView: UIViewControllerRepresentable {
         
         func didFailWithError(_ error: Error) {
             print("QR Scanner Error: \(error)")
+            parent.onError?(error.localizedDescription)
             parent.isPresented = false
         }
     }
@@ -51,8 +59,8 @@ protocol QRScannerDelegate: AnyObject {
 class QRScannerViewController: UIViewController {
     weak var delegate: QRScannerDelegate?
     
-    private var captureSession: AVCaptureSession!
-    private var previewLayer: AVCaptureVideoPreviewLayer!
+    private var captureSession: AVCaptureSession?
+    private var previewLayer: AVCaptureVideoPreviewLayer?
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -63,9 +71,9 @@ class QRScannerViewController: UIViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         
-        if !captureSession.isRunning {
+        if let session = captureSession, !session.isRunning {
             DispatchQueue.global(qos: .background).async {
-                self.captureSession.startRunning()
+                session.startRunning()
             }
         }
     }
@@ -73,13 +81,38 @@ class QRScannerViewController: UIViewController {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         
-        if captureSession.isRunning {
-            captureSession.stopRunning()
+        if let session = captureSession, session.isRunning {
+            session.stopRunning()
         }
     }
     
     private func setupCamera() {
-        captureSession = AVCaptureSession()
+        // Check camera permission first
+        let cameraAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
+        
+        switch cameraAuthorizationStatus {
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        self.configureCaptureSession()
+                    } else {
+                        self.delegate?.didFailWithError(QRScannerError.cameraPermissionDenied)
+                    }
+                }
+            }
+        case .authorized:
+            configureCaptureSession()
+        case .restricted, .denied:
+            delegate?.didFailWithError(QRScannerError.cameraPermissionDenied)
+        @unknown default:
+            delegate?.didFailWithError(QRScannerError.cameraPermissionDenied)
+        }
+    }
+    
+    private func configureCaptureSession() {
+        let session = AVCaptureSession()
+        captureSession = session
         
         guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else {
             delegate?.didFailWithError(QRScannerError.cameraNotAvailable)
@@ -95,8 +128,8 @@ class QRScannerViewController: UIViewController {
             return
         }
         
-        if captureSession.canAddInput(videoInput) {
-            captureSession.addInput(videoInput)
+        if session.canAddInput(videoInput) {
+            session.addInput(videoInput)
         } else {
             delegate?.didFailWithError(QRScannerError.cannotAddInput)
             return
@@ -104,8 +137,8 @@ class QRScannerViewController: UIViewController {
         
         let metadataOutput = AVCaptureMetadataOutput()
         
-        if captureSession.canAddOutput(metadataOutput) {
-            captureSession.addOutput(metadataOutput)
+        if session.canAddOutput(metadataOutput) {
+            session.addOutput(metadataOutput)
             
             metadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
             metadataOutput.metadataObjectTypes = [.qr]
@@ -114,10 +147,11 @@ class QRScannerViewController: UIViewController {
             return
         }
         
-        previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
-        previewLayer.frame = view.layer.bounds
-        previewLayer.videoGravity = .resizeAspectFill
-        view.layer.addSublayer(previewLayer)
+        let layer = AVCaptureVideoPreviewLayer(session: session)
+        previewLayer = layer
+        layer.frame = view.layer.bounds
+        layer.videoGravity = .resizeAspectFill
+        view.layer.addSublayer(layer)
     }
     
     private func setupUI() {
@@ -188,6 +222,7 @@ class QRScannerViewController: UIViewController {
     }
     
     @objc private func cancelTapped() {
+        captureSession?.stopRunning()
         dismiss(animated: true)
     }
     
@@ -200,7 +235,7 @@ class QRScannerViewController: UIViewController {
 extension QRScannerViewController: AVCaptureMetadataOutputObjectsDelegate {
     func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
         
-        captureSession.stopRunning()
+        captureSession?.stopRunning()
         
         if let metadataObject = metadataObjects.first {
             guard let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject else { return }
@@ -214,6 +249,7 @@ extension QRScannerViewController: AVCaptureMetadataOutputObjectsDelegate {
 
 enum QRScannerError: Error, LocalizedError {
     case cameraNotAvailable
+    case cameraPermissionDenied
     case cannotAddInput
     case cannotAddOutput
     
@@ -221,6 +257,8 @@ enum QRScannerError: Error, LocalizedError {
         switch self {
         case .cameraNotAvailable:
             return "Camera not available"
+        case .cameraPermissionDenied:
+            return "Camera permission denied. Please enable camera access in Settings."
         case .cannotAddInput:
             return "Cannot add camera input"
         case .cannotAddOutput:

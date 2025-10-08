@@ -6,8 +6,8 @@
 //
 
 import Foundation
-//Aqui no es necesario pero solo se hace para mapear errores comodamente
 import Firebase
+import FirebaseAuth
 
 @MainActor
 final class SignUpViewModel: ObservableObject {
@@ -29,9 +29,9 @@ final class SignUpViewModel: ObservableObject {
     private let authService: AuthService
     private let biometricService: BiometricService
     
-    init (AuthService: AuthService = AuthService(),
-          biometricService: BiometricService = BiometricService()){
-        self.authService = AuthService
+    init(authService: AuthService = AuthService(),
+         biometricService: BiometricService = BiometricService()) {
+        self.authService = authService
         self.biometricService = biometricService
     }
     
@@ -63,23 +63,95 @@ final class SignUpViewModel: ObservableObject {
         errorMessage = nil
         didComplete = false
         
-        // Valdiación previa
+        // Validation check first
         if let vErr = firstValidationError {
-            errorMessage = vErr
+            await MainActor.run {
+                errorMessage = vErr
+            }
             return
         }
         
-        isLoading = true
-        defer {isLoading  = false}
+        await MainActor.run {
+            isLoading = true
+        }
+        
+        defer {
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
+        
         do {
-            //primero se crea el usuario en firebase
-            _ = try await authService.signUp(email: email, password: password, nick: nick)
+            // Check if there's already a logged-in user and sign out
+            if authService.isLoggedIn {
+                try authService.signOut()
+                // Add small delay to ensure clean state
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            }
             
-            //mostar si se pudo guardar e identificar
+            // Add timeout to prevent indefinite hanging
+            let signupTask = Task {
+                let result = try await authService.signUp(email: email, password: password, nick: nick)
+                return result
+            }
             
-            didComplete = true
+            // Wait for signup with timeout
+            _ = try await withTimeout(seconds: 30) {
+                try await signupTask.value
+            }
+            
+            await MainActor.run {
+                didComplete = true
+                errorMessage = nil
+            }
+            
+        } catch let error as NSError {
+            await MainActor.run {
+                // Handle specific Firebase auth errors
+                switch error.code {
+                case 17007: // FIRAuthErrorCodeEmailAlreadyInUse
+                    errorMessage = "This email is already registered. Try signing in instead."
+                case 17026: // FIRAuthErrorCodeWeakPassword
+                    errorMessage = "Password is too weak. Please choose a stronger password."
+                case 17008: // FIRAuthErrorCodeInvalidEmail
+                    errorMessage = "Invalid email address format."
+                case 17020: // FIRAuthErrorCodeNetworkError
+                    errorMessage = "Network error. Please check your internet connection."
+                case 17999: // FIRAuthErrorCodeInternalError
+                    errorMessage = "Internal error occurred. Please try again."
+                default:
+                    errorMessage = error.localizedDescription
+                }
+            }
         } catch {
-            errorMessage = error.localizedDescription
+            await MainActor.run {
+                if error is TimeoutError {
+                    errorMessage = "Registration is taking too long. Please check your internet connection and try again."
+                } else {
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+    
+    // Timeout helper
+    private func withTimeout<T>(seconds: Double, operation: @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw TimeoutError()
+            }
+            
+            guard let result = try await group.next() else {
+                throw TimeoutError()
+            }
+            
+            group.cancelAll()
+            return result
         }
     }
 }

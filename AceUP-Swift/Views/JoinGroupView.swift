@@ -17,7 +17,13 @@ struct JoinGroupView: View {
     @State private var showingErrorAlert = false
     @State private var alertMessage = ""
     
+    let initialInviteCode: String?
     let onGroupJoined: () -> Void
+    
+    init(initialInviteCode: String? = nil, onGroupJoined: @escaping () -> Void) {
+        self.initialInviteCode = initialInviteCode
+        self.onGroupJoined = onGroupJoined
+    }
     
     var body: some View {
         NavigationView {
@@ -137,8 +143,18 @@ struct JoinGroupView: View {
             )
         }
         .sheet(isPresented: $showingQRScanner) {
-            QRCodeScannerView(isPresented: $showingQRScanner) { scannedCode in
-                handleScannedCode(scannedCode)
+            QRCodeScannerView(
+                isPresented: $showingQRScanner,
+                onCodeScanned: { scannedCode in
+                    handleScannedCode(scannedCode)
+                },
+                onError: { errorMessage in
+                    alertMessage = errorMessage
+                    showingErrorAlert = true
+                }
+            )
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                // Handle app coming back from Settings if user went to enable camera permission
             }
         }
         .alert("Success!", isPresented: $showingSuccessAlert) {
@@ -160,17 +176,46 @@ struct JoinGroupView: View {
                 showingErrorAlert = true
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("HandleGroupInviteCode"))) { notification in
+            if let inviteCode = notification.object as? String {
+                print("🔗 Deep link invite code received: \(inviteCode)")
+                groupCode = inviteCode.uppercased()
+                joinGroupWithCode()
+            }
+        }
+        .onAppear {
+            if let code = initialInviteCode {
+                print("🔗 Processing initial invite code: \(code)")
+                groupCode = code.uppercased()
+                joinGroupWithCode()
+            }
+        }
     }
     
     private func handleScannedCode(_ scannedCode: String) {
+        print("Scanned QR code: \(scannedCode)")
+        
         let code: String
         if scannedCode.hasPrefix("aceup://join/") {
             code = String(scannedCode.dropFirst("aceup://join/".count))
+        } else if scannedCode.hasPrefix("ACEUP://JOIN/") {
+            // Handle uppercase variant
+            code = String(scannedCode.dropFirst("ACEUP://JOIN/".count))
         } else {
+            // Assume it's a raw invite code
             code = scannedCode
         }
         
-        groupCode = code.uppercased()
+        let cleanCode = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        
+        if cleanCode.isEmpty {
+            alertMessage = "Invalid QR code format"
+            showingErrorAlert = true
+            return
+        }
+        
+        groupCode = cleanCode
+        print("Extracted invite code: \(cleanCode)")
         joinGroupWithCode()
     }
     

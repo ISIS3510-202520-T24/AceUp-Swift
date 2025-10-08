@@ -38,8 +38,15 @@ class SharedCalendarService: ObservableObject {
     
     // MARK: - Firebase Data Loading
     func loadGroupsFromFirebase() async {
-        isLoading = true
-        defer { isLoading = false }
+        await MainActor.run {
+            isLoading = true
+        }
+        
+        defer { 
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
         
         do {
             let groupsSnapshot = try await db.collection("groups")
@@ -56,24 +63,37 @@ class SharedCalendarService: ObservableObject {
                 }
             }
             
-            self.groups = loadedGroups
+            await MainActor.run {
+                self.groups = loadedGroups
+            }
             
-            if groups.isEmpty {
+            if loadedGroups.isEmpty {
                 await createSampleGroupsInFirebase()
             }
             
         } catch {
-            errorMessage = "Error loading groups: \(error.localizedDescription)"
+            await MainActor.run {
+                errorMessage = "Error loading groups: \(error.localizedDescription)"
+            }
             print("Error loading groups from Firebase: \(error)")
            
-            loadMockData()
+            await MainActor.run {
+                loadMockData()
+            }
         }
     }
     
     // MARK: - Group Management
-    func createGroup(name: String, description: String, isPublic: Bool = false) async {
-        isLoading = true
-        defer { isLoading = false }
+    func createGroup(name: String, description: String) async {
+        await MainActor.run {
+            isLoading = true
+        }
+        
+        defer { 
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
         
         do {
             let groupId = UUID().uuidString
@@ -85,7 +105,6 @@ class SharedCalendarService: ObservableObject {
                 "ownerId": currentUserId,
                 "members": [currentUserId], 
                 "createdAt": Timestamp(date: Date()),
-                "isPublic": isPublic,
                 "description": description,
                 "color": generateRandomColor(),
                 "inviteCode": groupCode 
@@ -108,14 +127,23 @@ class SharedCalendarService: ObservableObject {
             await loadGroupsFromFirebase()
             
         } catch {
-            errorMessage = "Error creating group: \(error.localizedDescription)"
+            await MainActor.run {
+                errorMessage = "Error creating group: \(error.localizedDescription)"
+            }
             print("Error creating group in Firebase: \(error)")
         }
     }
     
     func joinGroup(groupId: String, inviteCode: String? = nil) async {
-        isLoading = true
-        defer { isLoading = false }
+        await MainActor.run {
+            isLoading = true
+        }
+        
+        defer { 
+            Task { @MainActor in
+                isLoading = false
+            }
+        }
         
         do {
             var groupDoc: DocumentSnapshot
@@ -127,7 +155,9 @@ class SharedCalendarService: ObservableObject {
                     .getDocuments()
                 
                 guard let foundGroup = groupsQuery.documents.first else {
-                    errorMessage = "Código de grupo inválido"
+                    await MainActor.run {
+                        errorMessage = "Código de grupo inválido"
+                    }
                     return
                 }
                 
@@ -137,7 +167,9 @@ class SharedCalendarService: ObservableObject {
                 groupDoc = try await db.collection("groups").document(groupId).getDocument()
                 
                 guard groupDoc.exists else {
-                    errorMessage = "Grupo no encontrado"
+                    await MainActor.run {
+                        errorMessage = "Grupo no encontrado"
+                    }
                     return
                 }
             }
@@ -146,7 +178,9 @@ class SharedCalendarService: ObservableObject {
             if let data = groupDoc.data(),
                let members = data["members"] as? [String],
                members.contains(currentUserId) {
-                errorMessage = "Ya eres miembro de este grupo"
+                await MainActor.run {
+                    errorMessage = "Ya eres miembro de este grupo"
+                }
                 return
             }
             
@@ -169,7 +203,9 @@ class SharedCalendarService: ObservableObject {
             await loadGroupsFromFirebase()
             
         } catch {
-            errorMessage = "Error joining group: \(error.localizedDescription)"
+            await MainActor.run {
+                errorMessage = "Error joining group: \(error.localizedDescription)"
+            }
             print("Error joining group in Firebase: \(error)")
         }
     }
@@ -725,7 +761,6 @@ class SharedCalendarService: ObservableObject {
                 createdAt: Date().addingTimeInterval(-86400 * 14),
                 createdBy: "current_user_id",
                 color: "#4ECDC4",
-                isPublic: false,
                 inviteCode: "ABC123"
             ),
             CalendarGroup(
@@ -765,7 +800,6 @@ class SharedCalendarService: ObservableObject {
                 createdAt: Date().addingTimeInterval(-86400 * 21),
                 createdBy: "5",
                 color: "#FF6B6B",
-                isPublic: true,
                 inviteCode: "XYZ789"
             ),
             CalendarGroup(
@@ -787,7 +821,6 @@ class SharedCalendarService: ObservableObject {
                 createdAt: Date().addingTimeInterval(-86400 * 7),
                 createdBy: "current_user_id",
                 color: "#45B7D1",
-                isPublic: false,
                 inviteCode: "DEF456"
             )
         ]
@@ -800,7 +833,6 @@ struct CalendarGroupFirestore: Codable {
     let ownerId: String
     let members: [String] // Array de User IDs
     let createdAt: Timestamp
-    let isPublic: Bool
     let description: String
     let color: String
     let inviteCode: String? 
@@ -872,7 +904,6 @@ extension SharedCalendarService {
             createdAt: firestoreGroup.createdAt.dateValue(),
             createdBy: firestoreGroup.ownerId,
             color: firestoreGroup.color,
-            isPublic: firestoreGroup.isPublic,
             inviteCode: firestoreGroup.inviteCode
         )
     }
@@ -929,7 +960,7 @@ extension SharedCalendarService {
         ]
         
         for group in sampleGroups {
-            await createGroup(name: group.name, description: group.description, isPublic: false)
+            await createGroup(name: group.name, description: group.description)
         }
     }
 }

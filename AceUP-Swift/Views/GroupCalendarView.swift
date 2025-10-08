@@ -698,7 +698,6 @@ struct CreateEventView: View {
             createdAt: Date(),
             createdBy: "user1",
             color: "#4ECDC4",
-            isPublic: false,
             inviteCode: "ABC123"
         )
     )

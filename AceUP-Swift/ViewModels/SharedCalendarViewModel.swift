@@ -26,7 +26,6 @@ class SharedCalendarViewModel: ObservableObject {
     // MARK: - Form Properties
     @Published var newGroupName: String = ""
     @Published var newGroupDescription: String = ""
-    @Published var newGroupIsPublic: Bool = false
     @Published var joinGroupCode: String = ""
     
     // MARK: - Private Properties
@@ -103,14 +102,12 @@ class SharedCalendarViewModel: ObservableObject {
         Task {
             await sharedCalendarService.createGroup(
                 name: newGroupName,
-                description: newGroupDescription,
-                isPublic: newGroupIsPublic
+                description: newGroupDescription
             )
             
             // Reset form
             newGroupName = ""
             newGroupDescription = ""
-            newGroupIsPublic = false
             showingCreateGroup = false
         }
     }

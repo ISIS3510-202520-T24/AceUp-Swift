@@ -9,6 +9,7 @@ import SwiftUI
 struct SignUpView: View {
     @StateObject private var vm = SignUpViewModel()
     @State private var showTerms = false
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ZStack {
@@ -43,11 +44,11 @@ struct SignUpView: View {
                             .toggleStyle(CheckToggleStyle())
                             .padding(.top, 2)
 
-                        // Una sola oración + link a Terms (interceptado)
-                        Text("I've read and agree with the [Terms and\u{00A0}Conditions](app://terms) and the Privacy Policy.")
+                        // Terms and Conditions link
+                        Text("I've read and agree with the [Terms and Conditions](app://terms) and the Privacy Policy.")
                             .font(.footnote)
                             .foregroundColor(UI.muted)
-                            .tint(UI.muted)
+                            .tint(UI.navy) // Make the link more visible
                             .environment(\.openURL, OpenURLAction { url in
                                 if url.scheme == "app", url.host == "terms" {
                                     showTerms = true
@@ -57,6 +58,7 @@ struct SignUpView: View {
                             })
                     }
                     .padding(.top, 4)
+                    .padding(.bottom, 8) // Add extra space before button
 
                     Button(action: {
                         Task { await vm.signUp() }
@@ -102,6 +104,16 @@ struct SignUpView: View {
                 .presentationDetents([.fraction(0.85), .large])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(28)
+        }
+        .onChange(of: vm.didComplete) { _, newValue in
+            if newValue && !showTerms {
+                // Only dismiss if terms sheet is not showing
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    if !showTerms {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 
