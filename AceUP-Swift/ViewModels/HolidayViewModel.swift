@@ -18,9 +18,16 @@ final class HolidayViewModel: ObservableObject {
     @Published var errorMessage: String?
 
     private let service: HolidayService
+    private let dataProvider: HybridHolidayDataProvider
+    private let preferencesManager = UserPreferencesManager.shared
 
-    init(service: HolidayService = HolidayService()) {
+    init(service: HolidayService = HolidayService(), 
+         dataProvider: HybridHolidayDataProvider? = nil) {
         self.service = service
+        self.dataProvider = dataProvider ?? DataSynchronizationManager.shared.getHolidayProvider()
+        
+        // Load user's preferred country
+        selectedCountry = preferencesManager.selectedCountry
     }
 
     func loadCountries() async {
@@ -44,9 +51,14 @@ final class HolidayViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         do {
-            var items = try await service.fetchHolidays(countryCode: selectedCountry, year: year)
-            items.sort { $0.dateValue < $1.dateValue }
+            // Use hybrid data provider for offline-first experience
+            var items = try await dataProvider.fetchHolidays(for: selectedCountry, year: year)
+            items.sort { $0.date < $1.date }
             holidays = items
+            
+            // Update user preferences
+            preferencesManager.selectedCountry = selectedCountry
+            
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? "Failed to load holidays"
             holidays = []

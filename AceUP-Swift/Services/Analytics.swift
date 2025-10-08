@@ -148,7 +148,7 @@ final class Analytics {
         if AnalyticsConfig.DRY_RUN {
             if let d = try? JSONEncoder().encode(evt),
                let s = String(data: d, encoding: .utf8) {
-                print("📦 [DRY-RUN] \(s)")
+                print("[DRY-RUN] \(s)")
             }
             return
         }

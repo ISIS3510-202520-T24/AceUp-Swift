@@ -31,6 +31,8 @@ class SharedCalendarViewModel: ObservableObject {
     
     // MARK: - Private Properties
     private let sharedCalendarService = SharedCalendarService()
+    private let coreDataProvider = CoreDataSharedCalendarDataProvider()
+    private let syncManager = DataSynchronizationManager.shared
     private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Computed Properties
