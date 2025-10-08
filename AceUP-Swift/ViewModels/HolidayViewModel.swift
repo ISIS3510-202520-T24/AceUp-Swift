@@ -36,19 +36,6 @@ final class HolidayViewModel: ObservableObject {
             preferencesManager.selectedCountry = "US"
         }
         
-        // Debug: Test API connectivity
-        #if DEBUG
-        Task {
-            print("🧪 Testing Holiday API connectivity...")
-            do {
-                let testService = HolidayService()
-                let testCountries = try await testService.getCountries()
-                print("✅ API test successful: \(testCountries.count) countries available")
-            } catch {
-                print("❌ API test failed: \(error)")
-            }
-        }
-        #endif
     }
 
     func loadCountries() async {
