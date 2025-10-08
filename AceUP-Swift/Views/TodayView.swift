@@ -138,36 +138,109 @@ enum TodayTab: String, CaseIterable {
 // MARK: - Smart Insights Tab Content
 struct SmartInsightsTabContent: View {
     @ObservedObject var analytics: SmartCalendarAnalytics
+    @State private var isRefreshing = false
     
     var body: some View {
         VStack(spacing: 20) {
-            // Today's Smart Highlights
+            // Refresh indicator and header
+            HStack {
+                Text("Smart Insights")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(UI.navy)
+                
+                Spacer()
+                
+                Button(action: {
+                    Task {
+                        await refreshData()
+                    }
+                }) {
+                    Image(systemName: "arrow.clockwise")
+                        .foregroundColor(UI.primary)
+                        .font(.title3)
+                        .rotationEffect(.degrees(isRefreshing ? 360 : 0))
+                        .animation(isRefreshing ? Animation.linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRefreshing)
+                }
+                .disabled(isRefreshing)
+            }
+            .padding(.horizontal, 20)
+            
+            // Enhanced Today's Highlights
             todayHighlights
             
-            // Weekly Insights
+            // Productivity Metrics
+            ProductivityMetricsView(
+                todaysScore: analytics.todaysProductivityScore,
+                weeklyProgress: analytics.weeklyGoalProgress,
+                completionRate: analytics.assignmentCompletionRate,
+                estimationAccuracy: analytics.averageTimeEstimationAccuracy
+            )
+            .padding(.horizontal, 20)
+            
+            // Upcoming Deadlines
+            UpcomingDeadlinesView(assignments: analytics.upcomingDeadlines)
+                .padding(.horizontal, 20)
+            
+            // Subject Performance
+            if !analytics.subjectPerformance.isEmpty {
+                SubjectPerformanceView(performances: analytics.subjectPerformance)
+                    .padding(.horizontal, 20)
+            }
+            
+            // Workload Forecast
+            if let forecast = analytics.workloadForecast {
+                WorkloadForecastView(forecast: forecast)
+                    .padding(.horizontal, 20)
+            }
+            
+            // Weekly Insights (existing)
             if let latestInsight = analytics.weeklyInsights.first {
                 SmartInsightsCard(insight: latestInsight)
                     .padding(.horizontal, 20)
             }
             
-            // Productivity Trends
+            // Productivity Trends (existing)
             if !analytics.productivityTrends.isEmpty {
                 ProductivityChart(trends: analytics.productivityTrends)
                     .padding(.horizontal, 20)
             }
             
-            // Study Patterns
+            // Study Patterns (existing)
             if !analytics.studyPatterns.isEmpty {
                 StudyPatternsView(patterns: analytics.studyPatterns)
                     .padding(.horizontal, 20)
             }
             
-            // Collaboration Metrics
+            // Collaboration Metrics (existing)
             if let metrics = analytics.collaborationMetrics {
                 CollaborationMetricsView(metrics: metrics)
                     .padding(.horizontal, 20)
             }
+            
+            // Business Question: Days since last progress
+            if analytics.daysSinceLastProgress >= 0 {
+                DaysSinceProgressView(days: analytics.daysSinceLastProgress)
+                    .padding(.horizontal, 20)
+            }
         }
+        .onAppear {
+            Task {
+                await analytics.refreshData()
+            }
+        }
+        .refreshable {
+            await refreshData()
+        }
+    }
+    
+    private func refreshData() async {
+        isRefreshing = true
+        await analytics.refreshData()
+        
+        // Add a small delay to show the refresh animation
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        isRefreshing = false
     }
     
     // MARK: - Today's Highlights
@@ -188,32 +261,107 @@ struct SmartInsightsTabContent: View {
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 15) {
+                    // Dynamic highlight based on deadlines
+                    if let nextDeadline = analytics.upcomingDeadlines.first {
+                        TodayHighlightCard(
+                            icon: "calendar.badge.exclamationmark",
+                            title: "Next Deadline",
+                            subtitle: nextDeadline.courseName,
+                            time: relativeDateFormat(nextDeadline.dueDate),
+                            color: nextDeadline.daysUntilDue <= 2 ? UI.error : UI.warning
+                        )
+                    } else {
+                        TodayHighlightCard(
+                            icon: "checkmark.circle.fill",
+                            title: "All Clear",
+                            subtitle: "No urgent deadlines",
+                            time: "This week",
+                            color: UI.success
+                        )
+                    }
+                    
+                    // Productivity score highlight
                     TodayHighlightCard(
-                        icon: "calendar.badge.clock",
-                        title: "Next Meeting",
-                        subtitle: "Mobile Dev Team",
-                        time: "2:00 PM",
-                        color: UI.primary
+                        icon: "target",
+                        title: "Today's Score",
+                        subtitle: "\(Int(analytics.todaysProductivityScore * 100))% complete",
+                        time: scoreMessage(analytics.todaysProductivityScore),
+                        color: analytics.todaysProductivityScore > 0.7 ? UI.success : 
+                               analytics.todaysProductivityScore > 0.4 ? UI.warning : UI.primary
                     )
                     
-                    TodayHighlightCard(
-                        icon: "clock.badge.checkmark",
-                        title: "Focus Time",
-                        subtitle: "Best for deep work",
-                        time: "10:00 AM",
-                        color: UI.success
-                    )
+                    // Progress tracking highlight
+                    if analytics.daysSinceLastProgress >= 0 {
+                        TodayHighlightCard(
+                            icon: analytics.daysSinceLastProgress == 0 ? "checkmark.circle.fill" : 
+                                  analytics.daysSinceLastProgress > 5 ? "exclamationmark.triangle.fill" : "clock.badge",
+                            title: "Last Progress",
+                            subtitle: analytics.daysSinceLastProgress == 0 ? "Today!" : 
+                                     analytics.daysSinceLastProgress == 1 ? "Yesterday" : "\(analytics.daysSinceLastProgress) days ago",
+                            time: progressMotivation(analytics.daysSinceLastProgress),
+                            color: analytics.daysSinceLastProgress == 0 ? UI.success :
+                                   analytics.daysSinceLastProgress > 5 ? UI.error : UI.primary
+                        )
+                    }
                     
-                    TodayHighlightCard(
-                        icon: "person.3.fill",
-                        title: "Group Available",
-                        subtitle: "Study Buddies",
-                        time: "4:00 PM",
-                        color: UI.warning
-                    )
+                    // Best subject performance
+                    if let bestSubject = analytics.subjectPerformance.first {
+                        TodayHighlightCard(
+                            icon: "chart.bar.doc.horizontal.fill",
+                            title: "Top Subject",
+                            subtitle: bestSubject.courseName,
+                            time: "\(Int(bestSubject.completionRate * 100))%",
+                            color: UI.success
+                        )
+                    }
                 }
                 .padding(.horizontal, 20)
             }
+        }
+    }
+    
+    // MARK: - Helper Methods for Dynamic Highlights
+    
+    private func relativeDateFormat(_ date: Date) -> String {
+        let days = Calendar.current.dateComponents([.day], from: Date(), to: date).day ?? 0
+        if days == 0 {
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short
+            return "Today \(formatter.string(from: date))"
+        } else if days == 1 {
+            return "Tomorrow"
+        } else if days > 0 {
+            return "\(days) days"
+        } else {
+            return "Overdue"
+        }
+    }
+    
+    private func scoreMessage(_ score: Double) -> String {
+        if score >= 0.9 {
+            return "Excellent!"
+        } else if score >= 0.7 {
+            return "Great job"
+        } else if score >= 0.5 {
+            return "Keep going"
+        } else if score > 0 {
+            return "Getting started"
+        } else {
+            return "Ready to begin"
+        }
+    }
+    
+    private func progressMotivation(_ days: Int) -> String {
+        if days == 0 {
+            return "Keep it up!"
+        } else if days == 1 {
+            return "Still fresh"
+        } else if days <= 3 {
+            return "Good pace"
+        } else if days <= 7 {
+            return "Time to refocus"
+        } else {
+            return "Let's get back!"
         }
     }
 }
@@ -760,5 +908,101 @@ struct TodayAssignmentRow: View {
                 .frame(width: 8, height: 8)
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Days Since Progress View (Business Question Implementation)
+struct DaysSinceProgressView: View {
+    let days: Int
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "calendar.badge.clock")
+                    .foregroundColor(UI.primary)
+                
+                Text("Progress Tracking")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(UI.navy)
+                
+                Spacer()
+            }
+            
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    if days == -1 {
+                        Text("No progress yet")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(UI.muted)
+                    } else if days == 0 {
+                        Text("Today!")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(UI.success)
+                    } else {
+                        Text("\(days)")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(days > 7 ? UI.error : days > 3 ? UI.warning : UI.primary)
+                        
+                        Text("day\(days == 1 ? "" : "s") ago")
+                            .font(.subheadline)
+                            .foregroundColor(UI.muted)
+                    }
+                    
+                    Text("Last assignment completed")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 4) {
+                    if days > 7 {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(UI.error)
+                            .font(.title2)
+                        
+                        Text("Time to focus!")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(UI.error)
+                    } else if days > 3 {
+                        Image(systemName: "clock.badge.exclamationmark")
+                            .foregroundColor(UI.warning)
+                            .font(.title2)
+                        
+                        Text("Keep it up")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(UI.warning)
+                    } else {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(UI.success)
+                            .font(.title2)
+                        
+                        Text("Great pace!")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(UI.success)
+                    }
+                }
+            }
+            
+            if days > 5 {
+                Text("Consider tackling some pending assignments to maintain momentum.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.white)
+                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+        )
     }
 }
