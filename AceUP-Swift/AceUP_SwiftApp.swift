@@ -21,6 +21,11 @@ struct AceUP_SwiftApp: App {
     init(){
         FirebaseConfig.shared.configure()
         
+        // Verify Firebase configuration
+        if !FirebaseConfig.shared.verifyConfiguration() {
+            print("⚠️ Firebase configuration verification failed")
+        }
+        
         // Initialize analytics with current user if logged in
         if let currentUser = Auth.auth().currentUser {
             Analytics.shared.identify(userId: currentUser.uid)
@@ -32,6 +37,28 @@ struct AceUP_SwiftApp: App {
             ContentView()
                 .environment(\.managedObjectContext, persistenceController.viewContext)
                 .environmentObject(UserPreferencesManager.shared)
+                .onOpenURL { url in
+                    handleDeepLink(url: url)
+                }
+        }
+        .handlesExternalEvents(matching: ["aceup"])
+    }
+    
+    // MARK: - Deep Link Handling
+    private func handleDeepLink(url: URL) {
+        print("📱 Deep link received: \(url)")
+        
+        // Handle aceup://join/inviteCode URLs
+        if url.scheme == "aceup" && url.host == "join" {
+            let inviteCode = String(url.path.dropFirst()) // Remove leading "/"
+            if !inviteCode.isEmpty {
+                print("🔗 Processing group invitation with code: \(inviteCode)")
+                // Post notification to handle the invite code
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("HandleGroupInviteCode"),
+                    object: inviteCode
+                )
+            }
         }
     }
 }
@@ -43,6 +70,7 @@ struct ContentView: View {
     @State private var needsMigration = false
     @StateObject private var migrationService = DataMigrationService.shared
     @StateObject private var offlineManager = OfflineManager.shared
+    @StateObject private var authService = AuthService()
     
     var body: some View {
         Group {
@@ -59,8 +87,8 @@ struct ContentView: View {
                     OfflineBannerView()
                     
                     AppNavigationView(onLogout: {
-                        withAnimation(.easeInOut(duration: 0.5)) {
-                            isLoggedIn = false
+                        Task {
+                            await handleLogout()
                         }
                     })
                 }
@@ -79,28 +107,102 @@ struct ContentView: View {
         }
     }
     
-    private func initializeApp() async {
-        // Check for existing authentication
-        if Auth.auth().currentUser != nil {
-            isLoggedIn = true
+    @MainActor
+    private func handleLogout() async {
+        do {
+            try authService.signOut()
             
-            // Initialize analytics for authenticated user
-            Analytics.shared.identify(userId: Auth.auth().currentUser!.uid)
+            // Clear any cached data
+            await offlineManager.clearOfflineData()
+            
+            // Update UI state
+            withAnimation(.easeInOut(duration: 0.5)) {
+                isLoggedIn = false
+            }
+            
+        } catch {
+            // Even if Firebase signout fails, update UI state
+            withAnimation(.easeInOut(duration: 0.5)) {
+                isLoggedIn = false
+            }
+        }
+    }
+    
+    private func initializeApp() async {
+        // Monitor memory warnings during initialization
+        let memoryTask = Task {
+            let notifications = NotificationCenter.default.notifications(named: UIApplication.didReceiveMemoryWarningNotification)
+            
+            for await _ in notifications {
+                // Handle memory warnings if needed
+            }
         }
         
-        // Check and perform migration if needed
-        await migrationService.checkAndPerformMigration()
-        needsMigration = migrationService.isMigrating
-        
-        // Prepare offline data if user is logged in
-        if isLoggedIn && offlineManager.isOnline {
-            await offlineManager.prepareForOffline()
+        defer {
+            memoryTask.cancel()
         }
         
-        // Start background sync setup
-        DataSynchronizationManager.shared.setupBackgroundSync()
+        do {
+            // Check for existing authentication with timeout
+            let authTask = Task {
+                return Auth.auth().currentUser
+            }
+            
+            let currentUser = try await withTimeout(seconds: 10) {
+                await authTask.value
+            }
+            
+            if let user = currentUser {
+                await MainActor.run {
+                    isLoggedIn = true
+                }
+                
+                // Initialize analytics for authenticated user
+                Analytics.shared.identify(userId: user.uid)
+            }
+            
+            // Check and perform migration if needed
+            await migrationService.checkAndPerformMigration()
+            await MainActor.run {
+                needsMigration = migrationService.isMigrating
+            }
+            
+            // Prepare offline data if user is logged in
+            if isLoggedIn && offlineManager.isOnline {
+                await offlineManager.prepareForOffline()
+            }
+            
+            // Start background sync setup
+            DataSynchronizationManager.shared.setupBackgroundSync()
+            
+        } catch {
+            // Continue with app launch even if some initialization fails
+        }
         
-        isInitializing = false
+        await MainActor.run {
+            isInitializing = false
+        }
+    }
+    
+    // Timeout helper for initialization
+    private func withTimeout<T>(seconds: Double, operation: @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw TimeoutError()
+            }
+            
+            guard let result = try await group.next() else {
+                throw TimeoutError()
+            }
+            
+            group.cancelAll()
+            return result
+        }
     }
 }
 

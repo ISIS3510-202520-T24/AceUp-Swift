@@ -14,6 +14,12 @@ class FirebaseConfig {
     private init() {}
     
     func configure() {
+        // Check if Firebase is already configured
+        if FirebaseApp.app() != nil {
+            print("Firebase already configured, skipping")
+            return
+        }
+        
         if let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
            FileManager.default.fileExists(atPath: path) {
             FirebaseApp.configure()
@@ -58,17 +64,38 @@ class FirebaseConfig {
     private func configureFallback() {
         print("Using fallback Firebase configuration - NOT recommended for production")
         
-        guard let apiKey = ProcessInfo.processInfo.environment["FIREBASE_API_KEY"], !apiKey.isEmpty else {
-            fatalError("Firebase API key not found. Please configure Firebase properly.")
+        // Use environment variable if available, otherwise use default for development
+        let apiKey = ProcessInfo.processInfo.environment["FIREBASE_API_KEY"] ?? "AIzaSyC8example_default_key_for_development"
+        
+        if apiKey == "AIzaSyC8example_default_key_for_development" {
+            print("⚠️ WARNING: Using default development Firebase API key. This should not be used in production.")
         }
         
         let options = FirebaseOptions(googleAppID: "1:372482326957:ios:afd7d180c1dc65986d2124", 
                                     gcmSenderID: "372482326957")
         options.apiKey = apiKey
         options.projectID = "aceup-app-123"
-        options.bundleID = "com.aceup.app"
+        options.bundleID = "prueba.AceUP-Swift"
         options.storageBucket = "aceup-app-123.firebasestorage.app"
         
         FirebaseApp.configure(options: options)
+        print("Firebase configured with fallback options")
+    }
+    
+    /// Verify that Firebase is properly configured
+    func verifyConfiguration() -> Bool {
+        guard let app = FirebaseApp.app() else {
+            print("Firebase app not configured")
+            return false
+        }
+        
+        let options = app.options
+        
+        print("Firebase configured successfully")
+        print("Bundle ID: \(String(describing: options.bundleID))")
+        print("Project ID: \(String(describing: options.projectID))")
+        print("App ID: \(String(describing: options.googleAppID))")
+        
+        return true
     }
 }

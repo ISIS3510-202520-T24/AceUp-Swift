@@ -229,6 +229,9 @@ struct SharedCalendarsView: View {
                                 },
                                 onQRTapped: { group in
                                     showingGroupQR = group
+                                },
+                                onShareTapped: { group in
+                                    SharingService.shared.shareGroupDetailsFromSwiftUI(group: group)
                                 }
                             )
                             
@@ -368,11 +371,18 @@ struct GroupRow: View {
     let group: CalendarGroup
     let onTapped: () -> Void
     let onQRTapped: ((CalendarGroup) -> Void)?
+    let onShareTapped: ((CalendarGroup) -> Void)?
     
-    init(group: CalendarGroup, onTapped: @escaping () -> Void = {}, onQRTapped: ((CalendarGroup) -> Void)? = nil) {
+    init(
+        group: CalendarGroup, 
+        onTapped: @escaping () -> Void = {}, 
+        onQRTapped: ((CalendarGroup) -> Void)? = nil,
+        onShareTapped: ((CalendarGroup) -> Void)? = nil
+    ) {
         self.group = group
         self.onTapped = onTapped
         self.onQRTapped = onQRTapped
+        self.onShareTapped = onShareTapped
     }
     
     var body: some View {
@@ -419,18 +429,21 @@ struct GroupRow: View {
                             .font(.body)
                     }
                     .buttonStyle(BorderlessButtonStyle())
+                    
+                    Button(action: {
+                        onShareTapped?(group)
+                    }) {
+                        Image(systemName: "square.and.arrow.up")
+                            .foregroundColor(UI.primary)
+                            .font(.body)
+                    }
+                    .buttonStyle(BorderlessButtonStyle())
                 }
                 
                 VStack(alignment: .trailing, spacing: 4) {
                     Image(systemName: "chevron.right")
                         .foregroundColor(UI.muted)
                         .font(.caption)
-                    
-                    if group.isPublic {
-                        Image(systemName: "globe")
-                            .foregroundColor(UI.primary)
-                            .font(.caption2)
-                    }
                 }
             }
         }
@@ -439,6 +452,33 @@ struct GroupRow: View {
         .contentShape(Rectangle())
         .onTapGesture {
             onTapped()
+        }
+        .contextMenu {
+            if group.inviteCode != nil {
+                Button(action: {
+                    onQRTapped?(group)
+                }) {
+                    Label("Show QR Code", systemImage: "qrcode")
+                }
+                
+                Button(action: {
+                    SharingService.shared.shareInvitationCodeFromSwiftUI(group: group)
+                }) {
+                    Label("Share Invite Code", systemImage: "square.and.arrow.up")
+                }
+                
+                Button(action: {
+                    SharingService.shared.shareGroupDetailsFromSwiftUI(group: group)
+                }) {
+                    Label("Share Group Details", systemImage: "info.circle")
+                }
+                
+                Button(action: {
+                    UIPasteboard.general.string = group.inviteCode
+                }) {
+                    Label("Copy Invite Code", systemImage: "doc.on.doc")
+                }
+            }
         }
     }
     
@@ -604,23 +644,6 @@ struct CreateGroupView: View {
                             .foregroundColor(UI.navy)
                         
                         StyledTextField("Describe your group's purpose", text: $viewModel.newGroupDescription)
-                    }
-                    
-                    HStack {
-                        Toggle("Public Group", isOn: $viewModel.newGroupIsPublic)
-                            .toggleStyle(CheckToggleStyle())
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Public Group")
-                                .font(.subheadline)
-                                .foregroundColor(UI.navy)
-                            
-                            Text("Anyone can find and join this group")
-                                .font(.caption)
-                                .foregroundColor(UI.muted)
-                        }
-                        
-                        Spacer()
                     }
                 }
                 

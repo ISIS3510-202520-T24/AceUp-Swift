@@ -16,7 +16,6 @@ struct CalendarGroup: Codable, Identifiable, Hashable {
     let createdAt: Date
     let createdBy: String
     let color: String
-    let isPublic: Bool
     let inviteCode: String? 
     
     var memberCount: Int {
