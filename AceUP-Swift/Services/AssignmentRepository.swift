@@ -8,6 +8,7 @@
 import Foundation
 import Combine
 
+@MainActor
 protocol AssignmentRepositoryProtocol {
     func getAllAssignments() async throws -> [Assignment]
     func getAssignmentById(_ id: String) async throws -> Assignment?
@@ -23,7 +24,6 @@ protocol AssignmentRepositoryProtocol {
     func deleteSubtask(_ subtaskId: String, from assignmentId: String) async throws
 }
 
-@MainActor
 class AssignmentRepository: AssignmentRepositoryProtocol, ObservableObject {
     
     // MARK: - Properties
@@ -396,70 +396,6 @@ class LocalAssignmentDataProvider: AssignmentDataProviderProtocol {
     
     func delete(_ id: String) async throws {
         storage.removeValue(forKey: id)
-    }
-}
-
-// MARK: - Deferred Assignment Repository
-
-/// A repository wrapper that defers actual repository creation until needed
-/// This avoids main actor isolation issues during initialization
-class DeferredAssignmentRepository: AssignmentRepositoryProtocol {
-    private var _repository: AssignmentRepository?
-    
-    @MainActor
-    private var repository: AssignmentRepository {
-        if _repository == nil {
-            _repository = AssignmentRepository()
-        }
-        return _repository!
-    }
-    
-    func getAllAssignments() async throws -> [Assignment] {
-        return try await repository.getAllAssignments()
-    }
-    
-    func getAssignmentById(_ id: String) async throws -> Assignment? {
-        return try await repository.getAssignmentById(id)
-    }
-    
-    func getAssignmentsByDate(_ date: Date) async throws -> [Assignment] {
-        return try await repository.getAssignmentsByDate(date)
-    }
-    
-    func getTodaysAssignments() async throws -> [Assignment] {
-        return try await repository.getTodaysAssignments()
-    }
-    
-    func getUpcomingAssignments(days: Int = 7) async throws -> [Assignment] {
-        return try await repository.getUpcomingAssignments(days: days)
-    }
-    
-    func saveAssignment(_ assignment: Assignment) async throws {
-        try await repository.saveAssignment(assignment)
-    }
-    
-    func updateAssignment(_ assignment: Assignment) async throws {
-        try await repository.updateAssignment(assignment)
-    }
-    
-    func deleteAssignment(_ id: String) async throws {
-        try await repository.deleteAssignment(id)
-    }
-    
-    func markAsCompleted(_ id: String) async throws {
-        try await repository.markAsCompleted(id)
-    }
-    
-    func addSubtask(to assignmentId: String, subtask: Subtask) async throws {
-        try await repository.addSubtask(to: assignmentId, subtask: subtask)
-    }
-    
-    func updateSubtask(_ subtask: Subtask, in assignmentId: String) async throws {
-        try await repository.updateSubtask(subtask, in: assignmentId)
-    }
-    
-    func deleteSubtask(_ subtaskId: String, from assignmentId: String) async throws {
-        try await repository.deleteSubtask(subtaskId, from: assignmentId)
     }
 }
 
