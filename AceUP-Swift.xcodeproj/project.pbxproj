@@ -415,14 +415,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleURLTypes = (
-					{
-						CFBundleURLName = "AceUP Group Invitation";
-						CFBundleURLSchemes = (
-							aceup,
-						);
-					},
-				);
+				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = \"AceUP Group Invitation\";\n    CFBundleURLSchemes =     (\n        aceup\n    );\n}";
 				INFOPLIST_KEY_NSCameraUsageDescription = "AceUP needs camera access to scan QR codes for joining groups";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -464,14 +457,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleURLTypes = (
-					{
-						CFBundleURLName = "AceUP Group Invitation";
-						CFBundleURLSchemes = (
-							aceup,
-						);
-					},
-				);
+				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = \"AceUP Group Invitation\";\n    CFBundleURLSchemes =     (\n        aceup\n    );\n}";
 				INFOPLIST_KEY_NSCameraUsageDescription = "AceUP needs camera access to scan QR codes for joining groups";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;

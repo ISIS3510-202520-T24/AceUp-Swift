@@ -135,27 +135,90 @@ struct ContentView: View {
     }
     
     private func initializeApp() async {
-        // Check for existing authentication
-        if Auth.auth().currentUser != nil {
-            isLoggedIn = true
+        print("🔥 App: Starting app initialization")
+        
+        // Monitor memory warnings during initialization
+        let memoryTask = Task {
+            let notifications = NotificationCenter.default.notifications(named: UIApplication.didReceiveMemoryWarningNotification)
             
-            // Initialize analytics for authenticated user
-            Analytics.shared.identify(userId: Auth.auth().currentUser!.uid)
+            for await _ in notifications {
+                print("App: Memory warning during initialization")
+            }
         }
         
-        // Check and perform migration if needed
-        await migrationService.checkAndPerformMigration()
-        needsMigration = migrationService.isMigrating
-        
-        // Prepare offline data if user is logged in
-        if isLoggedIn && offlineManager.isOnline {
-            await offlineManager.prepareForOffline()
+        defer {
+            memoryTask.cancel()
         }
         
-        // Start background sync setup
-        DataSynchronizationManager.shared.setupBackgroundSync()
+        do {
+            // Check for existing authentication with timeout
+            let authTask = Task {
+                return Auth.auth().currentUser
+            }
+            
+            let currentUser = try await withTimeout(seconds: 10) {
+                await authTask.value
+            }
+            
+            if let user = currentUser {
+                print("🔥 App: Found existing user: \(user.uid)")
+                await MainActor.run {
+                    isLoggedIn = true
+                }
+                
+                // Initialize analytics for authenticated user
+                Analytics.shared.identify(userId: user.uid)
+            } else {
+                print("App: No existing user found")
+            }
+            
+            // Check and perform migration if needed
+            print("App: Checking for data migration")
+            await migrationService.checkAndPerformMigration()
+            await MainActor.run {
+                needsMigration = migrationService.isMigrating
+            }
+            
+            // Prepare offline data if user is logged in
+            if isLoggedIn && offlineManager.isOnline {
+                print("🔥 App: Preparing offline data")
+                await offlineManager.prepareForOffline()
+            }
+            
+            // Start background sync setup
+            DataSynchronizationManager.shared.setupBackgroundSync()
+            
+            print("App: Initialization completed successfully")
+            
+        } catch {
+            print("App: Initialization failed with error: \(error)")
+            // Continue with app launch even if some initialization fails
+        }
         
-        isInitializing = false
+        await MainActor.run {
+            isInitializing = false
+        }
+    }
+    
+    // Timeout helper for initialization
+    private func withTimeout<T>(seconds: Double, operation: @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw TimeoutError()
+            }
+            
+            guard let result = try await group.next() else {
+                throw TimeoutError()
+            }
+            
+            group.cancelAll()
+            return result
+        }
     }
 }
 

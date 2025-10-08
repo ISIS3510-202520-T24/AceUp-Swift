@@ -18,48 +18,117 @@ struct AppUser {
 }
 
 final class AuthService: ObservableObject {
+    @Published var user: FirebaseAuth.User?
+    
     private let auth = Auth.auth()
     private let db = Firestore.firestore()
+    
+    init() {
+        // Initialize with current user if already logged in
+        self.user = auth.currentUser
+    }
 
     // SIGNUP + send email verification
     @discardableResult
-    func signUp(email: String, password: String, nick: String) async throws -> AppUser {
-        print("🔥 Starting signup process for email: \(email)")
+    func signUp(email: String, password: String, nick: String) async throws -> (FirebaseAuth.User, DocumentReference) {
+        print("🔥 AuthService: Starting signUp for email: \(email)")
         
-        // Sign out any existing user first to ensure clean registration
-        if auth.currentUser != nil {
-            try signOut()
-            print("🔥 Signed out existing user before registration")
+        // Ensure we're in a clean state
+        guard !email.isEmpty, !password.isEmpty, !nick.isEmpty else {
+            throw NSError(domain: "AuthServiceError", code: -1, userInfo: [NSLocalizedDescriptionKey: "All fields are required"])
+        }
+        
+        // Check network connectivity first (basic check)
+        guard await isNetworkAvailable() else {
+            throw NSError(domain: "AuthServiceError", code: -2, userInfo: [NSLocalizedDescriptionKey: "No internet connection available"])
         }
         
         do {
-            let authResult = try await createUser(email: email, password: password)
-            print("🔥 User created successfully with UID: \(authResult.user.uid)")
-
-            // Update displayName
-            let changeReq = authResult.user.createProfileChangeRequest()
-            changeReq.displayName = nick
-            try await changeReq.commitChanges()
-            print("🔥 Display name updated to: \(nick)")
-
-            // Send verification email (log result)
-            do {
-                try await authResult.user.sendEmailVerification()
-                print("🔥 Verification email dispatched to \(email)")
-            } catch {
-                print("🔥 SendEmailVerification failed: \(error)")
-                // Don't throw here - verification email failure shouldn't crash signup
-            }
-
-            // Save profile to Firestore
-            let user = AppUser(uid: authResult.user.uid, email: email, nick: nick)
-            try await saveUserProfile(user)
-            print("🔥 User profile saved to Firestore")
+            print("🔥 AuthService: Creating Firebase user...")
+            let result = try await Auth.auth().createUser(withEmail: email, password: password)
+            print("🔥 AuthService: Firebase user created successfully with UID: \(result.user.uid)")
             
-            return user
-        } catch {
-            print("🔥 Signup failed with error: \(error)")
+            // Verify the user was actually created
+            guard let currentUser = Auth.auth().currentUser else {
+                throw NSError(domain: "AuthServiceError", code: -3, userInfo: [NSLocalizedDescriptionKey: "User creation succeeded but current user is nil"])
+            }
+            
+            print("🔥 AuthService: Creating user document in Firestore...")
+            
+            // Create user document in Firestore with retry mechanism
+            let userData: [String: Any] = [
+                "email": email,
+                "nick": nick,
+                "createdAt": FieldValue.serverTimestamp(),
+                "lastLogin": FieldValue.serverTimestamp()
+            ]
+            
+            let userRef = Firestore.firestore().collection("users").document(result.user.uid)
+            
+            // Retry mechanism for Firestore operation
+            var attempts = 0
+            let maxAttempts = 3
+            
+            while attempts < maxAttempts {
+                do {
+                    try await userRef.setData(userData)
+                    print("🔥 AuthService: User document created in Firestore successfully")
+                    break
+                } catch {
+                    attempts += 1
+                    print("🔥 AuthService: Firestore write attempt \(attempts) failed: \(error)")
+                    
+                    if attempts >= maxAttempts {
+                        // If Firestore fails, we should clean up the Firebase Auth user
+                        print("🔥 AuthService: Firestore failed after \(maxAttempts) attempts, deleting Firebase user")
+                        try? await currentUser.delete()
+                        throw NSError(domain: "AuthServiceError", code: -4, userInfo: [NSLocalizedDescriptionKey: "Failed to create user profile after multiple attempts"])
+                    }
+                    
+                    // Wait before retry
+                    try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                }
+            }
+            
+            // Update current user state on main thread
+            await MainActor.run {
+                self.user = result.user
+            }
+            
+            print("🔥 AuthService: SignUp completed successfully")
+            return (result.user, userRef)
+            
+        } catch let error as NSError {
+            print("🔥 AuthService: SignUp failed with NSError: \(error.localizedDescription)")
+            print("🔥 AuthService: Error domain: \(error.domain), code: \(error.code)")
+            
+            // Ensure we're in a clean state after failure
+            await MainActor.run {
+                self.user = nil
+            }
+            
             throw error
+        } catch {
+            print("🔥 AuthService: SignUp failed with error: \(error.localizedDescription)")
+            
+            // Ensure we're in a clean state after failure
+            await MainActor.run {
+                self.user = nil
+            }
+            
+            throw error
+        }
+    }
+    
+    // Simple network availability check
+    private func isNetworkAvailable() async -> Bool {
+        do {
+            let url = URL(string: "https://www.google.com")!
+            let (_, response) = try await URLSession.shared.data(from: url)
+            return (response as? HTTPURLResponse)?.statusCode == 200
+        } catch {
+            print("🔥 AuthService: Network check failed: \(error)")
+            return false
         }
     }
 
@@ -86,6 +155,11 @@ final class AuthService: ObservableObject {
                 }
 
                 print("🔥 User signed in successfully with UID: \(user.uid)")
+                
+                // Update the user property on main thread
+                Task { @MainActor in
+                    self.user = user
+                }
 
                 let appUser = AppUser(
                     uid: user.uid,
@@ -105,6 +179,10 @@ final class AuthService: ObservableObject {
     // SIGN OUT
     func signOut() throws {
         try auth.signOut()
+        // Clear the user property on main thread
+        Task { @MainActor in
+            self.user = nil
+        }
         print("🔥 User signed out successfully")
     }
     
