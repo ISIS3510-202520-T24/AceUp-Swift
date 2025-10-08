@@ -51,34 +51,90 @@ struct HolidaysView: View {
             // Body
             if viewModel.isLoading {
                 Spacer()
-                ProgressView("Loading holidays…")
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: UI.blueDark))
+                        .scaleEffect(1.5)
+                    
+                    Text("Cargando días festivos...")
+                        .foregroundColor(UI.navy)
+                        .font(.body)
+                }
                 Spacer()
             } else if let error = viewModel.errorMessage {
                 Spacer()
-                VStack(spacing: 8) {
-                    Text(error).foregroundColor(.red)
+                VStack(spacing: 16) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundColor(.orange)
+                        .font(.system(size: 48))
+                    
+                    Text("Error al cargar los días festivos")
+                        .font(.headline)
+                        .foregroundColor(UI.navy)
+                    
+                    Text(error)
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                    
                     Button("Reintentar") {
                         Task { await viewModel.loadHolidays() }
                     }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(UI.blueDark)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
                 }
                 .padding()
                 Spacer()
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(viewModel.holidays) { holiday in
-                            HolidayRow(
-                                name: holiday.localName,
-                                dateRange: formatDate(holiday.date),
-                                onEdit: { /* TODO: acción editar */ }
-                            )
-                            if holiday.id != viewModel.holidays.last?.id {
-                                Divider().padding(.horizontal, 20)
+                        if viewModel.holidays.isEmpty {
+                            // Empty state
+                            VStack(spacing: 16) {
+                                Image(systemName: "calendar.badge.exclamationmark")
+                                    .foregroundColor(UI.muted)
+                                    .font(.system(size: 48))
+                                
+                                Text("No hay días festivos")
+                                    .font(.headline)
+                                    .foregroundColor(UI.navy)
+                                
+                                Text("No se encontraron días festivos para \(viewModel.selectedCountry) en \(viewModel.year)")
+                                    .foregroundColor(UI.muted)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal)
+                                
+                                Button("Actualizar") {
+                                    Task { await viewModel.loadHolidays() }
+                                }
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(UI.blueDark)
+                                .foregroundColor(.white)
+                                .cornerRadius(8)
+                            }
+                            .padding(.top, 100)
+                        } else {
+                            ForEach(viewModel.holidays) { holiday in
+                                HolidayRow(
+                                    name: holiday.localName,
+                                    dateRange: formatDate(holiday.date),
+                                    onEdit: { /* TODO: acción editar */ }
+                                )
+                                if holiday.id != viewModel.holidays.last?.id {
+                                    Divider().padding(.horizontal, 20)
+                                }
                             }
                         }
                         Spacer().frame(height: 100)
                     }
                     .padding(.top, 10)
+                }
+                .refreshable {
+                    await viewModel.loadHolidays()
                 }
             }
         }
