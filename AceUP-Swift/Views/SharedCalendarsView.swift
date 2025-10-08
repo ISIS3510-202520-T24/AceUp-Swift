@@ -425,12 +425,6 @@ struct GroupRow: View {
                     Image(systemName: "chevron.right")
                         .foregroundColor(UI.muted)
                         .font(.caption)
-                    
-                    if group.isPublic {
-                        Image(systemName: "globe")
-                            .foregroundColor(UI.primary)
-                            .font(.caption2)
-                    }
                 }
             }
         }
@@ -604,23 +598,6 @@ struct CreateGroupView: View {
                             .foregroundColor(UI.navy)
                         
                         StyledTextField("Describe your group's purpose", text: $viewModel.newGroupDescription)
-                    }
-                    
-                    HStack {
-                        Toggle("Public Group", isOn: $viewModel.newGroupIsPublic)
-                            .toggleStyle(CheckToggleStyle())
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Public Group")
-                                .font(.subheadline)
-                                .foregroundColor(UI.navy)
-                            
-                            Text("Anyone can find and join this group")
-                                .font(.caption)
-                                .foregroundColor(UI.muted)
-                        }
-                        
-                        Spacer()
                     }
                 }
                 

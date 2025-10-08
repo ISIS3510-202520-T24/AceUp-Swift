@@ -76,7 +76,6 @@
         <attribute name="descriptionText" optional="YES" attributeType="String"/>
         <attribute name="id" optional="YES" attributeType="String"/>
         <attribute name="inviteCode" optional="YES" attributeType="String"/>
-        <attribute name="isPublic" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="name" optional="YES" attributeType="String"/>
         <relationship name="members" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="GroupMemberEntity" inverseName="sharedCalendar" inverseEntity="GroupMemberEntity"/>
     </entity>

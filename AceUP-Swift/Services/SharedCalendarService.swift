@@ -71,7 +71,7 @@ class SharedCalendarService: ObservableObject {
     }
     
     // MARK: - Group Management
-    func createGroup(name: String, description: String, isPublic: Bool = false) async {
+    func createGroup(name: String, description: String) async {
         isLoading = true
         defer { isLoading = false }
         
@@ -85,7 +85,6 @@ class SharedCalendarService: ObservableObject {
                 "ownerId": currentUserId,
                 "members": [currentUserId], 
                 "createdAt": Timestamp(date: Date()),
-                "isPublic": isPublic,
                 "description": description,
                 "color": generateRandomColor(),
                 "inviteCode": groupCode 
@@ -725,7 +724,6 @@ class SharedCalendarService: ObservableObject {
                 createdAt: Date().addingTimeInterval(-86400 * 14),
                 createdBy: "current_user_id",
                 color: "#4ECDC4",
-                isPublic: false,
                 inviteCode: "ABC123"
             ),
             CalendarGroup(
@@ -765,7 +763,6 @@ class SharedCalendarService: ObservableObject {
                 createdAt: Date().addingTimeInterval(-86400 * 21),
                 createdBy: "5",
                 color: "#FF6B6B",
-                isPublic: true,
                 inviteCode: "XYZ789"
             ),
             CalendarGroup(
@@ -787,7 +784,6 @@ class SharedCalendarService: ObservableObject {
                 createdAt: Date().addingTimeInterval(-86400 * 7),
                 createdBy: "current_user_id",
                 color: "#45B7D1",
-                isPublic: false,
                 inviteCode: "DEF456"
             )
         ]
@@ -800,7 +796,6 @@ struct CalendarGroupFirestore: Codable {
     let ownerId: String
     let members: [String] // Array de User IDs
     let createdAt: Timestamp
-    let isPublic: Bool
     let description: String
     let color: String
     let inviteCode: String? 
@@ -872,7 +867,6 @@ extension SharedCalendarService {
             createdAt: firestoreGroup.createdAt.dateValue(),
             createdBy: firestoreGroup.ownerId,
             color: firestoreGroup.color,
-            isPublic: firestoreGroup.isPublic,
             inviteCode: firestoreGroup.inviteCode
         )
     }
@@ -929,7 +923,7 @@ extension SharedCalendarService {
         ]
         
         for group in sampleGroups {
-            await createGroup(name: group.name, description: group.description, isPublic: false)
+            await createGroup(name: group.name, description: group.description)
         }
     }
 }
