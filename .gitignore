@@ -60,3 +60,13 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Firebase sensitive configuration files
+**/GoogleService-Info.plist
+Config.plist
+.env
+.env.*
+FirebaseConfig.plist
+
+# macOS
+.DS_Store

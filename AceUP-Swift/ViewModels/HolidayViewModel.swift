@@ -18,39 +18,112 @@ final class HolidayViewModel: ObservableObject {
     @Published var errorMessage: String?
 
     private let service: HolidayService
+    private let dataProvider: HybridHolidayDataProvider
+    private let preferencesManager = UserPreferencesManager.shared
 
-    init(service: HolidayService = HolidayService()) {
+    init(service: HolidayService = HolidayService(), 
+         dataProvider: HybridHolidayDataProvider? = nil) {
         self.service = service
+        self.dataProvider = dataProvider ?? DataSynchronizationManager.shared.getHolidayProvider()
+        
+        // Load user's preferred country with validation
+        let preferredCountry = preferencesManager.selectedCountry
+        // Validate that the preferred country is reasonable, fallback to US if needed
+        if preferredCountry.count == 2 && preferredCountry.allSatisfy({ $0.isLetter }) {
+            selectedCountry = preferredCountry.uppercased()
+        } else {
+            selectedCountry = "US" // Default fallback
+            preferencesManager.selectedCountry = "US"
+        }
+        
     }
 
     func loadCountries() async {
+        print("Loading countries list...")
         do {
-            countries = try await service.getCountries()
-            // Si el país seleccionado no está en la lista, lo dejamos igual (fallback).
+            let holidayService = HolidayService()
+            countries = try await holidayService.getCountries()
+            print("Successfully loaded \(countries.count) countries")
         } catch {
-            // Fallback mínimo para no romper la UI
+            print("Failed to load countries: \(error)")
+            // Fallback to hardcoded countries
             countries = [
                 Country(countryCode: "US", name: "United States"),
                 Country(countryCode: "CO", name: "Colombia"),
                 Country(countryCode: "GB", name: "United Kingdom"),
                 Country(countryCode: "CA", name: "Canada"),
                 Country(countryCode: "MX", name: "Mexico"),
-                Country(countryCode: "ES", name: "Spain")
+                Country(countryCode: "ES", name: "Spain"),
+                Country(countryCode: "FR", name: "France"),
+                Country(countryCode: "DE", name: "Germany"),
+                Country(countryCode: "IT", name: "Italy"),
+                Country(countryCode: "JP", name: "Japan"),
+                Country(countryCode: "AU", name: "Australia"),
+                Country(countryCode: "BR", name: "Brazil"),
+                Country(countryCode: "AR", name: "Argentina"),
+                Country(countryCode: "CL", name: "Chile")
             ]
+            print("Using fallback countries list")
         }
     }
 
     func loadHolidays() async {
         isLoading = true
         errorMessage = nil
+        
+        print("Loading holidays for country: \(selectedCountry), year: \(year)")
+        
         do {
-            var items = try await service.fetchHolidays(countryCode: selectedCountry, year: year)
-            items.sort { $0.dateValue < $1.dateValue }
+            // First try the external API directly
+            let holidayService = HolidayService()
+            
+            print("Fetching holidays from external API...")
+            var items = try await holidayService.fetchHolidays(countryCode: selectedCountry, year: year)
+            
+            print("Successfully fetched \(items.count) holidays from API")
+            items.sort { $0.date < $1.date }
             holidays = items
-        } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? "Failed to load holidays"
-            holidays = []
+            
+            // Save to local storage in background
+            Task {
+                do {
+                    let localProvider = CoreDataHolidayDataProvider()
+                    try await localProvider.saveHolidays(items)
+                    print("Successfully saved holidays to local storage")
+                } catch {
+                    print("Failed to save holidays locally: \(error)")
+                }
+            }
+            
+            // Update user preferences
+            preferencesManager.selectedCountry = selectedCountry
+            
+        } catch let apiError {
+            print("External API failed with error: \(apiError)")
+            
+            // If direct API fails, try hybrid provider as fallback
+            do {
+                print("Trying hybrid provider as fallback...")
+                var items = try await dataProvider.fetchHolidays(for: selectedCountry, year: year)
+                print("Hybrid provider returned \(items.count) holidays")
+                
+                items.sort { $0.date < $1.date }
+                holidays = items
+                
+                // Update user preferences
+                preferencesManager.selectedCountry = selectedCountry
+                
+            } catch let fallbackError {
+                print("Fallback also failed with error: \(fallbackError)")
+                
+                let serviceError = apiError as? HolidayService.ServiceError
+                let errorMsg = serviceError?.errorDescription ?? "No se pudieron cargar los días festivos. Revisa tu conexión a internet."
+                errorMessage = errorMsg
+                holidays = []
+            }
         }
+        
         isLoading = false
+        print("Finished loading holidays. Final count: \(holidays.count)")
     }
 }

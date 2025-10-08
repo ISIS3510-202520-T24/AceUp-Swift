@@ -33,8 +33,11 @@ class AssignmentRepository: AssignmentRepositoryProtocol, ObservableObject {
     
     // MARK: - Initialization
     
-    init(dataProvider: AssignmentDataProviderProtocol = LocalAssignmentDataProvider()) {
-        self.dataProvider = dataProvider
+    init(localProvider: CoreDataAssignmentDataProvider? = nil, remoteProvider: FirebaseAssignmentDataProvider? = nil) {
+        self.dataProvider = HybridAssignmentDataProvider(
+            localProvider: localProvider,
+            remoteProvider: remoteProvider
+        )
         Task {
             await loadInitialData()
         }
