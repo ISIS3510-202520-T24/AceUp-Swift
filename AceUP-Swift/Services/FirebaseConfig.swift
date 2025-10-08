@@ -1,0 +1,74 @@
+//
+//  FirebaseConfig.swift
+//  AceUP-Swift
+//
+//  Created for secure Firebase configuration
+//
+
+import Foundation
+import Firebase
+
+class FirebaseConfig {
+    static let shared = FirebaseConfig()
+    
+    private init() {}
+    
+    func configure() {
+        if let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+           FileManager.default.fileExists(atPath: path) {
+            FirebaseApp.configure()
+            print("Firebase configured with plist file")
+            return
+        }
+        
+        configureProgrammatically()
+    }
+    
+    private func configureProgrammatically() {
+        guard let filePath = Bundle.main.path(forResource: "Config", ofType: "plist"),
+              let config = NSDictionary(contentsOfFile: filePath) else {
+            print("Config.plist not found - using fallback configuration")
+            configureFallback()
+            return
+        }
+        
+        guard let apiKey = config["FIREBASE_API_KEY"] as? String,
+              let projectId = config["FIREBASE_PROJECT_ID"] as? String,
+              let bundleId = config["BUNDLE_ID"] as? String,
+              let gcmSenderId = config["GCM_SENDER_ID"] as? String,
+              let googleAppId = config["GOOGLE_APP_ID"] as? String else {
+            print("Missing required Firebase configuration values")
+            configureFallback()
+            return
+        }
+        
+        let options = FirebaseOptions(googleAppID: googleAppId, gcmSenderID: gcmSenderId)
+        options.apiKey = apiKey
+        options.projectID = projectId
+        options.bundleID = bundleId
+        
+        if let storageBucket = config["STORAGE_BUCKET"] as? String, !storageBucket.isEmpty {
+            options.storageBucket = storageBucket
+        }
+        
+        FirebaseApp.configure(options: options)
+        print("Firebase configured programmatically")
+    }
+    
+    private func configureFallback() {
+        print("Using fallback Firebase configuration - NOT recommended for production")
+        
+        guard let apiKey = ProcessInfo.processInfo.environment["FIREBASE_API_KEY"], !apiKey.isEmpty else {
+            fatalError("Firebase API key not found. Please configure Firebase properly.")
+        }
+        
+        let options = FirebaseOptions(googleAppID: "1:372482326957:ios:afd7d180c1dc65986d2124", 
+                                    gcmSenderID: "372482326957")
+        options.apiKey = apiKey
+        options.projectID = "aceup-app-123"
+        options.bundleID = "com.aceup.app"
+        options.storageBucket = "aceup-app-123.firebasestorage.app"
+        
+        FirebaseApp.configure(options: options)
+    }
+}

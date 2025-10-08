@@ -5,8 +5,22 @@ import UIKit
 
 // Config
 enum AnalyticsConfig {
-    // Cambia por tu collector (Cloud Run/API Gateway).
-    static let COLLECTOR_URL = URL(string: "https://console.firebase.google.com/project/aceup-app-123/overview")!
+    // Get analytics URL from config or environment variable
+    static let COLLECTOR_URL: URL = {
+        if let path = Bundle.main.path(forResource: "Config", ofType: "plist"),
+           let config = NSDictionary(contentsOfFile: path),
+           let urlString = config["ANALYTICS_COLLECTOR_URL"] as? String,
+           let url = URL(string: urlString) {
+            return url
+        }
+        
+        if let urlString = ProcessInfo.processInfo.environment["ANALYTICS_COLLECTOR_URL"],
+           let url = URL(string: urlString) {
+            return url
+        }
+        return URL(string: "https://your-analytics-endpoint.com")!
+    }()
+    
     static let DRY_RUN = false
     static let SERVICE = "com.aceup.analytics"
     static let USER_KEYCHAIN_KEY = "analytics_user_key"

@@ -15,7 +15,7 @@ struct AceUP_SwiftApp: App {
     
     //Configuración de firebase 
     init(){
-        FirebaseApp.configure()
+        FirebaseConfig.shared.configure()
     }
     
     var body: some Scene {
