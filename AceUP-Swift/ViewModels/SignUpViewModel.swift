@@ -60,13 +60,11 @@ final class SignUpViewModel: ObservableObject {
     //Accion principal
     
     func signUp() async {
-        print("🔥 SignUpViewModel: Starting signup process")
         errorMessage = nil
         didComplete = false
         
         // Validation check first
         if let vErr = firstValidationError {
-            print("🔥 SignUpViewModel: Validation error - \(vErr)")
             await MainActor.run {
                 errorMessage = vErr
             }
@@ -86,34 +84,28 @@ final class SignUpViewModel: ObservableObject {
         do {
             // Check if there's already a logged-in user and sign out
             if authService.isLoggedIn {
-                print("🔥 SignUpViewModel: User already logged in, signing out first")
                 try authService.signOut()
                 // Add small delay to ensure clean state
                 try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
             }
             
-            print("🔥 SignUpViewModel: Creating user with email: \(email)")
-            
             // Add timeout to prevent indefinite hanging
             let signupTask = Task {
-                try await authService.signUp(email: email, password: password, nick: nick)
+                let result = try await authService.signUp(email: email, password: password, nick: nick)
+                return result
             }
             
             // Wait for signup with timeout
-            let result = try await withTimeout(seconds: 30) {
+            _ = try await withTimeout(seconds: 30) {
                 try await signupTask.value
             }
             
-            print("🔥 SignUpViewModel: Signup completed successfully")
             await MainActor.run {
                 didComplete = true
                 errorMessage = nil
             }
             
         } catch let error as NSError {
-            print("🔥 SignUpViewModel: Signup failed with NSError - \(error.localizedDescription)")
-            print("🔥 SignUpViewModel: Error domain: \(error.domain), code: \(error.code)")
-            
             await MainActor.run {
                 // Handle specific Firebase auth errors
                 switch error.code {
@@ -132,7 +124,6 @@ final class SignUpViewModel: ObservableObject {
                 }
             }
         } catch {
-            print("🔥 SignUpViewModel: Signup failed with error - \(error.localizedDescription)")
             await MainActor.run {
                 if error is TimeoutError {
                     errorMessage = "Registration is taking too long. Please check your internet connection and try again."

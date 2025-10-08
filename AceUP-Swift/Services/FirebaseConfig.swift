@@ -20,21 +20,14 @@ class FirebaseConfig {
             return
         }
         
-        do {
-            if let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
-               FileManager.default.fileExists(atPath: path) {
-                FirebaseApp.configure()
-                print("Firebase configured with plist file")
-                return
-            }
-            
-            configureProgrammatically()
-            
-        } catch {
-            print("🔥 Firebase configuration error: \(error)")
-            // Attempt fallback configuration
-            configureFallback()
+        if let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+           FileManager.default.fileExists(atPath: path) {
+            FirebaseApp.configure()
+            print("Firebase configured with plist file")
+            return
         }
+        
+        configureProgrammatically()
     }
     
     private func configureProgrammatically() {
@@ -85,13 +78,8 @@ class FirebaseConfig {
         options.bundleID = "prueba.AceUP-Swift"
         options.storageBucket = "aceup-app-123.firebasestorage.app"
         
-        do {
-            FirebaseApp.configure(options: options)
-            print("Firebase configured with fallback options")
-        } catch {
-            print("🔥 Firebase configuration failed: \(error)")
-            // Don't crash the app, just log the error
-        }
+        FirebaseApp.configure(options: options)
+        print("Firebase configured with fallback options")
     }
     
     /// Verify that Firebase is properly configured

@@ -109,24 +109,18 @@ struct ContentView: View {
     
     @MainActor
     private func handleLogout() async {
-        print("🔥 Starting logout process")
-        
         do {
             try authService.signOut()
-            print("🔥 Firebase sign-out successful")
             
             // Clear any cached data
             await offlineManager.clearOfflineData()
-            print("🔥 Offline data cleared")
             
             // Update UI state
             withAnimation(.easeInOut(duration: 0.5)) {
                 isLoggedIn = false
             }
-            print("🔥 Logout completed successfully")
             
         } catch {
-            print("🔥 Logout failed with error: \(error)")
             // Even if Firebase signout fails, update UI state
             withAnimation(.easeInOut(duration: 0.5)) {
                 isLoggedIn = false
@@ -135,14 +129,12 @@ struct ContentView: View {
     }
     
     private func initializeApp() async {
-        print("🔥 App: Starting app initialization")
-        
         // Monitor memory warnings during initialization
         let memoryTask = Task {
             let notifications = NotificationCenter.default.notifications(named: UIApplication.didReceiveMemoryWarningNotification)
             
             for await _ in notifications {
-                print("App: Memory warning during initialization")
+                // Handle memory warnings if needed
             }
         }
         
@@ -161,19 +153,15 @@ struct ContentView: View {
             }
             
             if let user = currentUser {
-                print("🔥 App: Found existing user: \(user.uid)")
                 await MainActor.run {
                     isLoggedIn = true
                 }
                 
                 // Initialize analytics for authenticated user
                 Analytics.shared.identify(userId: user.uid)
-            } else {
-                print("App: No existing user found")
             }
             
             // Check and perform migration if needed
-            print("App: Checking for data migration")
             await migrationService.checkAndPerformMigration()
             await MainActor.run {
                 needsMigration = migrationService.isMigrating
@@ -181,17 +169,13 @@ struct ContentView: View {
             
             // Prepare offline data if user is logged in
             if isLoggedIn && offlineManager.isOnline {
-                print("🔥 App: Preparing offline data")
                 await offlineManager.prepareForOffline()
             }
             
             // Start background sync setup
             DataSynchronizationManager.shared.setupBackgroundSync()
             
-            print("App: Initialization completed successfully")
-            
         } catch {
-            print("App: Initialization failed with error: \(error)")
             // Continue with app launch even if some initialization fails
         }
         
