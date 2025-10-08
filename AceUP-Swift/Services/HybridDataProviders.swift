@@ -53,7 +53,7 @@ class HybridAssignmentDataProvider: AssignmentDataProviderProtocol, ObservableOb
         
         // Auto-sync on network connection
         if isOnline {
-            Task {
+            Task { @MainActor in
                 await performFullSync()
             }
         }
@@ -71,7 +71,7 @@ class HybridAssignmentDataProvider: AssignmentDataProviderProtocol, ObservableOb
         
         // If online, sync with remote and return updated data
         if isOnline {
-            Task {
+            Task { @MainActor in
                 await syncFromRemote()
             }
         }
@@ -105,14 +105,14 @@ class HybridAssignmentDataProvider: AssignmentDataProviderProtocol, ObservableOb
         if isOnline {
             do {
                 try await remoteProvider.save(assignment)
-                await markAsSynced(assignment.id)
+                markAsSynced(assignment.id)
             } catch {
-                await markAsNeedingSync(assignment.id)
+                markAsNeedingSync(assignment.id)
                 throw error
             }
         } else {
             // Mark for sync when online
-            await markAsNeedingSync(assignment.id)
+            markAsNeedingSync(assignment.id)
         }
     }
     
@@ -124,14 +124,14 @@ class HybridAssignmentDataProvider: AssignmentDataProviderProtocol, ObservableOb
         if isOnline {
             do {
                 try await remoteProvider.update(assignment)
-                await markAsSynced(assignment.id)
+                markAsSynced(assignment.id)
             } catch {
-                await markAsNeedingSync(assignment.id)
+                markAsNeedingSync(assignment.id)
                 throw error
             }
         } else {
             // Mark for sync when online
-            await markAsNeedingSync(assignment.id)
+            markAsNeedingSync(assignment.id)
         }
     }
     
@@ -143,14 +143,14 @@ class HybridAssignmentDataProvider: AssignmentDataProviderProtocol, ObservableOb
         if isOnline {
             do {
                 try await remoteProvider.delete(id)
-                await removeFromSyncQueue(id)
+                removeFromSyncQueue(id)
             } catch {
-                await markAsNeedingDeletion(id)
+                markAsNeedingDeletion(id)
                 throw error
             }
         } else {
             // Mark for deletion sync when online
-            await markAsNeedingDeletion(id)
+            markAsNeedingDeletion(id)
         }
     }
     
@@ -159,21 +159,16 @@ class HybridAssignmentDataProvider: AssignmentDataProviderProtocol, ObservableOb
     func performFullSync() async {
         guard isOnline else { return }
         
-        await updateSyncStatus(.syncing)
+        updateSyncStatus(.syncing)
         
-        do {
-            // Sync pending local changes to remote
-            await syncPendingChangesToRemote()
-            
-            // Sync remote changes to local
-            await syncFromRemote()
-            
-            lastSyncTimestamp = Date()
-            await updateSyncStatus(.completed)
-            
-        } catch {
-            await updateSyncStatus(.failed(error))
-        }
+        // Sync pending local changes to remote
+        await syncPendingChangesToRemote()
+        
+        // Sync remote changes to local
+        await syncFromRemote()
+        
+        lastSyncTimestamp = Date()
+        updateSyncStatus(.completed)
     }
     
     private func syncFromRemote() async {
@@ -183,7 +178,7 @@ class HybridAssignmentDataProvider: AssignmentDataProviderProtocol, ObservableOb
             for assignment in remoteAssignments {
                 // Update local with remote data
                 try await localProvider.update(assignment)
-                await markAsSynced(assignment.id)
+                markAsSynced(assignment.id)
             }
         } catch {
             print("Failed to sync from remote: \(error)")
@@ -191,7 +186,7 @@ class HybridAssignmentDataProvider: AssignmentDataProviderProtocol, ObservableOb
     }
     
     private func syncPendingChangesToRemote() async {
-        let pendingItems = await getPendingSyncItems()
+        let pendingItems = getPendingSyncItems()
         
         for item in pendingItems {
             do {
@@ -199,11 +194,11 @@ class HybridAssignmentDataProvider: AssignmentDataProviderProtocol, ObservableOb
                 case .create, .update:
                     if let assignment = try await localProvider.fetchById(item.assignmentId) {
                         try await remoteProvider.save(assignment)
-                        await markAsSynced(item.assignmentId)
+                        markAsSynced(item.assignmentId)
                     }
                 case .delete:
                     try await remoteProvider.delete(item.assignmentId)
-                    await removeFromSyncQueue(item.assignmentId)
+                    removeFromSyncQueue(item.assignmentId)
                 }
             } catch {
                 print("Failed to sync item \(item.assignmentId): \(error)")
@@ -216,14 +211,12 @@ class HybridAssignmentDataProvider: AssignmentDataProviderProtocol, ObservableOb
     
     private func setupNetworkMonitoring() {
         networkMonitor.pathUpdateHandler = { [weak self] path in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self?.isOnline = path.status == .satisfied
                 
                 // Auto-sync when coming back online
                 if path.status == .satisfied {
-                    Task {
-                        await self?.performFullSync()
-                    }
+                    await self?.performFullSync()
                 }
             }
         }
@@ -232,48 +225,47 @@ class HybridAssignmentDataProvider: AssignmentDataProviderProtocol, ObservableOb
     
     // MARK: - Sync Status Management
     
-    @MainActor
     private func updateSyncStatus(_ status: SyncStatus) {
         syncStatus = status
     }
     
     // MARK: - Sync Queue Management
     
-    private func markAsNeedingSync(_ assignmentId: String) async {
-        var pendingItems = await getPendingSyncItems()
+    private func markAsNeedingSync(_ assignmentId: String) {
+        var pendingItems = getPendingSyncItems()
         let item = SyncItem(assignmentId: assignmentId, action: .update, timestamp: Date())
         
         // Remove existing item and add updated one
         pendingItems.removeAll { $0.assignmentId == assignmentId }
         pendingItems.append(item)
         
-        await savePendingSyncItems(pendingItems)
+        savePendingSyncItems(pendingItems)
     }
     
-    private func markAsNeedingDeletion(_ assignmentId: String) async {
-        var pendingItems = await getPendingSyncItems()
+    private func markAsNeedingDeletion(_ assignmentId: String) {
+        var pendingItems = getPendingSyncItems()
         let item = SyncItem(assignmentId: assignmentId, action: .delete, timestamp: Date())
         
         // Remove existing item and add deletion
         pendingItems.removeAll { $0.assignmentId == assignmentId }
         pendingItems.append(item)
         
-        await savePendingSyncItems(pendingItems)
+        savePendingSyncItems(pendingItems)
     }
     
-    private func markAsSynced(_ assignmentId: String) async {
-        var pendingItems = await getPendingSyncItems()
+    private func markAsSynced(_ assignmentId: String) {
+        var pendingItems = getPendingSyncItems()
         pendingItems.removeAll { $0.assignmentId == assignmentId }
-        await savePendingSyncItems(pendingItems)
+        savePendingSyncItems(pendingItems)
     }
     
-    private func removeFromSyncQueue(_ assignmentId: String) async {
-        var pendingItems = await getPendingSyncItems()
+    private func removeFromSyncQueue(_ assignmentId: String) {
+        var pendingItems = getPendingSyncItems()
         pendingItems.removeAll { $0.assignmentId == assignmentId }
-        await savePendingSyncItems(pendingItems)
+        savePendingSyncItems(pendingItems)
     }
     
-    private func getPendingSyncItems() async -> [SyncItem] {
+    private func getPendingSyncItems() -> [SyncItem] {
         guard let data = UserDefaults.standard.data(forKey: "pendingSyncItems"),
               let items = try? JSONDecoder().decode([SyncItem].self, from: data) else {
             return []
@@ -281,7 +273,7 @@ class HybridAssignmentDataProvider: AssignmentDataProviderProtocol, ObservableOb
         return items
     }
     
-    private func savePendingSyncItems(_ items: [SyncItem]) async {
+    private func savePendingSyncItems(_ items: [SyncItem]) {
         guard let data = try? JSONEncoder().encode(items) else { return }
         UserDefaults.standard.set(data, forKey: "pendingSyncItems")
     }
@@ -334,13 +326,16 @@ class HybridHolidayDataProvider: ObservableObject {
     
     private let localProvider: CoreDataHolidayDataProvider
     private let remoteProvider: FirebaseHolidayDataProvider
+    private let holidayService: HolidayService
     
     @Published var isOnline = false
     
     init(localProvider: CoreDataHolidayDataProvider? = nil,
-         remoteProvider: FirebaseHolidayDataProvider? = nil) {
+         remoteProvider: FirebaseHolidayDataProvider? = nil,
+         holidayService: HolidayService? = nil) {
         self.localProvider = localProvider ?? CoreDataHolidayDataProvider()
         self.remoteProvider = remoteProvider ?? FirebaseHolidayDataProvider()
+        self.holidayService = holidayService ?? HolidayService()
         
         // Monitor network status
         let monitor = NWPathMonitor()
@@ -358,29 +353,54 @@ class HybridHolidayDataProvider: ObservableObject {
         
         // If we have local data, return it immediately
         if !localHolidays.isEmpty {
-            // If online, sync in background
+            // If online, sync in background with external API
             if isOnline {
-                Task {
+                Task { @MainActor in
                     do {
-                        let remoteHolidays = try await remoteProvider.fetchHolidays(for: country, year: year)
-                        try await localProvider.saveHolidays(remoteHolidays)
+                        let externalHolidays = try await holidayService.fetchHolidays(countryCode: country, year: year)
+                        try await localProvider.saveHolidays(externalHolidays)
+                        // Optionally save to Firebase for backup
+                        await saveHolidaysToFirebase(externalHolidays)
                     } catch {
-                        print("Failed to sync holidays: \(error)")
+                        print("Failed to sync holidays from external API: \(error)")
                     }
                 }
             }
             return localHolidays
         }
         
-        // If no local data and online, fetch from remote
+        // If no local data and online, fetch from external API
         if isOnline {
-            let remoteHolidays = try await remoteProvider.fetchHolidays(for: country, year: year)
-            try await localProvider.saveHolidays(remoteHolidays)
-            return remoteHolidays
+            do {
+                let externalHolidays = try await holidayService.fetchHolidays(countryCode: country, year: year)
+                try await localProvider.saveHolidays(externalHolidays)
+                // Optionally save to Firebase for backup
+                await saveHolidaysToFirebase(externalHolidays)
+                return externalHolidays
+            } catch {
+                // If external API fails, try Firebase as fallback
+                let remoteHolidays = try await remoteProvider.fetchHolidays(for: country, year: year)
+                if !remoteHolidays.isEmpty {
+                    try await localProvider.saveHolidays(remoteHolidays)
+                    return remoteHolidays
+                }
+                throw error
+            }
         }
         
         // Offline with no local data
         return []
+    }
+    
+    private func saveHolidaysToFirebase(_ holidays: [Holiday]) async {
+        // Save holidays to Firebase in background for backup/caching
+        do {
+            for holiday in holidays {
+                try await remoteProvider.saveHoliday(holiday)
+            }
+        } catch {
+            print("Failed to save holidays to Firebase: \(error)")
+        }
     }
     
     func fetchAllHolidays() async throws -> [Holiday] {
@@ -389,7 +409,7 @@ class HybridHolidayDataProvider: ObservableObject {
         
         // If online, sync in background
         if isOnline {
-            Task {
+            Task { @MainActor in
                 do {
                     let remoteHolidays = try await remoteProvider.fetchAllHolidays()
                     try await localProvider.saveHolidays(remoteHolidays)
@@ -434,7 +454,7 @@ class HybridCourseDataProvider: ObservableObject {
         
         // If online, sync with remote
         if isOnline {
-            Task {
+            Task { @MainActor in
                 do {
                     let remoteCourses = try await remoteProvider.fetchCourses()
                     for course in remoteCourses {

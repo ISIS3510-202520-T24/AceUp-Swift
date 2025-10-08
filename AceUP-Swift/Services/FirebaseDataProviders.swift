@@ -296,6 +296,44 @@ class FirebaseHolidayDataProvider: ObservableObject {
         }
     }
     
+    func saveHoliday(_ holiday: Holiday) async throws {
+        let data = holidayToFirestoreData(holiday)
+        try await db.collection("holidays").document(holiday.id).setData(data)
+    }
+    
+    private func holidayToFirestoreData(_ holiday: Holiday) -> [String: Any] {
+        var data: [String: Any] = [
+            "name": holiday.name,
+            "localName": holiday.localName,
+            "date": holiday.date,
+            "countryCode": holiday.countryCode,
+            "country": holiday.countryCode, // for querying
+            "year": Calendar.current.component(.year, from: holiday.dateValue)
+        ]
+        
+        if let fixed = holiday.fixed {
+            data["fixed"] = fixed
+        }
+        
+        if let global = holiday.global {
+            data["global"] = global
+        }
+        
+        if let counties = holiday.counties {
+            data["counties"] = counties
+        }
+        
+        if let launchYear = holiday.launchYear {
+            data["launchYear"] = launchYear
+        }
+        
+        if let types = holiday.types {
+            data["types"] = types
+        }
+        
+        return data
+    }
+    
     private func documentToHoliday(_ document: QueryDocumentSnapshot) throws -> Holiday {
         let data = document.data()
         
