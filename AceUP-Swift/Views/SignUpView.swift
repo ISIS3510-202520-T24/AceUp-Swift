@@ -44,11 +44,10 @@ struct SignUpView: View {
                             .toggleStyle(CheckToggleStyle())
                             .padding(.top, 2)
 
-                        // Terms and Conditions link
                         Text("I've read and agree with the [Terms and Conditions](app://terms) and the Privacy Policy.")
                             .font(.footnote)
                             .foregroundColor(UI.muted)
-                            .tint(UI.navy) // Make the link more visible
+                            .tint(UI.navy)
                             .environment(\.openURL, OpenURLAction { url in
                                 if url.scheme == "app", url.host == "terms" {
                                     showTerms = true
@@ -58,7 +57,7 @@ struct SignUpView: View {
                             })
                     }
                     .padding(.top, 4)
-                    .padding(.bottom, 8) // Add extra space before button
+                    .padding(.bottom, 8)
 
                     Button(action: {
                         Task { await vm.signUp() }
@@ -77,17 +76,12 @@ struct SignUpView: View {
                     }
                     .buttonStyle(PrimaryButtonStyle())
                     .padding(.top, 8)
-                    .disabled(!vm.formIsValid || vm.isLoading)
+                    // No bloqueamos por formIsValid; el VM muestra popup.
+                    .disabled(vm.isLoading)
 
-                    if let err = vm.errorMessage {
-                        Text(err)
-                            .font(.footnote)
-                            .foregroundColor(.red)
-                    }
                     if vm.didComplete {
-                        Text("You're all set!.")
-                            .foregroundColor(.green)
-                            .font(.footnote)
+                        // Puedes quitar este texto si no lo quieres; el popup ya avisa.
+                        EmptyView()
                     }
                     Spacer(minLength: 12)
                 }
@@ -105,15 +99,15 @@ struct SignUpView: View {
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(28)
         }
-        .onChange(of: vm.didComplete) { _, newValue in
-            if newValue && !showTerms {
-                // Only dismiss if terms sheet is not showing
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    if !showTerms {
-                        dismiss()
-                    }
-                }
+
+        // Alert para errores y éxito (usa el título del VM)
+        .alert(vm.alertTitle.isEmpty ? "Notice" : vm.alertTitle, isPresented: $vm.showAlert) {
+            Button("OK") {
+                // Si fue éxito, cerramos la vista
+                if vm.didComplete { dismiss() }
             }
+        } message: {
+            Text(vm.alertMessage.isEmpty ? "" : vm.alertMessage)
         }
     }
 
