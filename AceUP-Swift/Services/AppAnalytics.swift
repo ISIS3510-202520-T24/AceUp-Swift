@@ -13,14 +13,14 @@ enum AnalyticsConfig {
            let url = URL(string: urlString) {
             return url
         }
-        
+
         if let urlString = ProcessInfo.processInfo.environment["ANALYTICS_COLLECTOR_URL"],
            let url = URL(string: urlString) {
             return url
         }
         return URL(string: "https://your-analytics-endpoint.com")!
     }()
-    
+
     static let DRY_RUN = false
     static let SERVICE = "com.aceup.analytics"
     static let USER_KEYCHAIN_KEY = "analytics_user_key"
@@ -84,9 +84,9 @@ enum KeychainHelper {
     }
 }
 
-// Analytics singleton
-final class Analytics {
-    static let shared = Analytics()
+// Cliente propio (renombrado para no chocar con FirebaseAnalytics.Analytics)
+final class AppAnalytics {
+    static let shared = AppAnalytics()
     private init() {}
 
     private var cachedUserKey: String?
@@ -124,13 +124,13 @@ final class Analytics {
     }
 
     func track(_ name: String, props: [String: Any?] = [:]) {
-        // BQ 2.4: Si es progreso académico, actualiza el último timestamp local
+        // BQ 2.4: si es progreso académico, actualiza el último timestamp local (si usas esta lógica)
         if name == "grade_recorded" || name == "assignment_completed" {
             LastProgress.shared.update()
         }
 
         guard let userKey = cachedUserKey ?? (KeychainHelper.get(AnalyticsConfig.USER_KEYCHAIN_KEY).flatMap { String(data: $0, encoding: .utf8) }) else {
-            print("Analytics.track: no userKey (llama identify() después del login)."); return
+            print("AppAnalytics.track: no userKey (llama identify() después del login)."); return
         }
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -153,16 +153,15 @@ final class Analytics {
             return
         }
 
-        // Envío HTTP
         var req = URLRequest(url: AnalyticsConfig.COLLECTOR_URL)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONEncoder().encode(evt)
 
         URLSession.shared.dataTask(with: req) { _, resp, err in
-            if let err = err { print("Analytics POST error:", err.localizedDescription) }
+            if let err = err { print("AppAnalytics POST error:", err.localizedDescription) }
             else if let http = resp as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-                print("Analytics POST status:", http.statusCode)
+                print("AppAnalytics POST status:", http.statusCode)
             }
         }.resume()
     }

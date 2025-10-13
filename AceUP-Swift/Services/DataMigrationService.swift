@@ -84,7 +84,7 @@ class DataMigrationService: ObservableObject {
             migrationStatus = "Migration completed successfully"
             
             // Track migration completion
-            Analytics.shared.track("migration_completed", props: [
+            AppAnalytics.shared.track("migration_completed", props: [
                 "from_version": oldVersion ?? "new_install",
                 "to_version": newVersion,
                 "migration_count": migrations.count
@@ -95,7 +95,7 @@ class DataMigrationService: ObservableObject {
             print("Migration failed: \(error)")
             
             // Track migration failure
-            Analytics.shared.track("migration_failed", props: [
+            AppAnalytics.shared.track("migration_failed", props: [
                 "from_version": oldVersion ?? "new_install",
                 "to_version": newVersion,
                 "error": error.localizedDescription
@@ -193,7 +193,7 @@ class DataMigrationService: ObservableObject {
         
         // Initialize analytics
         if let currentUser = FirebaseAuth.Auth.auth().currentUser {
-            Analytics.shared.identify(userId: currentUser.uid)
+            AppAnalytics.shared.identify(userId: currentUser.uid)
         }
     }
     
