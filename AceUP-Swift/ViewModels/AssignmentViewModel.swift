@@ -12,9 +12,9 @@ import SwiftUI
 /// ViewModel for assignment management using MVVM pattern
 /// Handles assignment business logic and state management
 @MainActor
-class AssignmentViewModel: ObservableObject {
+final class AssignmentViewModel: ObservableObject {
     
-    // MARK: - Published Properties
+    // Published Properties
     
     @Published var assignments: [Assignment] = []
     @Published var todaysAssignments: [Assignment] = []
@@ -41,13 +41,14 @@ class AssignmentViewModel: ObservableObject {
     @Published var newAssignmentEstimatedHours: Double?
     @Published var newAssignmentTags: [String] = []
     
-    // MARK: - Dependencies
+    // Dependencies
     
     private let repository: AssignmentRepositoryProtocol
     private let workloadAnalyzer: WorkloadAnalyzer
     private var cancellables = Set<AnyCancellable>()
+    private var hybridProvider = HybridAssignmentDataProvider()
     
-    // MARK: - Initialization
+    // Initialization
     
     init(
         repository: AssignmentRepositoryProtocol? = nil,
@@ -62,8 +63,17 @@ class AssignmentViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Public Methods
-    
+    // Public Methods
+
+    func updateGrade(_ id: String, to newGrade: Double) async {
+        do {
+            try await hybridProvider.updateGrade(id: id, newGrade: newGrade)
+            await loadAssignments()
+        } catch {
+            errorMessage = "Failed to update grade: \(error.localizedDescription)"
+        }
+    }
+
     func loadAssignments() async {
         isLoading = true
         errorMessage = nil
@@ -128,7 +138,7 @@ class AssignmentViewModel: ObservableObject {
     
     func markAsCompleted(_ id: String) async {
         do {
-            try await repository.markAsCompleted(id)
+            try await hybridProvider.markCompleted(id: id)
             await loadAssignments()
         } catch {
             errorMessage = "Failed to mark assignment as completed: \(error.localizedDescription)"
@@ -209,7 +219,7 @@ class AssignmentViewModel: ObservableObject {
         newAssignmentTags = []
     }
     
-    // MARK: - Private Methods
+    // Private Methods
     
     private func setupBindings() {
         // Auto-refresh data periodically

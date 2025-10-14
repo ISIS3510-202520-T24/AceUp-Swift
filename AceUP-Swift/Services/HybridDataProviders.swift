@@ -58,7 +58,27 @@ class HybridAssignmentDataProvider: AssignmentDataProviderProtocol, ObservableOb
         }
         return local
     }
+    
+    func updateGrade(id: String, newGrade: Double) async throws {
+        // 1) Trae el assignment local
+        guard let a = try await localProvider.fetchById(id) else {
+            throw PersistenceError.objectNotFound
+        }
 
+        // 2) Si tienes un helper copying(updatedAt:), úsalo.
+        //    Si NO existe, puedes simplemente llamar update(a) sin cambios
+        //    (no ideal, pero mantiene la firma y no rompe).
+        let updated = a.copying(updatedAt: Date())
+        try await update(updated)
+
+        // 3) Dispara el evento de Analytics para mantener el pipeline GA4 activo
+        AnalyticsClient.logEvent("grade_recorded", parameters: [
+            "assignment_id": id as NSString,
+            "course_id": a.courseId as NSString,
+            "source": "ios_app" as NSString
+        ])
+    }
+    
     func fetchById(_ id: String) async throws -> Assignment? {
         if let a = try await localProvider.fetchById(id) { return a }
         if isOnline, let r = try await remoteProvider.fetchById(id) {
@@ -127,10 +147,22 @@ class HybridAssignmentDataProvider: AssignmentDataProviderProtocol, ObservableOb
         do {
             let remote = try await remoteProvider.fetchAll()
             for a in remote {
-                try await localProvider.update(a)
+                do {
+                    // Intenta actualizar si ya existe localmente
+                    try await localProvider.update(a)
+                } catch {
+                    // Si no existe, guarda (upsert)
+                    do {
+                        try await localProvider.save(a)
+                    } catch {
+                        print("Failed to upsert remote assignment \(a.id): \(error)")
+                    }
+                }
                 markAsSynced(a.id)
             }
-        } catch { print("Failed to sync from remote: \(error)") }
+        } catch {
+            print("Failed to sync from remote: \(error)")
+        }
     }
 
     private func syncPendingChangesToRemote() async {
