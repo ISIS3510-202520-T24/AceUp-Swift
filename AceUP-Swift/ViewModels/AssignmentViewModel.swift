@@ -54,7 +54,7 @@ final class AssignmentViewModel: ObservableObject {
         repository: AssignmentRepositoryProtocol? = nil,
         workloadAnalyzer: WorkloadAnalyzer = WorkloadAnalyzer()
     ) {
-        self.repository = repository ?? AssignmentRepository()
+        self.repository = repository ?? AssignmentRepository() as! AssignmentRepositoryProtocol
         self.workloadAnalyzer = workloadAnalyzer
         
         setupBindings()

@@ -7,24 +7,10 @@
 
 import Foundation
 import Combine
+import FirebaseAnalytics
 
 @MainActor
-protocol AssignmentRepositoryProtocol {
-    func getAllAssignments() async throws -> [Assignment]
-    func getAssignmentById(_ id: String) async throws -> Assignment?
-    func getAssignmentsByDate(_ date: Date) async throws -> [Assignment]
-    func getTodaysAssignments() async throws -> [Assignment]
-    func getUpcomingAssignments(days: Int) async throws -> [Assignment]
-    func saveAssignment(_ assignment: Assignment) async throws
-    func updateAssignment(_ assignment: Assignment) async throws
-    func deleteAssignment(_ id: String) async throws
-    func markAsCompleted(_ id: String) async throws
-    func addSubtask(to assignmentId: String, subtask: Subtask) async throws
-    func updateSubtask(_ subtask: Subtask, in assignmentId: String) async throws
-    func deleteSubtask(_ subtaskId: String, from assignmentId: String) async throws
-}
-
-class AssignmentRepository: AssignmentRepositoryProtocol, ObservableObject {
+class AssignmentRepository: ObservableObject {
     
     // MARK: - Properties
     
@@ -55,6 +41,42 @@ class AssignmentRepository: AssignmentRepositoryProtocol, ObservableObject {
             return assignment
         }
         return try await dataProvider.fetchById(id)
+    }
+
+    // Implementación de updateGrade
+    func updateGrade(_ assignment: String, grade: Double?) async throws {
+        // 1) traer actual
+        guard let current = try await dataProvider.fetchById(assignment) else {
+            throw PersistenceError.objectNotFound
+        }
+
+        // 2) crear nueva versión (sin mutar el original)
+        let updated = current.copying(
+            grade: grade,
+            updatedAt: Date()
+        )
+
+        // 3) persistir
+        try await dataProvider.update(updated)
+
+        // 4) (opcional) actualizar cache en memoria
+        if let idx = assignments.firstIndex(where: { $0.id == current.id }) {
+            assignments[idx] = updated
+        }
+
+        // 5) enviar eventos
+        AppAnalytics.shared.track("grade_recorded", props: [
+            "assignment_id": updated.id,
+            "course_id": updated.courseId,
+            "grade": grade as Any
+        ])
+
+        Analytics.logEvent("grade_recorded", parameters: [
+            "assignment_id": updated.id as NSString,
+            "course_id": updated.courseId as NSString,
+            "grade": (grade ?? .nan) as NSNumber,
+            "source": "ios_app" as NSString
+        ])
     }
     
     func getAssignmentsByDate(_ date: Date) async throws -> [Assignment] {
@@ -361,6 +383,7 @@ class AssignmentRepository: AssignmentRepositoryProtocol, ObservableObject {
             assignments = mockAssignments
         }
     }
+
 }
 
 // MARK: - Data Provider Protocol

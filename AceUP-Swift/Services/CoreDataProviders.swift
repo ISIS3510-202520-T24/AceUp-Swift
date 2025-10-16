@@ -59,14 +59,40 @@ class CoreDataAssignmentDataProvider: AssignmentDataProviderProtocol {
             e.assignment = newEntity
         }
 
-        do { try context.save() }
-        catch { context.rollback(); throw PersistenceError.failedToSave(error) }
+        do { 
+            try context.save()
+
+            // dispara despues de guardar
+            if assignment.status == .completed{
+                AnalyticsHooks.onAssignmentCompleted(
+                    assignmentId: assignment.id,
+                    courseId: assignment.courseId
+                )
+            }
+
+            // sidapara las notas
+            AnalyticsHooks.onGradeUpdated(
+                assignmentId: assignment.id,
+                courseId: assignment.courseId,
+                grade: nil
+            )
+        }
+        catch { 
+            context.rollback(); throw PersistenceError.failedToSave(error) 
+            }
     }
 
     func update(_ assignment: Assignment) async throws {
         guard let entity = try await fetchAssignmentEntity(by: assignment.id) else {
             throw PersistenceError.objectNotFound
         }
+
+        // tomar valores antes
+        let oldStatusRaw = entity.status ?? "" // si status es String en Core Data
+        let oldStatus = AssignmentStatus(rawValue: oldStatusRaw) ?? .pending
+        let oldGrade: Double? = entity.value(forKey:"grade") as? Double
+
+        //actualizar el entity
         entity.updateFromAssignment(assignment)
         // reemplaza subtareas/adjuntos si tu mapeo lo necesita
         if let subs = entity.subtasks?.allObjects as? [SubtaskEntity] {
@@ -84,8 +110,32 @@ class CoreDataAssignmentDataProvider: AssignmentDataProviderProtocol {
             e.assignment = entity
         }
 
-        do { try context.save() }
-        catch { context.rollback(); throw PersistenceError.failedToSave(error) }
+        do {
+            try context.save()
+
+            // Calcular cambios despues
+            let becameCompleted = (oldStatus != .completed && assignment.status == .completed)
+            if becameCompleted {
+                AnalyticsHooks.onAssignmentCompleted(
+                    assignmentId: assignment.id,
+                    courseId: assignment.courseId
+                )
+            }
+
+            let newGrade: Double? = nil
+            let gradeChanged: Bool = !optionalsEqual(oldGrade, newGrade)
+            if gradeChanged {
+                AnalyticsHooks.onGradeUpdated(
+                    assignmentId: assignment.id,
+                    courseId: assignment.courseId,
+                    grade: newGrade
+                )
+            }
+        }
+        catch { 
+            context.rollback(); 
+            throw PersistenceError.failedToSave(error) 
+        }
     }
 
     func delete(_ id: String) async throws {
@@ -104,5 +154,13 @@ class CoreDataAssignmentDataProvider: AssignmentDataProviderProtocol {
         request.predicate = NSPredicate(format: "id == %@ AND userId == %@", id, currentUserId)
         request.fetchLimit = 1
         return try context.fetch(request).first
+    }
+
+    private func optionalsEqual(_ a: Double?, _ b: Double?) -> Bool {
+        switch (a, b) {
+        case (nil, nil): return true
+        case (let x?, let y?): return x == y
+        default: return false
+        }
     }
 }

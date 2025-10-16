@@ -3,6 +3,7 @@ import Foundation
 extension Assignment {
     /// Devuelve una copia de ⁠ Assignment ⁠ cambiando solo los campos indicados.
     /// Los nombres de propiedades coinciden con los usados en FirebaseDataProviders.createAssignment(...)
+    
     func copying(
         title: String? = nil,
         description: String?? = nil,            // doble optional: permite setear nil explícito
@@ -19,6 +20,7 @@ extension Assignment {
         attachments: [AssignmentAttachment]? = nil,
         subtasks: [Subtask]? = nil,
         createdAt: Date? = nil,
+        grade: Double?? = nil,
         updatedAt: Date? = Date()
     ) -> Assignment {
         Assignment(
@@ -38,7 +40,8 @@ extension Assignment {
             attachments: attachments ?? self.attachments,
             subtasks: subtasks ?? self.subtasks,
             createdAt: createdAt ?? self.createdAt,
-            updatedAt: updatedAt ?? self.updatedAt
+            updatedAt: updatedAt ?? self.updatedAt,
+            grade: grade ?? self.grade
         )
     }
 }
