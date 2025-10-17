@@ -20,6 +20,9 @@ enum AnalyticsHooks {
         ]
         if let g = grade { props["grade"] = g }
         AppAnalytics.shared.track("assignment_completed", props: props)
+
+        //Notificación
+        UserDefaults.standard.set(Date(), forKey: NotificationService.lastActivityKey)
     }
 
     // MARK: - Grade Updated (grade opcional)
@@ -39,6 +42,9 @@ enum AnalyticsHooks {
         ]
         if let g = grade { props["grade"] = g }
         AppAnalytics.shared.track("grade_recorded", props: props)
+
+        // Notificación
+        UserDefaults.standard.set(Date(), forKey: NotificationService.lastActivityKey)
     }
 
     // Aliases

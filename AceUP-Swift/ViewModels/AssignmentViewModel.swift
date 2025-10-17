@@ -274,6 +274,9 @@ final class AssignmentViewModel: ObservableObject {
             highestWeightPending: todaysPending.max { $0.weight < $1.weight },
             estimatedTimeRemaining: todaysPending.compactMap { $0.estimatedTimeRemaining }.reduce(0, +)
         )
+
+        // Notificación para el BQ 2.4 
+        NotificationService.scheduleTodayPendingReminderIfNeeded(pendingCount: todaysPending.count)
     }
 }
 

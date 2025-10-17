@@ -20,6 +20,7 @@ struct AceUP_SwiftApp: App {
     // Configuración de Firebase + sincronización de GA4 user_id
     init() {
         FirebaseConfig.shared.configure()
+        NotificationService.requestAuthorization()
 
         // Verifica configuración
         if !FirebaseConfig.shared.verifyConfiguration() {

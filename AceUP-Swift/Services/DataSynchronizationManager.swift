@@ -105,6 +105,9 @@ final class DataSynchronizationManager: ObservableObject {
         lastSyncDate = Date()
         refreshPendingCount()
 
+        // Notificaciones para el BQ 2.4 notificar por inactividad
+        NotificationService.scheduleStaleUpdateReminderIfNeeded(thresholdDays: 3)
+
         Analytics.logEvent("background_full_sync", parameters: [
             "source": "ios_app"
         ])
