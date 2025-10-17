@@ -15,7 +15,6 @@ import SwiftUI
 final class AssignmentViewModel: ObservableObject {
     
     // Published Properties
-    
     @Published var assignments: [Assignment] = []
     @Published var todaysAssignments: [Assignment] = []
     @Published var upcomingAssignments: [Assignment] = []
@@ -42,32 +41,35 @@ final class AssignmentViewModel: ObservableObject {
     @Published var newAssignmentTags: [String] = []
     
     // Dependencies
-    
     private let repository: AssignmentRepositoryProtocol
     private let workloadAnalyzer: WorkloadAnalyzer
     private var cancellables = Set<AnyCancellable>()
-    private var hybridProvider = HybridAssignmentDataProvider()
+    private var dataProvider: AssignmentDataProviderProtocol
     
     // Initialization
-    
     init(
         repository: AssignmentRepositoryProtocol? = nil,
-        workloadAnalyzer: WorkloadAnalyzer = WorkloadAnalyzer()
+        workloadAnalyzer: WorkloadAnalyzer = WorkloadAnalyzer(),
+        dataProvider: AssignmentDataProviderProtocol? = nil
     ) {
-        self.repository = repository ?? AssignmentRepository() as! AssignmentRepositoryProtocol
+        // Provider (por defecto híbrido)
+        let provider = dataProvider ?? HybridAssignmentDataProvider()
+        self.dataProvider = provider
+        
+        // Repo por defecto, concreto que conforma el protocolo
+        self.repository = repository ?? AssignmentRepository(dataProvider: provider)
         self.workloadAnalyzer = workloadAnalyzer
         
         setupBindings()
-        Task {
-            await loadAssignments()
-        }
+        Task { await loadAssignments() }
     }
     
-    // Public Methods
+    // MARK: - Public Methods
 
+    /// Actualiza la nota usando el repositorio (emite GA4 + colector desde el repo)
     func updateGrade(_ id: String, to newGrade: Double) async {
         do {
-            try await hybridProvider.updateGrade(id: id, newGrade: newGrade)
+            try await repository.updateGrade(id, grade: newGrade)
             await loadAssignments()
         } catch {
             errorMessage = "Failed to update grade: \(error.localizedDescription)"
@@ -77,7 +79,6 @@ final class AssignmentViewModel: ObservableObject {
     func loadAssignments() async {
         isLoading = true
         errorMessage = nil
-        
         do {
             assignments = try await repository.getAllAssignments()
             await updateDerivedData()
@@ -86,7 +87,6 @@ final class AssignmentViewModel: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
-        
         isLoading = false
     }
     
@@ -136,9 +136,10 @@ final class AssignmentViewModel: ObservableObject {
         }
     }
     
-    func markAsCompleted(_ id: String) async {
+    /// Marca como completada usando el repositorio (emite GA4 + colector desde el repo)
+    func markAsCompleted(_ id: String, finalGrade: Double? = nil) async {
         do {
-            try await hybridProvider.markCompleted(id: id)
+            try await repository.markCompleted(id, finalGrade: finalGrade)
             await loadAssignments()
         } catch {
             errorMessage = "Failed to mark assignment as completed: \(error.localizedDescription)"
@@ -185,26 +186,25 @@ final class AssignmentViewModel: ObservableObject {
     }
     
     func getAssignmentsByPriority(_ priority: Priority) -> [Assignment] {
-        return assignments.filter { $0.priority == priority && $0.status == .pending }
+        assignments.filter { $0.priority == priority && $0.status == .pending }
     }
     
     func getAssignmentsByStatus(_ status: AssignmentStatus) -> [Assignment] {
-        return assignments.filter { $0.status == status }
+        assignments.filter { $0.status == status }
     }
     
     func getAssignmentsByUrgency(_ urgency: UrgencyLevel) -> [Assignment] {
-        return assignments.filter { $0.urgencyLevel == urgency }
+        assignments.filter { $0.urgencyLevel == urgency }
     }
     
     func searchAssignments(_ query: String) -> [Assignment] {
         guard !query.isEmpty else { return assignments }
-        
-        let lowercaseQuery = query.lowercased()
-        return assignments.filter { assignment in
-            assignment.title.lowercased().contains(lowercaseQuery) ||
-            assignment.courseName.lowercased().contains(lowercaseQuery) ||
-            assignment.description?.lowercased().contains(lowercaseQuery) == true ||
-            assignment.tags.contains { $0.lowercased().contains(lowercaseQuery) }
+        let q = query.lowercased()
+        return assignments.filter { a in
+            a.title.lowercased().contains(q) ||
+            a.courseName.lowercased().contains(q) ||
+            a.description?.lowercased().contains(q) == true ||
+            a.tags.contains { $0.lowercased().contains(q) }
         }
     }
     
@@ -219,7 +219,7 @@ final class AssignmentViewModel: ObservableObject {
         newAssignmentTags = []
     }
     
-    // Private Methods
+    // MARK: - Private Methods
     
     private func setupBindings() {
         // Auto-refresh data periodically
@@ -244,10 +244,8 @@ final class AssignmentViewModel: ObservableObject {
         
         // Upcoming assignments (next 7 days)
         let nextWeek = calendar.date(byAdding: .day, value: 7, to: now) ?? now
-        upcomingAssignments = assignments.filter { assignment in
-            assignment.dueDate > now && 
-            assignment.dueDate <= nextWeek && 
-            assignment.status == .pending
+        upcomingAssignments = assignments.filter { a in
+            a.dueDate > now && a.dueDate <= nextWeek && a.status == .pending
         }.sorted { $0.dueDate < $1.dueDate }
         
         // Completed assignments
@@ -277,8 +275,6 @@ final class AssignmentViewModel: ObservableObject {
             estimatedTimeRemaining: todaysPending.compactMap { $0.estimatedTimeRemaining }.reduce(0, +)
         )
     }
-    
-
 }
 
 // MARK: - Supporting Models

@@ -1,55 +1,74 @@
-// AnalyticsDebugView.swift (solo para pruebas)
 import SwiftUI
 
 struct AnalyticsDebugView: View {
-    @State private var assignmentId = ""
-    @State private var gradeText = "4.5"
-    @State private var status = "—"
 
-    let provider = HybridAssignmentDataProvider()
-    
+    // Usa el repositorio para disparar eventos y persistir
+    @StateObject private var repo = AssignmentRepository()
+
+    // Inputs
+    @State private var assignmentId: String = ""
+    @State private var gradeText: String = ""
+
+    // UI
+    @State private var status: String = "—"
+
     var body: some View {
-        Form {
-            Section(header: Text("Assignment")) {
-                TextField("assignmentId", text: $assignmentId)
-                    .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)
-            }
+        NavigationView {
+            Form {
+                Section(header: Text("Datos del evento")) {
+                    TextField("Assignment ID", text: $assignmentId)
+                        .textInputAutocapitalization(.never)
+                        .disableAutocorrection(true)
 
-            Section(header: Text("Acciones")) {
-                Button("Marcar como completada") {
-                    Task {
-                        do {
-                            try await provider.markCompleted(id: assignmentId)
-                            status = "Completed enviado"
-                        } catch {
-                            status = "\(error.localizedDescription)"
-                        }
-                    }
-                }
-
-                HStack {
-                    TextField("Nueva nota (Double)", text: $gradeText)
+                    TextField("Grade (opcional, ej: 4.5)", text: $gradeText)
                         .keyboardType(.decimalPad)
-                    Button("Actualizar nota") {
-                        Task {
-                            do {
-                                let g = Double(gradeText) ?? 0
-                                try await provider.markCompleted(id: assignmentId)
-                                status = "Grade \(g) enviado"
-                            } catch {
-                                status = "\(error.localizedDescription)"
-                            }
-                        }
+                        .textInputAutocapitalization(.never)
+                        .disableAutocorrection(true)
+                }
+
+                Section(header: Text("Acciones")) {
+                    Button("Actualizar nota (grade_recorded)") {
+                        Task { await sendUpdateGrade() }
+                    }
+
+                    Button("Marcar como completada (assignment_completed)") {
+                        Task { await sendMarkCompleted() }
                     }
                 }
-            }
 
-            Section(header: Text("Estado")) {
-                Text(status)
-                    .font(.subheadline)
+                Section(header: Text("Estado")) {
+                    Text(status).font(.callout).foregroundColor(.secondary)
+                }
             }
+            .navigationTitle("Analytics Debug")
         }
-        .navigationTitle("Analytics Lab")
+    }
+
+    // MARK: - Helpers
+
+    private func parsedGrade() -> Double? {
+        let t = gradeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return nil }
+        return Double(t.replacingOccurrences(of: ",", with: "."))
+    }
+
+    private func sendUpdateGrade() async {
+        guard !assignmentId.isEmpty else { status = "Falta Assignment ID"; return }
+        do {
+            try await repo.updateGrade(assignmentId, grade: parsedGrade())
+            status = "grade_recorded enviado ✅"
+        } catch {
+            status = "Error updateGrade: \(error.localizedDescription)"
+        }
+    }
+
+    private func sendMarkCompleted() async {
+        guard !assignmentId.isEmpty else { status = "Falta Assignment ID"; return }
+        do {
+            try await repo.markCompleted(assignmentId, finalGrade: parsedGrade())
+            status = "assignment_completed enviado ✅"
+        } catch {
+            status = "Error markCompleted: \(error.localizedDescription)"
+        }
     }
 }

@@ -66,7 +66,8 @@ class CoreDataAssignmentDataProvider: AssignmentDataProviderProtocol {
             if assignment.status == .completed{
                 AnalyticsHooks.onAssignmentCompleted(
                     assignmentId: assignment.id,
-                    courseId: assignment.courseId
+                    courseId: assignment.courseId,
+                    grade: assignment.grade
                 )
             }
 
@@ -118,7 +119,8 @@ class CoreDataAssignmentDataProvider: AssignmentDataProviderProtocol {
             if becameCompleted {
                 AnalyticsHooks.onAssignmentCompleted(
                     assignmentId: assignment.id,
-                    courseId: assignment.courseId
+                    courseId: assignment.courseId,
+                    grade: assignment.grade
                 )
             }
 

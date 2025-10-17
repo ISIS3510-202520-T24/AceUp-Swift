@@ -1,397 +1,147 @@
-//
-//  HybridDataProviders.swift
-//  AceUP-Swift
-//
-//  Created by Ángel Farfán Arcila on 7/10/25.
-//
-
-// HybridDataProviders.swift
 import Foundation
-import Combine
-import Network
+import FirebaseAuth
+import FirebaseFirestore
 
-// =====================================================
-// MARK: - Hybrid Assignment Data Provider
-// =====================================================
+// MARK: - Hybrid ASSIGNMENTS
 
-@MainActor
-class HybridAssignmentDataProvider: AssignmentDataProviderProtocol, ObservableObject {
+/// Híbrido: si hay sesión -> Firebase; si no, Local (si existe).
+final class HybridAssignmentDataProvider: AssignmentDataProviderProtocol {
+    private let remote = FirebaseAssignmentDataProvider()
+    private let local: AssignmentDataProviderProtocol?
 
-    // MARK: Properties
-    private let localProvider: CoreDataAssignmentDataProvider
-    private let remoteProvider: FirebaseAssignmentDataProvider
-    private let networkMonitor = NWPathMonitor()
-    private let networkQueue = DispatchQueue(label: "NetworkMonitor")
-
-    @Published var isOnline = false
-    @Published var syncStatus: SyncStatus = .idle
-
-    private var lastSyncTimestamp: Date {
-        get { UserDefaults.standard.object(forKey: "lastAssignmentSync") as? Date ?? .distantPast }
-        set { UserDefaults.standard.set(newValue, forKey: "lastAssignmentSync") }
+    /// Inyecta un provider local si quieres soporte offline (por defecto usa uno en memoria).
+    init(local: AssignmentDataProviderProtocol? = LocalAssignmentDataProvider()) {
+        self.local = local
     }
 
-    // MARK: Init
-    init(localProvider: CoreDataAssignmentDataProvider? = nil,
-         remoteProvider: FirebaseAssignmentDataProvider? = nil) {
-        self.localProvider = localProvider ?? CoreDataAssignmentDataProvider()
-        self.remoteProvider = remoteProvider ?? FirebaseAssignmentDataProvider()
-
-        networkMonitor.pathUpdateHandler = { [weak self] path in
-            Task { @MainActor in
-                self?.isOnline = (path.status == .satisfied)
-                if path.status == .satisfied {
-                    await self?.performFullSync()
-                }
-            }
-        }
-        networkMonitor.start(queue: networkQueue)
-    }
-
-    deinit { networkMonitor.cancel() }
+    private var isLoggedIn: Bool { Auth.auth().currentUser != nil }
 
     // MARK: AssignmentDataProviderProtocol
+
     func fetchAll() async throws -> [Assignment] {
-        let local = try await localProvider.fetchAll()
-        if isOnline {
-            Task { @MainActor in await self.syncFromRemote() }
-        }
-        return local
+        if isLoggedIn { return try await remote.fetchAll() }
+        if let local { return try await local.fetchAll() }
+        return []
     }
-    
-    func updateGrade(id: String, newGrade: Double) async throws {
-        // 1) Trae el assignment local
-        guard let a = try await localProvider.fetchById(id) else {
-            throw PersistenceError.objectNotFound
-        }
 
-        // 2) Si tienes un helper copying(updatedAt:), úsalo.
-        //    Si NO existe, puedes simplemente llamar update(a) sin cambios
-        //    (no ideal, pero mantiene la firma y no rompe).
-        let updated = a.copying(updatedAt: Date())
-        try await update(updated)
-
-        // 3) Dispara el evento de Analytics para mantener el pipeline GA4 activo
-        AnalyticsClient.logEvent("grade_recorded", parameters: [
-            "assignment_id": id as NSString,
-            "course_id": a.courseId as NSString,
-            "source": "ios_app" as NSString
-        ])
-    }
-    
     func fetchById(_ id: String) async throws -> Assignment? {
-        if let a = try await localProvider.fetchById(id) { return a }
-        if isOnline, let r = try await remoteProvider.fetchById(id) {
-            try await localProvider.save(r)
-            return r
-        }
+        if isLoggedIn { return try await remote.fetchById(id) }
+        if let local { return try await local.fetchById(id) }
         return nil
     }
 
     func save(_ assignment: Assignment) async throws {
-        try await localProvider.save(assignment)
-        if isOnline {
-            do {
-                try await remoteProvider.save(assignment)
-                markAsSynced(assignment.id)
-            } catch {
-                markAsNeedingSync(assignment.id)
-                throw error
-            }
-        } else {
-            markAsNeedingSync(assignment.id)
-        }
+        if isLoggedIn { try await remote.save(assignment); return }
+        if let local { try await local.save(assignment); return }
+        throw FirebaseError.userNotAuthenticated
     }
 
     func update(_ assignment: Assignment) async throws {
-        try await localProvider.update(assignment)
-        if isOnline {
-            do {
-                try await remoteProvider.update(assignment)
-                markAsSynced(assignment.id)
-            } catch {
-                markAsNeedingSync(assignment.id)
-                throw error
-            }
-        } else {
-            markAsNeedingSync(assignment.id)
-        }
+        if isLoggedIn { try await remote.update(assignment); return }
+        if let local { try await local.update(assignment); return }
+        throw FirebaseError.userNotAuthenticated
     }
 
     func delete(_ id: String) async throws {
-        try await localProvider.delete(id)
-        if isOnline {
-            do {
-                try await remoteProvider.delete(id)
-                removeFromSyncQueue(id)
-            } catch {
-                markAsNeedingDeletion(id)
-                throw error
-            }
-        } else {
-            markAsNeedingDeletion(id)
-        }
+        if isLoggedIn { try await remote.delete(id); return }
+        if let local { try await local.delete(id); return }
+        throw FirebaseError.userNotAuthenticated
     }
 
-    // MARK: Sync
-    func performFullSync() async {
-        guard isOnline else { return }
-        syncStatus = .syncing
-        await syncPendingChangesToRemote()
-        await syncFromRemote()
-        lastSyncTimestamp = Date()
-        syncStatus = .completed
-    }
-
-    private func syncFromRemote() async {
-        do {
-            let remote = try await remoteProvider.fetchAll()
-            for a in remote {
-                do {
-                    // Intenta actualizar si ya existe localmente
-                    try await localProvider.update(a)
-                } catch {
-                    // Si no existe, guarda (upsert)
-                    do {
-                        try await localProvider.save(a)
-                    } catch {
-                        print("Failed to upsert remote assignment \(a.id): \(error)")
-                    }
-                }
-                markAsSynced(a.id)
-            }
-        } catch {
-            print("Failed to sync from remote: \(error)")
-        }
-    }
-
-    private func syncPendingChangesToRemote() async {
-        for item in getPendingSyncItems() {
-            do {
-                switch item.action {
-                case .create, .update:
-                    if let a = try await localProvider.fetchById(item.assignmentId) {
-                        try await remoteProvider.save(a)
-                        markAsSynced(item.assignmentId)
-                    }
-                case .delete:
-                    try await remoteProvider.delete(item.assignmentId)
-                    removeFromSyncQueue(item.assignmentId)
-                }
-            } catch { print("Failed to sync item \(item.assignmentId): \(error)") }
-        }
-    }
-
-    // MARK: Helpers públicos
-    func markCompleted(id: String) async throws {
-        guard let a = try await localProvider.fetchById(id) else {
-            throw PersistenceError.objectNotFound
-        }
-        let updated = a.copying(status: AssignmentStatus.completed)
-        try await update(updated)
-    }
-
-    // MARK: Sync queue utils
-    private func markAsNeedingSync(_ id: String) {
-        var items = getPendingSyncItems()
-        items.removeAll { $0.assignmentId == id }
-        items.append(SyncItem(assignmentId: id, action: .update, timestamp: Date()))
-        savePendingSyncItems(items)
-    }
-
-    private func markAsNeedingDeletion(_ id: String) {
-        var items = getPendingSyncItems()
-        items.removeAll { $0.assignmentId == id }
-        items.append(SyncItem(assignmentId: id, action: .delete, timestamp: Date()))
-        savePendingSyncItems(items)
-    }
-
-    private func markAsSynced(_ id: String) {
-        var items = getPendingSyncItems()
-        items.removeAll { $0.assignmentId == id }
-        savePendingSyncItems(items)
-    }
-
-    private func removeFromSyncQueue(_ id: String) {
-        var items = getPendingSyncItems()
-        items.removeAll { $0.assignmentId == id }
-        savePendingSyncItems(items)
-    }
-
-    private func getPendingSyncItems() -> [SyncItem] {
-        guard let data = UserDefaults.standard.data(forKey: "pendingSyncItems"),
-              let items = try? JSONDecoder().decode([SyncItem].self, from: data) else { return [] }
-        return items
-    }
-
-    private func savePendingSyncItems(_ items: [SyncItem]) {
-        if let data = try? JSONEncoder().encode(items) {
-            UserDefaults.standard.set(data, forKey: "pendingSyncItems")
-        }
+    /// Utilidad para DataSynchronizationManager.
+    func performFullSync() async throws {
+        _ = try await fetchAll()
     }
 }
 
-// =====================================================
-// MARK: - Hybrid Holiday Data Provider
-// =====================================================
+// MARK: - Hybrid COURSES (sin depender de FirebaseCourseDataProvider)
 
-@MainActor
-class HybridHolidayDataProvider: ObservableObject {
+/// Wrapper híbrido para cursos que lee directamente de Firestore.
+/// Evita la dependencia a `FirebaseCourseDataProvider`.
+final class HybridCourseDataProvider {
+    private let db = Firestore.firestore()
 
-    private let localProvider: CoreDataHolidayDataProvider
-    private let remoteProvider: FirebaseHolidayDataProvider
-    private let holidayService: HolidayService
-
-    @Published var isOnline = false
-
-    init(localProvider: CoreDataHolidayDataProvider? = nil,
-         remoteProvider: FirebaseHolidayDataProvider? = nil,
-         holidayService: HolidayService? = nil) {
-        self.localProvider = localProvider ?? CoreDataHolidayDataProvider()
-        self.remoteProvider = remoteProvider ?? FirebaseHolidayDataProvider()
-        self.holidayService = holidayService ?? HolidayService()
-
-        let monitor = NWPathMonitor()
-        monitor.pathUpdateHandler = { [weak self] path in
-            Task { @MainActor in
-                self?.isOnline = (path.status == .satisfied)
-            }
-        }
-        monitor.start(queue: DispatchQueue(label: "HolidayNetworkMonitor"))
+    private var currentUserId: String {
+        Auth.auth().currentUser?.uid ?? "anonymous"
     }
 
-    func fetchHolidays(for country: String, year: Int) async throws -> [Holiday] {
-        let local = try await localProvider.fetchHolidays(for: country, year: year)
-        if !local.isEmpty {
-            if isOnline {
-                Task { @MainActor in
-                    do {
-                        let ext = try await holidayService.fetchHolidays(countryCode: country, year: year)
-                        try await localProvider.saveHolidays(ext)
-                        await saveHolidaysToFirebase(ext)
-                    } catch { }
-                }
-            }
-            return local
-        }
-
-        if isOnline {
-            do {
-                let ext = try await holidayService.fetchHolidays(countryCode: country, year: year)
-                try await localProvider.saveHolidays(ext)
-                await saveHolidaysToFirebase(ext)
-                return ext
-            } catch {
-                let remote = try await remoteProvider.fetchHolidays(for: country, year: year)
-                if !remote.isEmpty {
-                    try await localProvider.saveHolidays(remote)
-                    return remote
-                }
-                throw error
-            }
-        }
-
-        return []
-    }
-
-    private func saveHolidaysToFirebase(_ holidays: [Holiday]) async {
-        do {
-            for h in holidays { try await remoteProvider.saveHoliday(h) }
-        } catch { }
-    }
-
-    func fetchAllHolidays() async throws -> [Holiday] {
-        let local = try await localProvider.fetchAllHolidays()
-        if isOnline {
-            Task { @MainActor in
-                do {
-                    let remote = try await remoteProvider.fetchAllHolidays()
-                    try await localProvider.saveHolidays(remote)
-                } catch { }
-            }
-        }
-        return local
-    }
-}
-
-// =====================================================
-// MARK: - Hybrid Course Data Provider
-// =====================================================
-
-@MainActor
-class HybridCourseDataProvider: ObservableObject {
-
-    private let localProvider: CoreDataCourseDataProvider
-    private let remoteProvider: FirebaseCourseDataProvider
-
-    @Published var isOnline = false
-
-    init(localProvider: CoreDataCourseDataProvider? = nil,
-         remoteProvider: FirebaseCourseDataProvider? = nil) {
-        self.localProvider = localProvider ?? CoreDataCourseDataProvider()
-        self.remoteProvider = remoteProvider ?? FirebaseCourseDataProvider()
-
-        let monitor = NWPathMonitor()
-        monitor.pathUpdateHandler = { [weak self] path in
-            Task { @MainActor in
-                self?.isOnline = (path.status == .satisfied)
-            }
-        }
-        monitor.start(queue: DispatchQueue(label: "CourseNetworkMonitor"))
-    }
-
+    /// Usado por OfflineManager
     func fetchCourses() async throws -> [Course] {
-        let local = try await localProvider.fetchCourses()
-        if isOnline {
-            Task { @MainActor in
-                do {
-                    let remote = try await remoteProvider.fetchCourses()
-                    for c in remote { try await localProvider.saveCourse(c) }
-                } catch { }
-            }
+        let snapshot = try await db.collection("courses")
+            .whereField("userId", isEqualTo: currentUserId)
+            .getDocuments()
+
+        return snapshot.documents.compactMap { doc in
+            let data = doc.data()
+
+            guard let name = data["name"] as? String,
+                  let code = data["code"] as? String,
+                  let credits = data["credits"] as? Int,
+                  let instructor = data["instructor"] as? String,
+                  let semester = data["semester"] as? String,
+                  let year = data["year"] as? Int
+            else { return nil }
+
+            let color = data["color"] as? String ?? "#122C4A"
+            let currentGrade = data["currentGrade"] as? Double
+            let targetGrade = data["targetGrade"] as? Double
+            let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+            let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
+
+            let gw = data["gradeWeight"] as? [String: Any] ?? [:]
+            let gradeWeight = GradeWeight(
+                assignments: gw["assignments"] as? Double ?? 0.4,
+                exams: gw["exams"] as? Double ?? 0.4,
+                projects: gw["projects"] as? Double ?? 0.15,
+                participation: gw["participation"] as? Double ?? 0.05,
+                other: gw["other"] as? Double ?? 0.0
+            )
+
+            return Course(
+                id: doc.documentID,
+                name: name,
+                code: code,
+                credits: credits,
+                instructor: instructor,
+                color: color,
+                semester: semester,
+                year: year,
+                gradeWeight: gradeWeight,
+                currentGrade: currentGrade,
+                targetGrade: targetGrade,
+                createdAt: createdAt,
+                updatedAt: updatedAt
+            )
         }
-        return local
     }
 
-    func saveCourse(_ course: Course) async throws {
-        try await localProvider.saveCourse(course)
-        if isOnline { try await remoteProvider.saveCourse(course) }
-    }
-
-    func updateCourse(_ course: Course) async throws {
-        try await localProvider.updateCourse(course)
-        if isOnline { try await remoteProvider.updateCourse(course) }
-    }
-
-    func deleteCourse(_ courseId: String) async throws {
-        try await localProvider.deleteCourse(courseId)
-        if isOnline { try await remoteProvider.deleteCourse(courseId) }
+    func performFullSync() async throws {
+        _ = try await fetchCourses()
     }
 }
+// MARK: - Hybrid HOLIDAYS
 
-// =====================================================
-// MARK: - Tipos de soporte (comparten con HybridAssignment)
-// =====================================================
+/// Wrapper híbrido para festivos (delegando al provider de Firebase).
+/// Expone ambas firmas (`for:` y `country:`) para ser compatible con distintos llamadores.
+final class HybridHolidayDataProvider {
+    private let remote = FirebaseHolidayDataProvider() // asegúrate que esta clase esté en tu target
 
-enum SyncStatus: Equatable {
-    case idle
-    case syncing
-    case completed
-    case failed(Error)
-
-    static func == (lhs: SyncStatus, rhs: SyncStatus) -> Bool {
-        switch (lhs, rhs) {
-        case (.idle, .idle), (.syncing, .syncing), (.completed, .completed): return true
-        case (.failed, .failed): return true
-        default: return false
-        }
+    /// Usado cuando no se especifica país/año.
+    func fetchAllHolidays() async throws -> [Holiday] {
+        try await remote.fetchAllHolidays()
     }
-}
 
-enum SyncAction: String, Codable { case create, update, delete }
+    /// Firma que suele usar OfflineManager (for:year:)
+    func fetchHolidays(for country: String, year: Int) async throws -> [Holiday] {
+        try await remote.fetchHolidays(for: country, year: year)
+    }
 
-struct SyncItem: Codable {
-    let assignmentId: String
-    let action: SyncAction
-    let timestamp: Date
+    /// Firma alternativa por si la llamas en otro lado (country:year:)
+    func fetchHolidays(country: String, year: Int) async throws -> [Holiday] {
+        try await remote.fetchHolidays(for: country, year: year)
+    }
+
+    func performFullSync() async throws {
+        _ = try await fetchAllHolidays()
+    }
 }

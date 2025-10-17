@@ -72,7 +72,14 @@ final class DataSynchronizationManager: ObservableObject {
         isSyncing = true
         syncStatus = "Syncing"
 
-        await assignmentProvider.performFullSync()
+        do {
+            try await assignmentProvider.performFullSync()
+            syncStatus = "Completed"
+        } catch {
+            // No rompas la UI; registra el error
+            print("Light sync error: \(error)")
+            syncStatus = "Error"
+        }
 
         isSyncing = false
         lastSyncDate = Date()
@@ -84,17 +91,22 @@ final class DataSynchronizationManager: ObservableObject {
         isSyncing = true
         syncStatus = "Syncing"
 
-        await assignmentProvider.performFullSync()
-        _ = try? await holidayProvider.fetchAllHolidays()
-        _ = try? await courseProvider.fetchCourses()
+        do {
+            try await assignmentProvider.performFullSync()
+            _ = try await holidayProvider.fetchAllHolidays()
+            _ = try await courseProvider.fetchCourses()
+            syncStatus = "Completed"
+        } catch {
+            print("Full sync error: \(error)")
+            syncStatus = "Error"
+        }
 
         isSyncing = false
-        syncStatus = "Completed"
         lastSyncDate = Date()
         refreshPendingCount()
 
-        FirebaseAnalytics.Analytics.logEvent("background_full_sync", parameters: [
-            "source": "ios_app" as NSString
+        Analytics.logEvent("background_full_sync", parameters: [
+            "source": "ios_app"
         ])
     }
 
@@ -139,9 +151,29 @@ final class DataSynchronizationManager: ObservableObject {
         pendingSyncCount = readPendingSyncItems().count
     }
 
+    // Modelo de item para cola de sync (simple y Codable)
+    struct SyncItem: Codable, Equatable {
+        let id: String
+        let type: String
+        let createdAt: Date
+        let payload: [String: String]?
+
+        init(id: String = UUID().uuidString,
+             type: String,
+             createdAt: Date = Date(),
+             payload: [String: String]? = nil) {
+            self.id = id
+            self.type = type
+            self.createdAt = createdAt
+            self.payload = payload
+        }
+    }
+
     private func readPendingSyncItems() -> [SyncItem] {
-        guard let data = UserDefaults.standard.data(forKey: "pendingSyncItems"),
-              let items = try? JSONDecoder().decode([SyncItem].self, from: data) else { return [] }
+        guard
+            let data = UserDefaults.standard.data(forKey: "pendingSyncItems"),
+            let items = try? JSONDecoder().decode([SyncItem].self, from: data)
+        else { return [] }
         return items
     }
 }

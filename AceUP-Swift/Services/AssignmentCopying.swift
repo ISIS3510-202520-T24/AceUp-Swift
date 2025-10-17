@@ -1,12 +1,11 @@
 import Foundation
 
 extension Assignment {
-    /// Devuelve una copia de ⁠ Assignment ⁠ cambiando solo los campos indicados.
-    /// Los nombres de propiedades coinciden con los usados en FirebaseDataProviders.createAssignment(...)
-    
+    /// Crea una copia inmutable cambiando solo los campos provistos.
+    /// Nota: updatedAt ANTES de grade; grade es Double?? para permitir nil explícito.
     func copying(
         title: String? = nil,
-        description: String?? = nil,            // doble optional: permite setear nil explícito
+        description: String?? = nil,
         courseId: String? = nil,
         courseName: String? = nil,
         courseColor: String? = nil,
@@ -20,8 +19,8 @@ extension Assignment {
         attachments: [AssignmentAttachment]? = nil,
         subtasks: [Subtask]? = nil,
         createdAt: Date? = nil,
-        grade: Double?? = nil,
-        updatedAt: Date? = Date()
+        updatedAt: Date? = Date(),
+        grade: Double?? = nil
     ) -> Assignment {
         Assignment(
             id: self.id,
