@@ -456,7 +456,7 @@ struct AssignmentsTabContent: View {
             .frame(maxWidth: .infinity)
             .background(Color(.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
+            
             // Smart Feature: Workload Analysis
             if let analysis = assignmentViewModel.workloadAnalysis {
                 WorkloadInsightCard(analysis: analysis)
@@ -468,19 +468,20 @@ struct AssignmentsTabContent: View {
             // Test button for existing analytics
             Button {
                 sending = true
+                
+                // Usa algún id de tarea y courseId de prueba; o si tienes datos, toma el primero
+                let testAssignmentId = UUID().uuidString
+                let testCourseId = assignmentViewModel.todaysAssignments.first?.courseId ?? "test-course"
+                
                 AnalyticsClient.sendAssignmentCompleted(
-                    userKey: userKey,
-                    assignmentId: UUID().uuidString
-                ) { _ in
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                        AnalyticsClient.fetchDaysSinceLastProgress(userKey: userKey) { val in
-                            DispatchQueue.main.async {
-                                days = val
-                                sending = false
-                            }
-                        }
-                    }
-                }
+                    assignmentId: testAssignmentId,
+                    courseId: testCourseId
+                )
+                
+                // Actualiza la tarjeta de “Days since last progress”
+                let val = AnalyticsClient.fetchDaysSinceLastProgress() ?? 0
+                days = val
+                sending = false
             } label: {
                 HStack {
                     Image(systemName: "checkmark.circle.fill")
@@ -490,17 +491,6 @@ struct AssignmentsTabContent: View {
             }
             .buttonStyle(.bordered)
             .disabled(sending)
-
-            Spacer()
-        }
-        .padding(.horizontal, 20)
-        .onAppear {
-            AnalyticsClient.fetchDaysSinceLastProgress(userKey: userKey) { val in
-                DispatchQueue.main.async { days = val }
-            }
-        }
-        .task {
-            await assignmentViewModel.loadAssignments()
         }
     }
 

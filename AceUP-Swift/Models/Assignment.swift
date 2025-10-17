@@ -27,6 +27,7 @@ struct Assignment: Codable, Identifiable, Hashable, Equatable {
     let subtasks: [Subtask]
     let createdAt: Date
     let updatedAt: Date
+    let grade: Double?
     
     init(
         id: String = UUID().uuidString,
@@ -45,7 +46,8 @@ struct Assignment: Codable, Identifiable, Hashable, Equatable {
         attachments: [AssignmentAttachment] = [],
         subtasks: [Subtask] = [],
         createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        grade: Double? = nil
     ) {
         self.id = id
         self.title = title
@@ -64,6 +66,7 @@ struct Assignment: Codable, Identifiable, Hashable, Equatable {
         self.subtasks = subtasks
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.grade = grade
     }
     
     // MARK: - Computed Properties

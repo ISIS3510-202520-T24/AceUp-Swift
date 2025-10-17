@@ -1,51 +1,30 @@
+// AnalyticsClient.swift
 import Foundation
+import FirebaseAnalytics
 
-enum AnalyticsEnv {
-    static let collector = URL(string: "https://us-central1-aceup-app-123.cloudfunctions.net/collect")!
-    static let days = URL(string: "https://us-central1-aceup-app-123.cloudfunctions.net/daysSinceLastProgress")!
-}
+enum AnalyticsClient {
 
-struct AnalyticsClient {
-    static func sendAssignmentCompleted(userKey: String,
-                                        assignmentId: String,
-                                        completion: ((Bool) -> Void)? = nil) {
-        let payload: [String: Any] = [
-            "event": "assignment_completed",
-            "userKey": userKey,
-            "ts": ISO8601DateFormatter().string(from: Date()),
-            "props": ["assignment_id": assignmentId]
-        ]
-        postJSON(url: AnalyticsEnv.collector, json: payload) { ok in
-            completion?(ok)
-        }
+    static func setUserID(_ uid: String?) {
+        FirebaseAnalytics.Analytics.setUserID(uid)
     }
 
-    static func fetchDaysSinceLastProgress(userKey: String,
-                                           completion: @escaping (Int?) -> Void) {
-        var comps = URLComponents(url: AnalyticsEnv.days, resolvingAgainstBaseURL: false)!
-        comps.queryItems = [URLQueryItem(name: "userKey", value: userKey)]
-        guard let url = comps.url else { completion(nil); return }
-
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            guard let d = data else { completion(nil); return }
-            struct Resp: Decodable { let ok: Bool; let days: Int? }
-            let r = try? JSONDecoder().decode(Resp.self, from: d)
-            completion(r?.days)
-        }.resume()
+    static func logEvent(_ name: String, parameters: [String: NSObject]?) {
+        FirebaseAnalytics.Analytics.logEvent(name, parameters: parameters)
     }
 
-    private static func postJSON(url: URL,
-                                 json: [String: Any],
-                                 completion: @escaping (Bool) -> Void) {
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: json, options: [])
+    // Enviado cuando se marca una tarea como completada (TodayView)
+    static func sendAssignmentCompleted(assignmentId: String, courseId: String) {
+        logEvent("assignment_completed", parameters: [
+            "assignment_id": assignmentId as NSString,
+            "course_id": courseId as NSString,
+            "source": "ios_app" as NSString
+        ])
+        // También actualiza el timestamp local para la métrica “días desde último progreso”
+        LastProgress.shared.update()
+    }
 
-        URLSession.shared.dataTask(with: req) { _, resp, err in
-            if let http = resp as? HTTPURLResponse,
-               (200...299).contains(http.statusCode),
-               err == nil { completion(true) } else { completion(false) }
-        }.resume()
+    // Métrica: días desde el último progreso
+    static func fetchDaysSinceLastProgress() -> Int? {
+        LastProgress.shared.daysSinceLast()
     }
 }

@@ -7,15 +7,28 @@
 
 import UIKit
 import SwiftUI
+import FirebaseCore
+import FirebaseAnalytics
+import FirebaseAuth
 
 class AppDelegate: UIResponder, UIApplicationDelegate {
+    
+    func application(_ application: UIApplication,
+                       didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
 
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-       
-        configureAppearance()
-        
+        if FirebaseApp.app() == nil {
+          FirebaseApp.configure()
+          print("FirebaseApp.configure() called in AppDelegate")
+        }
         return true
-    }
+      }
+    
+    //func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+       
+    //    configureAppearance()
+        
+    //    return true
+    //}
     
     
     private func configureAppearance() {
