@@ -23,13 +23,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return true
       }
     
-    //func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-       
-    //    configureAppearance()
-        
-    //    return true
-    //}
-    
     
     private func configureAppearance() {
 
