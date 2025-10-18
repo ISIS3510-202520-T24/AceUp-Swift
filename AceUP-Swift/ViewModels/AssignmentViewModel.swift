@@ -219,7 +219,7 @@ final class AssignmentViewModel: ObservableObject {
         newAssignmentTags = []
     }
     
-    // MARK: - Private Methods
+    // Private Methods
     
     private func setupBindings() {
         // Auto-refresh data periodically
@@ -280,7 +280,7 @@ final class AssignmentViewModel: ObservableObject {
     }
 }
 
-// MARK: - Supporting Models
+// Supporting Models
 
 struct TodaysSummary {
     let totalAssignments: Int
