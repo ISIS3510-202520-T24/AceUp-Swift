@@ -14,19 +14,18 @@ final class LoginViewModel: ObservableObject {
     // UI Fields
     @Published var email = ""
     @Published var password = ""
-    @Published var rememberWithBiometric = false
 
     // UI State
-    @Published var isLoading = false           // login normal
-    @Published var isBioLoading = false        // login biométrico
+    @Published var isLoading = false
+    @Published var isBioLoading = false
     @Published var errorMessage: String?
-    @Published var alertMessage: String?       // para forgot password / info
-    @Published var didLogin = false            // trigger para navegar desde la View
+    @Published var alertMessage: String?
+    @Published var didLogin = false
 
     private let auth = AuthService()
     private let keychain = BiometricKeychain()
 
-    // Normal login
+    // MARK: - Normal login
     func login() async {
         errorMessage = nil
         guard !email.isEmpty, !password.isEmpty else {
@@ -40,9 +39,16 @@ final class LoginViewModel: ObservableObject {
         do {
             _ = try await auth.SignIn(email: email, password: password)
 
-            if rememberWithBiometric {
-                do { try keychain.saveCredentials(.init(email: email, password: password)) }
-                catch { print("Keychain save error: \(error)") }
+            do {
+                try keychain.saveCredentials(.init(email: email, password: password))
+                keychain.debugCountItems()
+                if let probe = try? keychain.loadCredentials(context: nil) {
+                    print("KC probe after save:", probe.email)
+                } else {
+                    print("KC probe after save: nil")
+                }
+            } catch {
+                print("Keychain save error:", error)
             }
 
             didLogin = true
@@ -51,11 +57,13 @@ final class LoginViewModel: ObservableObject {
         }
     }
 
-    // Biometric login
+    // MARK: - Biometric login
     func biometricLogin() async {
         errorMessage = nil
         isBioLoading = true
         defer { isBioLoading = false }
+
+        keychain.debugCountItems()
 
         let ctx = LAContext()
         var evalError: NSError?
@@ -65,7 +73,6 @@ final class LoginViewModel: ObservableObject {
         }
 
         do {
-            // Authenticate with Face ID / Touch ID
             try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
                 ctx.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
                                    localizedReason: "Authenticate to login") { ok, err in
@@ -73,21 +80,24 @@ final class LoginViewModel: ObservableObject {
                 }
             }
 
-            // 1) Intentar leer credenciales guardadas
-            do {
-                if let creds = try keychain.loadCredentials(context: ctx) {
-                    _ = try await auth.SignIn(email: creds.email, password: creds.password)
-                    didLogin = true
-                    return
-                }
-            } catch let nsErr as NSError
-                where nsErr.domain == NSOSStatusErrorDomain && nsErr.code == Int(errSecItemNotFound) {
-                // No saved credentials found -> fall back to step 2)
+            // 1) Intento seguro
+            if let creds = try keychain.loadCredentials(context: ctx) {
+                _ = try await auth.SignIn(email: creds.email, password: creds.password)
+                didLogin = true
+                return
             }
 
-            // 2) If no saved credentials but email/password entered: save them and login
+            // 2) Intento plain
+            if let fallback = try keychain.loadCredentials(context: nil) {
+                print("KC alt read (plain or secure without ctx):", fallback.email)
+                _ = try await auth.SignIn(email: fallback.email, password: fallback.password)
+                didLogin = true
+                return
+            }
+
+            // 3) Seed automático si hay email/contraseña en pantalla
             guard !email.isEmpty, !password.isEmpty else {
-                errorMessage = "No stored credentials. Type email & password once, then try again."
+                errorMessage = "No hay credenciales guardadas. Inicia una vez con email y contraseña para habilitar Face ID."
                 return
             }
             try keychain.saveCredentials(.init(email: email, password: password))
@@ -118,7 +128,7 @@ final class LoginViewModel: ObservableObject {
         }
     }
 
-    // (Optional) Resend verification
+    // MARK: - (Optional) Resend verification
     func resendVerification() async {
         do {
             try await auth.resendVerificationEmail()

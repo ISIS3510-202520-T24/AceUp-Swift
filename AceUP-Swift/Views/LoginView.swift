@@ -42,6 +42,8 @@ struct LoginView: View {
                             VStack(spacing: 14) {
                                 StyledTextField("Email Address", text: $vm.email, keyboard: .emailAddress)
                                 StyledSecureField("Password", text: $vm.password)
+                                
+                                
 
                                 HStack {
                                     Spacer()
