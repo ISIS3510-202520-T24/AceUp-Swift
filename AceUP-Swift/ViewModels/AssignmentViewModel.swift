@@ -36,6 +36,7 @@ final class AssignmentViewModel: ObservableObject {
     @Published var newAssignmentDueDate = Date()
     @Published var newAssignmentCourse = ""
     @Published var newAssignmentWeight = 0.1
+    @Published var newAssignmentType = EventType.assignment
     @Published var newAssignmentPriority = Priority.medium
     @Published var newAssignmentEstimatedHours: Double?
     @Published var newAssignmentTags: [String] = []
@@ -103,6 +104,7 @@ final class AssignmentViewModel: ObservableObject {
             courseName: newAssignmentCourse,
             dueDate: newAssignmentDueDate,
             weight: newAssignmentWeight,
+            type : newAssignmentType,
             estimatedHours: newAssignmentEstimatedHours,
             priority: newAssignmentPriority,
             tags: newAssignmentTags

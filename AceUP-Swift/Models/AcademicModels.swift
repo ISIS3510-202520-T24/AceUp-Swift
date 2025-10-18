@@ -68,6 +68,7 @@ enum EventType: String, Codable, CaseIterable {
         }
     }
     
+    
     var icon: String {
         switch self {
         case .assignment: return "doc.text"
