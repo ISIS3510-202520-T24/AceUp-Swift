@@ -63,12 +63,6 @@ struct TodayView: View {
                     )
                     
                     TabButton(
-                        title: "Exams",
-                        isSelected: selectedTab == .exams,
-                        action: { selectedTab = .exams }
-                    )
-                    
-                    TabButton(
                         title: "Insights",
                         isSelected: selectedTab == .insights,
                         action: { selectedTab = .insights }
@@ -85,8 +79,6 @@ struct TodayView: View {
                             AssignmentsTabContent(assignmentViewModel: assignmentViewModel)
                         case .timetable:
                             TimetableTabContent()
-                        case .exams:
-                            ExamsTabContent()
                         case .insights:
                             SmartInsightsTabContent(analytics: smartAnalytics)
                         }
@@ -131,7 +123,6 @@ struct TodayView: View {
 enum TodayTab: String, CaseIterable {
     case assignments = "Assignments"
     case timetable = "Timetable"
-    case exams = "Exams"
     case insights = "Insights"
 }
 
@@ -370,33 +361,6 @@ struct TabButton: View {
     }
 }
 
-
-struct ExamsTabContent: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            Spacer().frame(height: 100)
-            
-            Image(systemName: "doc.text")
-                .font(.system(size: 60))
-                .foregroundColor(UI.muted)
-            
-            VStack(spacing: 8) {
-                Text("No exams scheduled")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                
-                Text("Your upcoming exams will appear here")
-                    .font(.body)
-                    .foregroundColor(UI.muted)
-                    .multilineTextAlignment(.center)
-            }
-            
-            Spacer()
-        }
-        .padding(.horizontal, 40)
-    }
-}
 
 struct TimetableTabContent: View {
     var body: some View {

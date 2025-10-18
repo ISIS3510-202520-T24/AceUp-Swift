@@ -89,6 +89,20 @@ struct CreateAssignmentView: View {
                 step: 0.01
             )
             
+            Picker("Type", selection: $viewModel.newAssignmentType){
+                ForEach(EventType.allCases, id: \.self) {
+                    type in
+                    HStack {
+                        Circle()
+                            .frame(width: 8, height: 8)
+                        Text(type.displayName)
+                    }
+                    .tag(type)
+                }
+            }
+            
+            
+            
             Picker("Priority", selection: $viewModel.newAssignmentPriority) {
                 ForEach(Priority.allCases, id: \.self) { priority in
                     HStack {

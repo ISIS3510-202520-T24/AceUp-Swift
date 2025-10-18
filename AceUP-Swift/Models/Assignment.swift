@@ -18,6 +18,7 @@ struct Assignment: Codable, Identifiable, Hashable, Equatable {
     let courseColor: String
     let dueDate: Date
     let weight: Double // Percentage of final grade (0.0 - 1.0)
+    let type: EventType
     let estimatedHours: Double?
     let actualHours: Double?
     let priority: Priority
@@ -38,6 +39,7 @@ struct Assignment: Codable, Identifiable, Hashable, Equatable {
         courseColor: String = "#122C4A",
         dueDate: Date,
         weight: Double = 0.1,
+        type: EventType = .assignment,
         estimatedHours: Double? = nil,
         actualHours: Double? = nil,
         priority: Priority = .medium,
@@ -57,6 +59,7 @@ struct Assignment: Codable, Identifiable, Hashable, Equatable {
         self.courseColor = courseColor
         self.dueDate = dueDate
         self.weight = weight
+        self.type = type
         self.estimatedHours = estimatedHours
         self.actualHours = actualHours
         self.priority = priority
@@ -281,6 +284,7 @@ extension Assignment {
             courseName: academicEvent.courseName,
             dueDate: academicEvent.dueDate,
             weight: academicEvent.weight,
+            type: academicEvent.type,
             estimatedHours: academicEvent.estimatedHours,
             actualHours: academicEvent.actualHours,
             priority: academicEvent.priority,
@@ -298,7 +302,7 @@ extension Assignment {
             description: description,
             courseId: courseId,
             courseName: courseName,
-            type: .assignment,
+            type: type,
             dueDate: dueDate,
             weight: weight,
             status: EventStatus(rawValue: status.rawValue) ?? .pending,
@@ -310,3 +314,7 @@ extension Assignment {
         )
     }
 }
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
