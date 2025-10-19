@@ -428,7 +428,7 @@ struct TimetableTabContent: View {
 struct AssignmentsTabContent: View {
     @ObservedObject var assignmentViewModel: AssignmentViewModel
     @State private var days: Int? = nil
-    @State private var sending = false
+    @State private var isSchedulingNotification = false
     private let userKey = UserKeyManager.shared.userKey()
     
     init(assignmentViewModel: AssignmentViewModel) {
@@ -462,35 +462,91 @@ struct AssignmentsTabContent: View {
                 WorkloadInsightCard(analysis: analysis)
             }
             
+            // BQ 2.1 Card - Highest Weight Pending Assignment
+            if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
+                HighestWeightAssignmentCard(assignment: highestWeightAssignment)
+            }
+            
             // Today's Assignments List
             TodaysAssignmentsList(viewModel: assignmentViewModel)
             
-            // Test button for existing analytics
-            Button {
-                sending = true
-                
-                // Usa algún id de tarea y courseId de prueba; o si tienes datos, toma el primero
-                let testAssignmentId = UUID().uuidString
-                let testCourseId = assignmentViewModel.todaysAssignments.first?.courseId ?? "test-course"
-                
-                AnalyticsClient.sendAssignmentCompleted(
-                    assignmentId: testAssignmentId,
-                    courseId: testCourseId
-                )
-                
-                // Actualiza la tarjeta de “Days since last progress”
-                let val = AnalyticsClient.fetchDaysSinceLastProgress() ?? 0
-                days = val
-                sending = false
-            } label: {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text(sending ? "Sending..." : "Test Analytics Event")
+            // Trigger Highest Weight Assignment Notification
+            VStack(spacing: 8) {
+                Button {
+                    // Prevent rapid successive calls
+                    guard !isSchedulingNotification else { return }
+                    isSchedulingNotification = true
+                    
+                    // Check notification authorization and trigger notification
+                    NotificationService.checkAuthorizationStatus { status in
+                        // If authorized, send notification
+                        if status.contains("Authorized") {
+                            if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
+                                NotificationService.scheduleHighestWeightAssignmentReminder(assignment: highestWeightAssignment)
+                            }
+                        } else if status.contains("Not determined") {
+                            // Request permission
+                            NotificationService.requestAuthorization()
+                        }
+                        
+                        // Reset flag after 2 seconds
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            isSchedulingNotification = false
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: isSchedulingNotification ? "hourglass" : "bell.fill")
+                        Text(isSchedulingNotification ? "Scheduling..." : "Set Priority Reminder")
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
+                .buttonStyle(.bordered)
+                .disabled(isSchedulingNotification || assignmentViewModel.highestWeightPendingAssignment == nil)
+                
+                // Test button for immediate notification (for development/testing)
+                Button {
+                    // Prevent rapid successive calls
+                    guard !isSchedulingNotification else { return }
+                    isSchedulingNotification = true
+                    
+                    NotificationService.checkAuthorizationStatus { status in
+                        if status.contains("Authorized") {
+                            let testDate = Calendar.current.date(byAdding: .second, value: 3, to: Date()) ?? Date()
+                            
+                            if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
+                                NotificationService.schedule(
+                                    id: "test_immediate_\(Int(Date().timeIntervalSince1970))",
+                                    title: "High Priority Assignment",
+                                    body: "Your assignment '\(highestWeightAssignment.title)' (\(highestWeightAssignment.weightPercentage)% of grade) needs attention!",
+                                    date: testDate
+                                )
+                            } else {
+                                NotificationService.schedule(
+                                    id: "test_immediate_\(Int(Date().timeIntervalSince1970))",
+                                    title: "High Priority Assignment",
+                                    body: "Test notification - No pending assignments found.",
+                                    date: testDate
+                                )
+                            }
+                        } else if status.contains("Not determined") {
+                            NotificationService.requestAuthorization()
+                        }
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            isSchedulingNotification = false
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "clock.badge.exclamationmark")
+                        Text("Test (3 sec)")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isSchedulingNotification)
             }
-            .buttonStyle(.bordered)
-            .disabled(sending)
         }
     }
 
@@ -750,5 +806,67 @@ struct TodayAssignmentRow: View {
                 .frame(width: 8, height: 8)
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - BQ 2.1: Highest Weight Assignment Card
+struct HighestWeightAssignmentCard: View {
+    let assignment: Assignment
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.orange)
+                
+                Text("High Priority Alert")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(UI.navy)
+                
+                Spacer()
+                
+                Text("\(assignment.weightPercentage)%")
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.2))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .foregroundColor(.orange)
+            }
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text(assignment.title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(UI.navy)
+                
+                HStack {
+                    Label(assignment.courseName, systemImage: "book.fill")
+                        .font(.caption)
+                        .foregroundColor(Color(hex: assignment.courseColor))
+                    
+                    Spacer()
+                    
+                    Label(assignment.formattedDueDate, systemImage: "calendar")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Text("This is your highest weight pending assignment and will have the greatest impact on your final grade.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
     }
 }
