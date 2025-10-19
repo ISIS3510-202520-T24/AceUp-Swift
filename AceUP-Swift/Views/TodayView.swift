@@ -465,6 +465,62 @@ struct AssignmentsTabContent: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isSchedulingNotification)
+
+                // BQ 2.4 boton
+                // Test BQ: Days Since Last Activity (Type 2) — demo button
+                Button {
+                    Task {
+                        guard !isSchedulingNotification else { return }
+                        isSchedulingNotification = true
+                        defer { DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { isSchedulingNotification = false } }
+                        do {
+                            let repo = AssignmentRepository()
+                            let all = try await repo.getAllAssignments()
+                            let completed = all.filter { $0.status == .completed }
+                            let lastDate = completed.map { $0.updatedAt }.max() ?? Date.distantPast
+                            let days = Calendar.current.dateComponents([.day], from: lastDate, to: Date()).day ?? 0
+
+                            let body: String
+                            if completed.isEmpty {
+                                body = "We couldn't find completed assignments yet. Update any grade or mark one as done to start tracking."
+                            } else {
+                                body = "It's been \(days) day\(days == 1 ? "" : "s") since your last update."
+                            }
+
+                            NotificationService.schedule(
+                                id: "test_bq_days_since_activity_today",
+                                title: "BQ Test – Days Since Activity",
+                                body: body,
+                                date: Date().addingTimeInterval(3)
+                            )
+
+                            // Analytics event for demo purposes
+                            AnalyticsClient.shared.logEvent(
+                                AnalyticsEventType.smartReminderTriggered.rawValue,
+                                parameters: [
+                                    "type": "inactivity_test_today" as NSString,
+                                    "days_since": NSNumber(value: days),
+                                    "source": "ios_app" as NSString
+                                ]
+                            )
+                        } catch {
+                            NotificationService.schedule(
+                                id: "test_bq_days_since_activity_today_error",
+                                title: "BQ Test – Error",
+                                body: "Failed to compute days since activity: \(error.localizedDescription)",
+                                date: Date().addingTimeInterval(3)
+                            )
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "calendar.badge.clock")
+                        Text("Test BQ: Days Since Activity")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isSchedulingNotification)
             }
         }
     }
