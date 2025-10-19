@@ -30,6 +30,15 @@ final class AssignmentViewModel: ObservableObject {
     @Published var showingCreateAssignment = false
     @Published var selectedAssignment: Assignment?
     
+    // MARK: - BQ 2.1 Computed Property
+    /// The highest weight pending assignment (for BQ 2.1 notifications)
+    var highestWeightPendingAssignment: Assignment? {
+        let allPendingAssignments = assignments.filter { 
+            ($0.status == .pending || $0.status == .inProgress) && !$0.isOverdue 
+        }
+        return allPendingAssignments.max(by: { $0.weight < $1.weight })
+    }
+    
     // Form properties
     @Published var newAssignmentTitle = ""
     @Published var newAssignmentDescription = ""
@@ -113,6 +122,8 @@ final class AssignmentViewModel: ObservableObject {
             await loadAssignments()
             clearForm()
             showingCreateAssignment = false
+            // Update BQ 2.1 notification since a new assignment was added
+            await scheduleHighestWeightAssignmentNotification()
         } catch {
             errorMessage = "Failed to create assignment: \(error.localizedDescription)"
         }
@@ -122,6 +133,8 @@ final class AssignmentViewModel: ObservableObject {
         do {
             try await repository.updateAssignment(assignment)
             await loadAssignments()
+            // Update BQ 2.1 notification since assignment weights might have changed
+            await scheduleHighestWeightAssignmentNotification()
         } catch {
             errorMessage = "Failed to update assignment: \(error.localizedDescription)"
         }
@@ -131,6 +144,8 @@ final class AssignmentViewModel: ObservableObject {
         do {
             try await repository.deleteAssignment(id)
             await loadAssignments()
+            // Update BQ 2.1 notification since an assignment was removed
+            await scheduleHighestWeightAssignmentNotification()
         } catch {
             errorMessage = "Failed to delete assignment: \(error.localizedDescription)"
         }
@@ -141,6 +156,8 @@ final class AssignmentViewModel: ObservableObject {
         do {
             try await repository.markCompleted(id, finalGrade: finalGrade)
             await loadAssignments()
+            // Update BQ 2.1 notification since the highest weight assignment might have changed
+            await scheduleHighestWeightAssignmentNotification()
         } catch {
             errorMessage = "Failed to mark assignment as completed: \(error.localizedDescription)"
         }
@@ -277,6 +294,26 @@ final class AssignmentViewModel: ObservableObject {
 
         // Notificación para el BQ 2.4 
         NotificationService.scheduleTodayPendingReminderIfNeeded(pendingCount: todaysPending.count)
+        
+        // BQ 2.1: Schedule notification for highest weight pending assignment
+        await scheduleHighestWeightAssignmentNotification()
+    }
+    
+    /// BQ 2.1: Find the highest weight pending assignment and schedule notification
+    private func scheduleHighestWeightAssignmentNotification() async {
+        // Find the highest weight pending assignment across all assignments (not just today's)
+        let allPendingAssignments = assignments.filter { 
+            ($0.status == .pending || $0.status == .inProgress) && !$0.isOverdue 
+        }
+        
+        guard let highestWeightAssignment = allPendingAssignments.max(by: { $0.weight < $1.weight }) else {
+            return // No pending assignments found
+        }
+        
+        // Only schedule notification if the assignment is significant (weight >= 10%)
+        guard highestWeightAssignment.weight >= 0.1 else { return }
+        
+        NotificationService.scheduleHighestWeightAssignmentReminder(assignment: highestWeightAssignment)
     }
 }
 

@@ -462,6 +462,11 @@ struct AssignmentsTabContent: View {
                 WorkloadInsightCard(analysis: analysis)
             }
             
+            // BQ 2.1 Card - Highest Weight Pending Assignment
+            if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
+                HighestWeightAssignmentCard(assignment: highestWeightAssignment)
+            }
+            
             // Today's Assignments List
             TodaysAssignmentsList(viewModel: assignmentViewModel)
             
@@ -491,6 +496,21 @@ struct AssignmentsTabContent: View {
             }
             .buttonStyle(.bordered)
             .disabled(sending)
+            
+            // Test button for BQ 2.1 - Highest Weight Assignment Notification
+            Button {
+                if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
+                    NotificationService.scheduleHighestWeightAssignmentReminder(assignment: highestWeightAssignment)
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "bell.fill")
+                    Text("Test BQ 2.1 Notification")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .disabled(assignmentViewModel.highestWeightPendingAssignment == nil)
         }
     }
 
@@ -750,5 +770,67 @@ struct TodayAssignmentRow: View {
                 .frame(width: 8, height: 8)
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - BQ 2.1: Highest Weight Assignment Card
+struct HighestWeightAssignmentCard: View {
+    let assignment: Assignment
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.orange)
+                
+                Text("High Priority Alert")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(UI.navy)
+                
+                Spacer()
+                
+                Text("\(assignment.weightPercentage)%")
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.2))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .foregroundColor(.orange)
+            }
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text(assignment.title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(UI.navy)
+                
+                HStack {
+                    Label(assignment.courseName, systemImage: "book.fill")
+                        .font(.caption)
+                        .foregroundColor(Color(hex: assignment.courseColor))
+                    
+                    Spacer()
+                    
+                    Label(assignment.formattedDueDate, systemImage: "calendar")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Text("This is your highest weight pending assignment and will have the greatest impact on your final grade.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
     }
 }
