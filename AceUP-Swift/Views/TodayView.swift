@@ -428,7 +428,6 @@ struct TimetableTabContent: View {
 struct AssignmentsTabContent: View {
     @ObservedObject var assignmentViewModel: AssignmentViewModel
     @State private var days: Int? = nil
-    @State private var sending = false
     private let userKey = UserKeyManager.shared.userKey()
     
     init(assignmentViewModel: AssignmentViewModel) {
@@ -469,33 +468,6 @@ struct AssignmentsTabContent: View {
             
             // Today's Assignments List
             TodaysAssignmentsList(viewModel: assignmentViewModel)
-            
-            // Test button for existing analytics
-            Button {
-                sending = true
-                
-                // Usa algún id de tarea y courseId de prueba; o si tienes datos, toma el primero
-                let testAssignmentId = UUID().uuidString
-                let testCourseId = assignmentViewModel.todaysAssignments.first?.courseId ?? "test-course"
-                
-                AnalyticsClient.sendAssignmentCompleted(
-                    assignmentId: testAssignmentId,
-                    courseId: testCourseId
-                )
-                
-                // Actualiza la tarjeta de “Days since last progress”
-                let val = AnalyticsClient.fetchDaysSinceLastProgress() ?? 0
-                days = val
-                sending = false
-            } label: {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text(sending ? "Sending..." : "Test Analytics Event")
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .disabled(sending)
             
             // Test button for BQ 2.1 - Highest Weight Assignment Notification
             Button {

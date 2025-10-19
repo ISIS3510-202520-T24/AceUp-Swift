@@ -16,10 +16,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication,
                        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
 
-        if FirebaseApp.app() == nil {
-          FirebaseApp.configure()
-          print("FirebaseApp.configure() called in AppDelegate")
+        // Configure Firebase using the FirebaseConfig class
+        FirebaseConfig.shared.configure()
+        
+        // Verify configuration
+        if FirebaseConfig.shared.verifyConfiguration() {
+            print("Firebase configured successfully in AppDelegate")
+        } else {
+            print("Firebase configuration failed in AppDelegate")
         }
+        
         return true
       }
     

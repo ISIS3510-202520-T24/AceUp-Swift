@@ -36,22 +36,9 @@
 		0F270C3D2E7E123B0003B649 /* AceUP-SwiftUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AceUP-SwiftUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		0FA7C0612EA1716700E6A370 /* Exceptions for "AceUP-Swift" folder in "AceUP-Swift" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Services/Untitled.swift,
-			);
-			target = 0F270C242E7E123A0003B649 /* AceUP-Swift */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0F270C272E7E123A0003B649 /* AceUP-Swift */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				0FA7C0612EA1716700E6A370 /* Exceptions for "AceUP-Swift" folder in "AceUP-Swift" target */,
-			);
 			path = "AceUP-Swift";
 			sourceTree = "<group>";
 		};
