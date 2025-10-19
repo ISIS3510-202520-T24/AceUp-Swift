@@ -13,33 +13,35 @@ struct WorkloadAnalysisView: View {
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    if let analysis = analysis {
-                        // Overview Cards
-                        overviewSection(analysis)
-                        
-                        // Weekly Distribution Chart
-                        weeklyDistributionSection(analysis)
-                        
-                        // Recommendations
-                        recommendationsSection(analysis)
-                        
-                        // Workload Balance
-                        workloadBalanceSection(analysis)
-                    } else {
-                        emptyStateView
+            GeometryReader { geometry in
+                ScrollView {
+                    VStack(spacing: 20) {
+                        if let analysis = analysis {
+                            // Overview Cards
+                            overviewSection(analysis, geometry: geometry)
+                            
+                            // Weekly Distribution Chart
+                            weeklyDistributionSection(analysis)
+                            
+                            // Recommendations
+                            recommendationsSection(analysis)
+                            
+                            // Workload Balance
+                            workloadBalanceSection(analysis)
+                        } else {
+                            emptyStateView
+                        }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 30)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 30)
-            }
-            .navigationTitle("Workload Analysis")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
+                .navigationTitle("Workload Analysis")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Done") {
+                            dismiss()
+                        }
                     }
                 }
             }
@@ -48,7 +50,7 @@ struct WorkloadAnalysisView: View {
     
     // MARK: - Overview Section
     
-    private func overviewSection(_ analysis: WorkloadAnalysis) -> some View {
+    private func overviewSection(_ analysis: WorkloadAnalysis, geometry: GeometryProxy) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Image(systemName: "chart.bar.doc.horizontal")
@@ -60,10 +62,7 @@ struct WorkloadAnalysisView: View {
                 Spacer()
             }
             
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 12) {
+            LazyVGrid(columns: adaptiveGridColumns(for: geometry), spacing: 12) {
                 OverviewCard(
                     title: "Total Assignments",
                     value: "\(analysis.totalAssignments)",
@@ -94,6 +93,23 @@ struct WorkloadAnalysisView: View {
             }
         }
         .padding(.top, 16)
+    }
+    
+    /// Create adaptive grid columns based on screen size
+    private func adaptiveGridColumns(for geometry: GeometryProxy) -> [GridItem] {
+        let isLandscape = geometry.size.width > geometry.size.height
+        let screenWidth = geometry.size.width
+        
+        if isLandscape && screenWidth > 800 {
+            // Large landscape screens: 4 columns
+            return Array(repeating: GridItem(.flexible()), count: 4)
+        } else if isLandscape || screenWidth > 600 {
+            // Medium screens or regular landscape: 3 columns
+            return Array(repeating: GridItem(.flexible()), count: 3)
+        } else {
+            // Small screens or portrait: 2 columns
+            return Array(repeating: GridItem(.flexible()), count: 2)
+        }
     }
     
     // MARK: - Weekly Distribution

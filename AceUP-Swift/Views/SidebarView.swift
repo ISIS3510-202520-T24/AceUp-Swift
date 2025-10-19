@@ -12,7 +12,8 @@ struct SidebarView: View {
     @Binding var isPresented: Bool
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        GeometryReader { geometry in
+            VStack(alignment: .leading, spacing: 0) {
             
             VStack(alignment: .leading, spacing: 0) {
                 Text("AceUp")
@@ -146,8 +147,24 @@ struct SidebarView: View {
             }
             .background(UI.neutralLight)
         }
-        .frame(width: 280)
+        .frame(width: sidebarWidth(for: geometry.size))
         .background(UI.neutralLight)
+    }
+    
+    /// Calculate appropriate sidebar width based on screen size
+    private func sidebarWidth(for size: CGSize) -> CGFloat {
+        let isLandscape = size.width > size.height
+        let screenWidth = size.width
+        
+        if isLandscape {
+            // In landscape, use a percentage of screen width with min/max constraints
+            let percentage: CGFloat = screenWidth > 1000 ? 0.25 : 0.35
+            let calculatedWidth = screenWidth * percentage
+            return min(max(calculatedWidth, 300), 400)
+        } else {
+            // In portrait, use fixed width
+            return 280
+        }
     }
 }
 

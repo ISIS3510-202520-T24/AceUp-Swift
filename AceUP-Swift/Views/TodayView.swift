@@ -19,112 +19,135 @@ struct TodayView: View {
     }
     
      var body: some View {
-         VStack(spacing: 0) {
-             // Header
-             VStack {
-                 HStack {
-                     Button(action: onMenuTapped) {
-                         Image(systemName: "line.3.horizontal")
+         GeometryReader { geometry in
+             VStack(spacing: 0) {
+                 // Header
+                 VStack {
+                     HStack {
+                         Button(action: onMenuTapped) {
+                             Image(systemName: "line.3.horizontal")
+                                 .foregroundColor(UI.navy)
+                                 .font(.body)
+                         }
+                        
+                         Spacer()
+                        
+                         Text("Today")
+                             .font(.headline)
+                             .fontWeight(.semibold)
                              .foregroundColor(UI.navy)
-                             .font(.body)
+                        
+                         Spacer()
+                        
+                         Color.clear
+                             .frame(width: 24)
                      }
-                    
-                     Spacer()
-                    
-                     Text("Today")
-                         .font(.headline)
-                         .fontWeight(.semibold)
-                         .foregroundColor(UI.navy)
-                    
-                     Spacer()
-                    
-                     Color.clear
-                         .frame(width: 24)
+                     .padding(.horizontal, isLandscape(geometry) ? 24 : 16)
                  }
-                 .padding(.horizontal, 16)
-             }
-             .frame(height: 60)
-             .background(Color(hex: "#B8C8DB"))
-            
-            // Main Content
-            VStack(spacing: 0) {
-                // Tab Navigation
-                HStack(spacing: 8) {
-                    TabButton(
-                        title: "Assignments",
-                        isSelected: selectedTab == .assignments,
-                        action: { selectedTab = .assignments }
-                    )
-                    
-                    TabButton(
-                        title: "Timetable", 
-                        isSelected: selectedTab == .timetable,
-                        action: { selectedTab = .timetable }
-                    )
-                    
-                    TabButton(
-                        title: "Exams",
-                        isSelected: selectedTab == .exams,
-                        action: { selectedTab = .exams }
-                    )
-                    
-                    TabButton(
-                        title: "Insights",
-                        isSelected: selectedTab == .insights,
-                        action: { selectedTab = .insights }
-                    )
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 20)
+                 .frame(height: 60)
+                 .background(Color(hex: "#B8C8DB"))
                 
-                // Tab Content
-                ScrollView {
-                    VStack(spacing: 20) {
-                        switch selectedTab {
-                        case .assignments:
-                            AssignmentsTabContent(assignmentViewModel: assignmentViewModel)
-                        case .timetable:
-                            TimetableTabContent()
-                        case .exams:
-                            ExamsTabContent()
-                        case .insights:
-                            SmartInsightsTabContent(analytics: smartAnalytics)
-                        }
-                    }
-                    .padding(.bottom, 100) // Extra padding for FAB
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Main Content
+                mainContent(geometry: geometry)
             }
-            .background(UI.neutralLight)
-        }
-        .overlay(
-            // Floating Action Button
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Button(action: {
-                        showingCreateAssignment = true
-                    }) {
-                        Image(systemName: "plus")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(UI.primary)
-                            .clipShape(Circle())
-                            .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
-                    }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 30)
-                }
+            .overlay(
+                // Floating Action Button
+                floatingActionButton(geometry: geometry)
+            )
+            .navigationBarHidden(true)
+            .sheet(isPresented: $showingCreateAssignment) {
+                CreateAssignmentView(viewModel: assignmentViewModel)
             }
-        )
-        .navigationBarHidden(true)
-        .sheet(isPresented: $showingCreateAssignment) {
-            CreateAssignmentView(viewModel: assignmentViewModel)
-        }
-    }
+         }
+     }
+     
+     /// Check if current orientation is landscape
+     private func isLandscape(_ geometry: GeometryProxy) -> Bool {
+         geometry.size.width > geometry.size.height
+     }
+     
+     /// Main content with adaptive layout
+     private func mainContent(geometry: GeometryProxy) -> some View {
+     /// Main content with adaptive layout
+     private func mainContent(geometry: GeometryProxy) -> some View {
+         let isLandscapeMode = isLandscape(geometry)
+         
+         VStack(spacing: 0) {
+             // Tab Navigation - Adapt spacing for landscape
+             HStack(spacing: isLandscapeMode ? 12 : 8) {
+                 TabButton(
+                     title: "Assignments",
+                     isSelected: selectedTab == .assignments,
+                     action: { selectedTab = .assignments }
+                 )
+                 
+                 TabButton(
+                     title: "Timetable", 
+                     isSelected: selectedTab == .timetable,
+                     action: { selectedTab = .timetable }
+                 )
+                 
+                 TabButton(
+                     title: "Exams",
+                     isSelected: selectedTab == .exams,
+                     action: { selectedTab = .exams }
+                 )
+                 
+                 TabButton(
+                     title: "Insights",
+                     isSelected: selectedTab == .insights,
+                     action: { selectedTab = .insights }
+                 )
+             }
+             .padding(.horizontal, isLandscapeMode ? 32 : 20)
+             .padding(.vertical, isLandscapeMode ? 16 : 20)
+             
+             // Tab Content
+             ScrollView {
+                 VStack(spacing: isLandscapeMode ? 16 : 20) {
+                     switch selectedTab {
+                     case .assignments:
+                         AssignmentsTabContent(assignmentViewModel: assignmentViewModel)
+                     case .timetable:
+                         TimetableTabContent()
+                     case .exams:
+                         ExamsTabContent()
+                     case .insights:
+                         SmartInsightsTabContent(analytics: smartAnalytics)
+                     }
+                 }
+                 .padding(.bottom, 100) // Extra padding for FAB
+             }
+             .frame(maxWidth: .infinity, maxHeight: .infinity)
+         }
+         .background(UI.neutralLight)
+     }
+     
+     /// Floating action button with adaptive positioning
+     private func floatingActionButton(geometry: GeometryProxy) -> some View {
+         let isLandscapeMode = isLandscape(geometry)
+         
+         return VStack {
+             Spacer()
+             HStack {
+                 Spacer()
+                 Button(action: {
+                     showingCreateAssignment = true
+                 }) {
+                     Image(systemName: "plus")
+                         .font(.title2)
+                         .fontWeight(.semibold)
+                         .foregroundColor(.white)
+                         .frame(width: 56, height: 56)
+                         .background(UI.primary)
+                         .clipShape(Circle())
+                         .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                 }
+                 .padding(.trailing, isLandscapeMode ? 32 : 20)
+                 .padding(.bottom, isLandscapeMode ? 20 : 30)
+             }
+         }
+     }
 }
 
 // MARK: - Updated Tab Enum

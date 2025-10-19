@@ -652,35 +652,60 @@ struct TodaysInsightsSummary: View {
     let insights: [TodayInsight]
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .foregroundColor(UI.primary)
-                    .font(.title3)
+        GeometryReader { geometry in
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .foregroundColor(UI.primary)
+                        .font(.title3)
+                    
+                    Text("Today's Insights")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(UI.navy)
+                    
+                    Spacer()
+                }
                 
-                Text("Today's Insights")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                
-                Spacer()
-            }
-            
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 12) {
-                ForEach(insights.prefix(4)) { insight in
-                    InsightSummaryCard(insight: insight)
+                LazyVGrid(columns: adaptiveColumns(for: geometry), spacing: 12) {
+                    ForEach(insights.prefix(adaptiveItemCount(for: geometry))) { insight in
+                        InsightSummaryCard(insight: insight)
+                    }
                 }
             }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+            )
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white)
-                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
-        )
+    }
+    
+    private func adaptiveColumns(for geometry: GeometryProxy) -> [GridItem] {
+        let isLandscape = geometry.size.width > geometry.size.height
+        let screenWidth = geometry.size.width
+        
+        if isLandscape && screenWidth > 900 {
+            return Array(repeating: GridItem(.flexible()), count: 4)
+        } else if isLandscape || screenWidth > 600 {
+            return Array(repeating: GridItem(.flexible()), count: 3)
+        } else {
+            return Array(repeating: GridItem(.flexible()), count: 2)
+        }
+    }
+    
+    private func adaptiveItemCount(for geometry: GeometryProxy) -> Int {
+        let isLandscape = geometry.size.width > geometry.size.height
+        let screenWidth = geometry.size.width
+        
+        if isLandscape && screenWidth > 900 {
+            return 8 // Show more items on large landscape screens
+        } else if isLandscape {
+            return 6
+        } else {
+            return 4
+        }
     }
 }
 
