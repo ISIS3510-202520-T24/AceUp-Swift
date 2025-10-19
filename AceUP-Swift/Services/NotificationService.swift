@@ -76,28 +76,6 @@ enum NotificationService {
             }
         }
     }
-    
-    // Debug helper to check notification status
-    static func checkAuthorizationStatus(completion: @escaping (String) -> Void) {
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            DispatchQueue.main.async {
-                switch settings.authorizationStatus {
-                case .notDetermined:
-                    completion("Not determined - needs permission request")
-                case .denied:
-                    completion("Denied - go to Settings to enable")
-                case .authorized:
-                    completion("Authorized ✅")
-                case .provisional:
-                    completion("Provisional - quiet notifications only")
-                case .ephemeral:
-                    completion("Ephemeral - app clips only")
-                @unknown default:
-                    completion("Unknown status")
-                }
-            }
-        }
-    }
 
     // MARK: –– Tipo 2A: “Stale activity” (días sin actualizar nota o completar)
     static func scheduleStaleUpdateReminderIfNeeded(thresholdDays: Int = 3) {

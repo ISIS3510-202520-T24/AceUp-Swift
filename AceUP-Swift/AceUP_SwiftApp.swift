@@ -35,7 +35,7 @@ struct AceUP_SwiftApp: App {
         }
 
         // Mantener GA4 user_id sincronizado cuando cambie el estado de Auth
-        Auth.auth().addStateDidChangeListener { _, user in
+        _ = Auth.auth().addStateDidChangeListener { _, user in
             if let u = user {
                 FirebaseAnalytics.Analytics.setUserID(u.uid)
             } else {
