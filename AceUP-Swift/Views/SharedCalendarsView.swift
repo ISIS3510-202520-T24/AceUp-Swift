@@ -41,6 +41,28 @@ struct SharedCalendarsView: View {
                 if viewModel.isLoading {
                     loadingOverlay
                 }
+                
+                // Floating Action Button - moved to main ZStack level
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Button(action: {
+                            showingActionSheet = true
+                        }) {
+                            Image(systemName: "plus")
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .frame(width: 56, height: 56)
+                                .background(UI.primary)
+                                .clipShape(Circle())
+                                .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                        }
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 30)
+                    }
+                }
             }
             .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
                 Button("OK") {
@@ -130,29 +152,6 @@ struct SharedCalendarsView: View {
             Spacer()
         }
         .background(UI.neutralLight)
-        .overlay(
-            // Floating Action Button
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Button(action: {
-                        showingActionSheet = true
-                    }) {
-                        Image(systemName: "plus")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(UI.primary)
-                            .clipShape(Circle())
-                            .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
-                    }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 30)
-                }
-            }
-        )
     }
     
     // MARK: - Stats Section
