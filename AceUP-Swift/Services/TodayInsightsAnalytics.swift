@@ -365,7 +365,7 @@ final class TodayInsightsAnalytics: ObservableObject {
         ])
     }
     
-    private func getCurrentTimeOfDay() -> TimeOfDay {
+    private func getCurrentTimeOfDay() -> TimePeriod {
         let hour = Calendar.current.component(.hour, from: Date())
         switch hour {
         case 6..<12: return .morning
@@ -416,7 +416,7 @@ final class TodayInsightsAnalytics: ObservableObject {
         }
     }
     
-    private func getTimeOfDayBonus(_ timeOfDay: TimeOfDay) -> Double {
+    private func getTimeOfDayBonus(_ timeOfDay: TimePeriod) -> Double {
         switch timeOfDay {
         case .morning: return 10
         case .afternoon: return 5
@@ -476,7 +476,7 @@ struct ProgressAnalysis: Equatable {
     let totalTasks: Int
     let completionRate: Double
     let isOnTrack: Bool
-    let timeOfDay: TimeOfDay
+    let timeOfDay: TimePeriod
 }
 
 struct WorkloadPrediction: Equatable {
@@ -536,7 +536,7 @@ enum InsightPriority: String, CaseIterable {
     case low = "low"
 }
 
-enum TimeOfDay: String, CaseIterable {
+enum TimePeriod: String, CaseIterable {
     case morning = "morning"
     case afternoon = "afternoon"
     case evening = "evening"

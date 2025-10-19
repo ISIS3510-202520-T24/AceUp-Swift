@@ -251,7 +251,7 @@ struct ProgressAnalysisCard: View {
         )
     }
     
-    private func timeIcon(_ timeOfDay: TimeOfDay) -> String {
+    private func timeIcon(_ timeOfDay: TimePeriod) -> String {
         switch timeOfDay {
         case .morning: return "sunrise.fill"
         case .afternoon: return "sun.max.fill"
