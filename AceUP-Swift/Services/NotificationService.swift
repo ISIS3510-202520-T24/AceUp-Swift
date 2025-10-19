@@ -1,5 +1,6 @@
 import Foundation
 import UserNotifications
+import FirebaseAnalytics
 
 enum NotificationService {
 
@@ -178,5 +179,43 @@ enum NotificationService {
         let body = "Your \(urgencyText) assignment '\(assignment.title)' (\(weightPercentage)% of grade) is due in \(daysUntilDue) day\(daysUntilDue == 1 ? "" : "s"). Don't let this high-impact task slip!"
         
         schedule(id: id, title: title, body: body, date: fireDate)
+    }
+}
+
+extension NotificationService {
+    /// Programa una notificación local si han pasado `threshold` días desde la última actividad.
+    /// Recibe `daysSince` (calculado por tu capa de analytics) y evita duplicados con una ventana de enfriamiento.
+    static func scheduleInactivityReminderIfNeeded(daysSince: Int, threshold: Int = 3) {
+        guard daysSince >= threshold else { return }
+
+        // Anti-spam: evita enviar más de 1 notificación de inactividad en 6 horas
+        let cooldownKey = "inactivity"
+        let now = Date()
+        if let last = lastNotificationTime[cooldownKey], now.timeIntervalSince(last) < 6 * 60 * 60 {
+            return
+        }
+
+        let title = "Time to update your progress"
+        let body  = "It's been \(daysSince) days since your last grade update or completed assignment."
+
+        // Dispara en ~5 segundos (visible de inmediato para el usuario)
+        schedule(
+            id: "inactivity_reminder",
+            title: title,
+            body: body,
+            date: Date().addingTimeInterval(5)
+        )
+
+        lastNotificationTime[cooldownKey] = now
+
+        // Evento para GA4/BQ (vía tu colector) – útil para auditoría/embudos
+        AnalyticsClient.shared.logEvent(
+            AnalyticsEventType.smartReminderTriggered.rawValue,
+            parameters: [
+                "type": "inactivity" as NSString,
+                "days_since": NSNumber(value: daysSince),
+                "source": "ios_app" as NSString
+            ]
+        )
     }
 }

@@ -202,10 +202,10 @@ final class TodayInsightsAnalytics: ObservableObject {
             message = "Outstanding progress today! 🎉 You're crushing your goals!"
             type = .celebratory
         case (0.5..<0.8, _):
-            message = "Good work! You're on track. Keep the momentum going! 💪"
+            message = "Good work! You're on track. Keep the momentum going!"
             type = .encouraging
         case (0.0..<0.5, 0...2):
-            message = "It's still early in the day. You've got this! 🌟"
+            message = "It's still early in the day. You've got this!"
             type = .motivational
         case (_, 3...):
             message = "It's been \(daysSinceActivity) days since your last update. Time to get back on track! 🚀"
@@ -288,6 +288,9 @@ final class TodayInsightsAnalytics: ObservableObject {
                 actionRequired: true
             ))
         }
+
+        // BQ 2.4
+        NotificationService.scheduleInactivityReminderIfNeeded(daysSince: daysSinceActivity, threshold: 3)
         
         // Workload warning
         if let workload = workloadPrediction, !workload.peakWorkloadDays.isEmpty {
