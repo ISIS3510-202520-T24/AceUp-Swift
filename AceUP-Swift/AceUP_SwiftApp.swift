@@ -86,10 +86,6 @@ struct ContentView: View {
     @StateObject private var offlineManager = OfflineManager.shared
     @StateObject private var authService = AuthService()
 
-    #if DEBUG
-    @State private var showLab = false
-    #endif
-
     var body: some View {
         Group {
             if isInitializing {
@@ -103,14 +99,6 @@ struct ContentView: View {
                 VStack(spacing: 0) {
                     // Offline banner
                     OfflineBannerView()
-
-                    #if DEBUG
-                    Button("Abrir Analytics Lab (DEBUG)") {
-                        showLab = true
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                    #endif
 
                     AppNavigationView(onLogout: {
                         Task {
@@ -135,11 +123,6 @@ struct ContentView: View {
                 needsMigration = false
             }
         }
-        #if DEBUG
-        .sheet(isPresented: $showLab) {
-            NavigationView { AnalyticsDebugView() }
-        }
-        #endif
     }
 
     @MainActor
