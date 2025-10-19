@@ -7,7 +7,15 @@ enum NotificationService {
 
     // Pídelo una vez en el arranque de la app (ver abajo)
     static func requestAuthorization() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { _, _ in }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+            DispatchQueue.main.async {
+                if granted {
+                    print("✅ Notification permission granted")
+                } else {
+                    print("❌ Notification permission denied: \(error?.localizedDescription ?? "unknown error")")
+                }
+            }
+        }
     }
 
     // Utilidad genérica
@@ -28,6 +36,28 @@ enum NotificationService {
 
     static func cancel(id: String) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
+    }
+    
+    // Debug helper to check notification status
+    static func checkAuthorizationStatus(completion: @escaping (String) -> Void) {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            DispatchQueue.main.async {
+                switch settings.authorizationStatus {
+                case .notDetermined:
+                    completion("Not determined - needs permission request")
+                case .denied:
+                    completion("Denied - go to Settings to enable")
+                case .authorized:
+                    completion("Authorized ✅")
+                case .provisional:
+                    completion("Provisional - quiet notifications only")
+                case .ephemeral:
+                    completion("Ephemeral - app clips only")
+                @unknown default:
+                    completion("Unknown status")
+                }
+            }
+        }
     }
 
     // MARK: –– Tipo 2A: “Stale activity” (días sin actualizar nota o completar)

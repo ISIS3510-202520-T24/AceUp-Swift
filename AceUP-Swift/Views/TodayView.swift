@@ -428,6 +428,8 @@ struct TimetableTabContent: View {
 struct AssignmentsTabContent: View {
     @ObservedObject var assignmentViewModel: AssignmentViewModel
     @State private var days: Int? = nil
+    @State private var sending = false
+    @State private var notificationStatus = "Checking..."
     private let userKey = UserKeyManager.shared.userKey()
     
     init(assignmentViewModel: AssignmentViewModel) {
@@ -469,20 +471,85 @@ struct AssignmentsTabContent: View {
             // Today's Assignments List
             TodaysAssignmentsList(viewModel: assignmentViewModel)
             
-            // Test button for BQ 2.1 - Highest Weight Assignment Notification
+            // Test button for existing analytics
             Button {
-                if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
-                    NotificationService.scheduleHighestWeightAssignmentReminder(assignment: highestWeightAssignment)
-                }
+                sending = true
+                
+                // Usa algún id de tarea y courseId de prueba; o si tienes datos, toma el primero
+                let testAssignmentId = UUID().uuidString
+                let testCourseId = assignmentViewModel.todaysAssignments.first?.courseId ?? "test-course"
+                
+                AnalyticsClient.sendAssignmentCompleted(
+                    assignmentId: testAssignmentId,
+                    courseId: testCourseId
+                )
+                
+                // Actualiza la tarjeta de “Days since last progress”
+                let val = AnalyticsClient.fetchDaysSinceLastProgress() ?? 0
+                days = val
+                sending = false
             } label: {
                 HStack {
-                    Image(systemName: "bell.fill")
-                    Text("Test BQ 2.1 Notification")
+                    Image(systemName: "checkmark.circle.fill")
+                    Text(sending ? "Sending..." : "Test Analytics Event")
                 }
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
-            .disabled(assignmentViewModel.highestWeightPendingAssignment == nil)
+            .disabled(sending)
+            
+            // Test button for BQ 2.1 - Highest Weight Assignment Notification
+            VStack(spacing: 8) {
+                Text("Notification Status: \(notificationStatus)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Button {
+                    // First, check notification authorization
+                    NotificationService.checkAuthorizationStatus { status in
+                        notificationStatus = status
+                        
+                        // If authorized, send test notification
+                        if status.contains("Authorized") {
+                            if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
+                                // Schedule immediate notification for testing (10 seconds from now)
+                                let testDate = Calendar.current.date(byAdding: .second, value: 10, to: Date()) ?? Date()
+                                NotificationService.schedule(
+                                    id: "test_bq_2_1_immediate",
+                                    title: "🧪 Test BQ 2.1 Notification",
+                                    body: "Testing highest weight assignment: '\(highestWeightAssignment.title)' (\(highestWeightAssignment.weightPercentage)% of grade)",
+                                    date: testDate
+                                )
+                            } else {
+                                // Test with fake data if no assignments
+                                let testDate = Calendar.current.date(byAdding: .second, value: 10, to: Date()) ?? Date()
+                                NotificationService.schedule(
+                                    id: "test_bq_2_1_immediate",
+                                    title: "🧪 Test BQ 2.1 Notification",
+                                    body: "No pending assignments found. This is a test notification.",
+                                    date: testDate
+                                )
+                            }
+                        } else if status.contains("Not determined") {
+                            // Request permission
+                            NotificationService.requestAuthorization()
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "bell.fill")
+                        Text("Test BQ 2.1 (10s delay)")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .onAppear {
+            // Check notification authorization status when view appears
+            NotificationService.checkAuthorizationStatus { status in
+                notificationStatus = status
+            }
         }
     }
 
