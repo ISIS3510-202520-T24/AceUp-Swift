@@ -328,7 +328,7 @@ struct HighPriorityTaskCard: View {
                 
                 Spacer()
                 
-                PriorityBadge(percentage: assignment.weightPercentage)
+                PercentageBadge(percentage: assignment.weightPercentage)
             }
             
             VStack(alignment: .leading, spacing: 8) {
@@ -369,7 +369,7 @@ struct HighPriorityTaskCard: View {
     }
 }
 
-struct PriorityBadge: View {
+struct PercentageBadge: View {
     let percentage: Int
     
     var body: some View {
