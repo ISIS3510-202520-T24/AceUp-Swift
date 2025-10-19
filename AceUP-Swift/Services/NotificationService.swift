@@ -4,22 +4,25 @@ import UserNotifications
 enum NotificationService {
 
     static let lastActivityKey = "lastActivityTs"
+    private static var lastNotificationTime: [String: Date] = [:]
 
-    // Pídelo una vez en el arranque de la app (ver abajo)
+    // Request notification authorization
     static func requestAuthorization() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
-            DispatchQueue.main.async {
-                if granted {
-                    print("✅ Notification permission granted")
-                } else {
-                    print("❌ Notification permission denied: \(error?.localizedDescription ?? "unknown error")")
-                }
+            if !granted {
+                print("Notification permission denied")
             }
         }
     }
 
-    // Utilidad genérica
+    // Utilidad genérica con debouncing
     static func schedule(id: String, title: String, body: String, date: Date) {
+        // Debouncing: prevent scheduling same notification ID within 1 second
+        let now = Date()
+        if let lastTime = lastNotificationTime[id], now.timeIntervalSince(lastTime) < 1.0 {
+            return
+        }
+        lastNotificationTime[id] = now
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
@@ -32,21 +35,21 @@ enum NotificationService {
 
         let req = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
         UNUserNotificationCenter.current().add(req) { error in
-            DispatchQueue.main.async {
-                if let error = error {
-                    print("❌ Failed to schedule notification '\(id)': \(error.localizedDescription)")
-                } else {
-                    print("✅ Successfully scheduled notification '\(id)' for \(date)")
-                }
+            if let error = error {
+                print("Failed to schedule notification: \(error.localizedDescription)")
+            } else {
+                print("Scheduled notification '\(id)' for \(date)")
             }
         }
     }
 
     static func cancel(id: String) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
+        // Clean up debouncing tracker
+        lastNotificationTime.removeValue(forKey: id)
     }
     
-    // Debug helpers
+    // Utility functions
     static func checkAuthorizationStatus(completion: @escaping (String) -> Void) {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             DispatchQueue.main.async {
@@ -56,11 +59,11 @@ enum NotificationService {
                 case .denied:
                     completion("Denied - go to Settings to enable")
                 case .authorized:
-                    completion("Authorized ✅")
+                    completion("Authorized")
                 case .provisional:
-                    completion("Provisional - quiet notifications only")
+                    completion("Provisional")
                 case .ephemeral:
-                    completion("Ephemeral - app clips only")
+                    completion("Ephemeral")
                 @unknown default:
                     completion("Unknown status")
                 }
@@ -161,12 +164,17 @@ enum NotificationService {
         }
         
         // Don't schedule notifications in the past
-        guard fireDate > Date() else { return }
+        guard fireDate > Date() else { 
+            print("Notification not scheduled - fire date is in the past: \(fireDate)")
+            return 
+        }
+        
+        print("Scheduling notification for \(fireDate) (in \(fireDate.timeIntervalSinceNow) seconds)")
         
         let weightPercentage = Int(weight * 100)
         let urgencyText = daysUntilDue <= 1 ? "urgent" : "important"
         
-        let title = "📚 High Priority Assignment Alert"
+        let title = "High Priority Assignment"
         let body = "Your \(urgencyText) assignment '\(assignment.title)' (\(weightPercentage)% of grade) is due in \(daysUntilDue) day\(daysUntilDue == 1 ? "" : "s"). Don't let this high-impact task slip!"
         
         schedule(id: id, title: title, body: body, date: fireDate)

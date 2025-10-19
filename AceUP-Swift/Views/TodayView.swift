@@ -428,9 +428,7 @@ struct TimetableTabContent: View {
 struct AssignmentsTabContent: View {
     @ObservedObject var assignmentViewModel: AssignmentViewModel
     @State private var days: Int? = nil
-    @State private var sending = false
-    @State private var notificationStatus = "Checking..."
-    @State private var pendingNotifications: [String] = []
+    @State private var isSchedulingNotification = false
     private let userKey = UserKeyManager.shared.userKey()
     
     init(assignmentViewModel: AssignmentViewModel) {
@@ -472,100 +470,82 @@ struct AssignmentsTabContent: View {
             // Today's Assignments List
             TodaysAssignmentsList(viewModel: assignmentViewModel)
             
-            // Test button for existing analytics
-            Button {
-                sending = true
-                
-                // Usa algún id de tarea y courseId de prueba; o si tienes datos, toma el primero
-                let testAssignmentId = UUID().uuidString
-                let testCourseId = assignmentViewModel.todaysAssignments.first?.courseId ?? "test-course"
-                
-                AnalyticsClient.sendAssignmentCompleted(
-                    assignmentId: testAssignmentId,
-                    courseId: testCourseId
-                )
-                
-                // Actualiza la tarjeta de “Days since last progress”
-                let val = AnalyticsClient.fetchDaysSinceLastProgress() ?? 0
-                days = val
-                sending = false
-            } label: {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text(sending ? "Sending..." : "Test Analytics Event")
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .disabled(sending)
-            
-            // Test button for BQ 2.1 - Highest Weight Assignment Notification
+            // Trigger Highest Weight Assignment Notification
             VStack(spacing: 8) {
-                Text("Status: \(notificationStatus)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                if !pendingNotifications.isEmpty {
-                    Text("Pending: \(pendingNotifications.count) notifications")
-                        .font(.caption2)
-                        .foregroundColor(.orange)
-                }
-                
                 Button {
-                    // First, check notification authorization
+                    // Prevent rapid successive calls
+                    guard !isSchedulingNotification else { return }
+                    isSchedulingNotification = true
+                    
+                    // Check notification authorization and trigger notification
                     NotificationService.checkAuthorizationStatus { status in
-                        notificationStatus = status
-                        
-                        // If authorized, send test notification
+                        // If authorized, send notification
                         if status.contains("Authorized") {
-                            let testDate = Calendar.current.date(byAdding: .second, value: 5, to: Date()) ?? Date()
-                            
                             if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
-                                NotificationService.schedule(
-                                    id: "test_bq_2_1_immediate",
-                                    title: "🧪 BQ 2.1 Test Alert",
-                                    body: "Highest weight: '\(highestWeightAssignment.title)' (\(highestWeightAssignment.weightPercentage)% of grade)",
-                                    date: testDate
-                                )
-                            } else {
-                                NotificationService.schedule(
-                                    id: "test_bq_2_1_immediate",
-                                    title: "🧪 BQ 2.1 Test Alert",
-                                    body: "No pending assignments found. This is a test notification in 5 seconds!",
-                                    date: testDate
-                                )
-                            }
-                            
-                            // Check pending notifications after scheduling
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                NotificationService.checkPendingNotifications { notifications in
-                                    pendingNotifications = notifications
-                                }
+                                NotificationService.scheduleHighestWeightAssignmentReminder(assignment: highestWeightAssignment)
                             }
                         } else if status.contains("Not determined") {
                             // Request permission
                             NotificationService.requestAuthorization()
                         }
+                        
+                        // Reset flag after 2 seconds
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            isSchedulingNotification = false
+                        }
                     }
                 } label: {
                     HStack {
-                        Image(systemName: "bell.fill")
-                        Text("Test BQ 2.1 (5s delay)")
+                        Image(systemName: isSchedulingNotification ? "hourglass" : "bell.fill")
+                        Text(isSchedulingNotification ? "Scheduling..." : "Set Priority Reminder")
                     }
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-            }
-        }
-        .onAppear {
-            // Check notification authorization status when view appears
-            NotificationService.checkAuthorizationStatus { status in
-                notificationStatus = status
-            }
-            
-            // Check pending notifications
-            NotificationService.checkPendingNotifications { notifications in
-                pendingNotifications = notifications
+                .disabled(isSchedulingNotification || assignmentViewModel.highestWeightPendingAssignment == nil)
+                
+                // Test button for immediate notification (for development/testing)
+                Button {
+                    // Prevent rapid successive calls
+                    guard !isSchedulingNotification else { return }
+                    isSchedulingNotification = true
+                    
+                    NotificationService.checkAuthorizationStatus { status in
+                        if status.contains("Authorized") {
+                            let testDate = Calendar.current.date(byAdding: .second, value: 3, to: Date()) ?? Date()
+                            
+                            if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
+                                NotificationService.schedule(
+                                    id: "test_immediate_\(Int(Date().timeIntervalSince1970))",
+                                    title: "High Priority Assignment",
+                                    body: "Your assignment '\(highestWeightAssignment.title)' (\(highestWeightAssignment.weightPercentage)% of grade) needs attention!",
+                                    date: testDate
+                                )
+                            } else {
+                                NotificationService.schedule(
+                                    id: "test_immediate_\(Int(Date().timeIntervalSince1970))",
+                                    title: "High Priority Assignment",
+                                    body: "Test notification - No pending assignments found.",
+                                    date: testDate
+                                )
+                            }
+                        } else if status.contains("Not determined") {
+                            NotificationService.requestAuthorization()
+                        }
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            isSchedulingNotification = false
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "clock.badge.exclamationmark")
+                        Text("Test (3 sec)")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isSchedulingNotification)
             }
         }
     }
