@@ -68,11 +68,9 @@ struct TodayView: View {
      
      /// Main content with adaptive layout
      private func mainContent(geometry: GeometryProxy) -> some View {
-     /// Main content with adaptive layout
-     private func mainContent(geometry: GeometryProxy) -> some View {
          let isLandscapeMode = isLandscape(geometry)
          
-         VStack(spacing: 0) {
+         return VStack(spacing: 0) {
              // Tab Navigation - Adapt spacing for landscape
              HStack(spacing: isLandscapeMode ? 12 : 8) {
                  TabButton(

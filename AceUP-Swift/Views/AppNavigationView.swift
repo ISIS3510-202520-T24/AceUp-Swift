@@ -52,8 +52,6 @@ struct AppNavigationView: View {
     
     /// Main content view with all the navigation cases
     private var mainContent: some View {
-    /// Main content view with all the navigation cases
-    private var mainContent: some View {
         Group {
             switch selectedView {
             case .login:
@@ -184,8 +182,6 @@ struct AppNavigationView: View {
                     Spacer()
                 }
             }
-        }
-    }
         }
     }
 }

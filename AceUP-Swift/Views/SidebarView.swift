@@ -14,18 +14,18 @@ struct SidebarView: View {
     var body: some View {
         GeometryReader { geometry in
             VStack(alignment: .leading, spacing: 0) {
-            
-            VStack(alignment: .leading, spacing: 0) {
-                Text("AceUp")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 8)
-                    .padding(.bottom, 12)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(UI.navy)
+                // Header
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("AceUp")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 8)
+                        .padding(.bottom, 12)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(UI.navy)
             
             
             VStack(alignment: .leading, spacing: 0) {
@@ -146,9 +146,10 @@ struct SidebarView: View {
                 .padding(.bottom, 20)
             }
             .background(UI.neutralLight)
+            }
+            .frame(width: sidebarWidth(for: geometry.size))
+            .background(UI.neutralLight)
         }
-        .frame(width: sidebarWidth(for: geometry.size))
-        .background(UI.neutralLight)
     }
     
     /// Calculate appropriate sidebar width based on screen size
