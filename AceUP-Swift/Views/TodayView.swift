@@ -138,65 +138,58 @@ enum TodayTab: String, CaseIterable {
 // MARK: - Smart Insights Tab Content
 struct SmartInsightsTabContent: View {
     @ObservedObject var analytics: SmartCalendarAnalytics
+    @StateObject private var insightsAnalytics = TodayInsightsAnalytics()
     
     var body: some View {
         VStack(spacing: 20) {
-            // Today's Smart Highlights
-            todayHighlights
+            // New Enhanced Insights powered by TodayInsightsAnalytics
+            TodayInsightsView()
+                .environmentObject(insightsAnalytics)
             
-            // Weekly Insights
-            if let latestInsight = analytics.weeklyInsights.first {
-                SmartInsightsCard(insight: latestInsight)
-                    .padding(.horizontal, 20)
-            }
-            
-            // Productivity Trends
-            if !analytics.productivityTrends.isEmpty {
-                ProductivityChart(trends: analytics.productivityTrends)
-                    .padding(.horizontal, 20)
-            }
-            
-            // Study Patterns
-            if !analytics.studyPatterns.isEmpty {
-                StudyPatternsView(patterns: analytics.studyPatterns)
-                    .padding(.horizontal, 20)
-            }
-            
-            // Collaboration Metrics
-            if let metrics = analytics.collaborationMetrics {
-                CollaborationMetricsView(metrics: metrics)
-                    .padding(.horizontal, 20)
+            // Legacy Smart Calendar Features (optional - can be removed or kept for comparison)
+            if analytics.weeklyInsights.isEmpty && analytics.productivityTrends.isEmpty {
+                // Show placeholder when no legacy data
+                VStack(spacing: 16) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.system(size: 40))
+                        .foregroundColor(UI.muted)
+                    
+                    Text("Enhanced insights powered by AI")
+                        .font(.subheadline)
+                        .foregroundColor(UI.muted)
+                }
+                .padding(.vertical, 40)
+            } else {
+                // Legacy insights (if still needed)
+                Group {
+                    // Weekly Insights
+                    if let latestInsight = analytics.weeklyInsights.first {
+                        SmartInsightsCard(insight: latestInsight)
+                            .padding(.horizontal, 20)
+                    }
+                    
+                    // Productivity Trends
+                    if !analytics.productivityTrends.isEmpty {
+                        ProductivityChart(trends: analytics.productivityTrends)
+                            .padding(.horizontal, 20)
+                    }
+                    
+                    // Study Patterns
+                    if !analytics.studyPatterns.isEmpty {
+                        StudyPatternsView(patterns: analytics.studyPatterns)
+                            .padding(.horizontal, 20)
+                    }
+                    
+                    // Collaboration Metrics
+                    if let metrics = analytics.collaborationMetrics {
+                        CollaborationMetricsView(metrics: metrics)
+                            .padding(.horizontal, 20)
+                    }
+                }
             }
         }
     }
-    
-    // MARK: - Today's Highlights
-    private var todayHighlights: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            HStack {
-                Image(systemName: "sparkles")
-                    .foregroundColor(UI.primary)
-                
-                Text("Today's Highlights")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 15) {
-                    TodayHighlightCard(
-                        icon: "calendar.badge.clock",
-                        title: "Next Meeting",
-                        subtitle: "Mobile Dev Team",
-                        time: "2:00 PM",
-                        color: UI.primary
-                    )
-                    
-                    TodayHighlightCard(
+}
                         icon: "clock.badge.checkmark",
                         title: "Focus Time",
                         subtitle: "Best for deep work",
@@ -204,60 +197,8 @@ struct SmartInsightsTabContent: View {
                         color: UI.success
                     )
                     
-                    TodayHighlightCard(
-                        icon: "person.3.fill",
-                        title: "Group Available",
-                        subtitle: "Study Buddies",
-                        time: "4:00 PM",
-                        color: UI.warning
-                    )
-                }
-                .padding(.horizontal, 20)
             }
         }
-    }
-}
-
-struct TodayHighlightCard: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-    let time: String
-    let color: Color
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: icon)
-                    .foregroundColor(color)
-                    .font(.title3)
-                
-                Spacer()
-                
-                Text(time)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(color)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(UI.muted)
-            }
-        }
-        .padding(15)
-        .frame(width: 140, height: 100)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(.white)
-                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
-        )
     }
 }
 
