@@ -190,17 +190,6 @@ struct SmartInsightsTabContent: View {
         }
     }
 }
-                        icon: "clock.badge.checkmark",
-                        title: "Focus Time",
-                        subtitle: "Best for deep work",
-                        time: "10:00 AM",
-                        color: UI.success
-                    )
-                    
-            }
-        }
-    }
-}
 
 struct CollaborationMetricsView: View {
     let metrics: CollaborationMetrics
