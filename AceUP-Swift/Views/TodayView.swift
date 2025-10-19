@@ -138,126 +138,50 @@ enum TodayTab: String, CaseIterable {
 // MARK: - Smart Insights Tab Content
 struct SmartInsightsTabContent: View {
     @ObservedObject var analytics: SmartCalendarAnalytics
+    @StateObject private var insightsAnalytics = TodayInsightsAnalytics()
     
     var body: some View {
         VStack(spacing: 20) {
-            // Today's Smart Highlights
-            todayHighlights
+            // New Enhanced Insights powered by TodayInsightsAnalytics
+            TodayInsightsView()
+                .environmentObject(insightsAnalytics)
             
-            // Weekly Insights
-            if let latestInsight = analytics.weeklyInsights.first {
-                SmartInsightsCard(insight: latestInsight)
-                    .padding(.horizontal, 20)
-            }
-            
-            // Productivity Trends
-            if !analytics.productivityTrends.isEmpty {
-                ProductivityChart(trends: analytics.productivityTrends)
-                    .padding(.horizontal, 20)
-            }
-            
-            // Study Patterns
-            if !analytics.studyPatterns.isEmpty {
-                StudyPatternsView(patterns: analytics.studyPatterns)
-                    .padding(.horizontal, 20)
-            }
-            
-            // Collaboration Metrics
-            if let metrics = analytics.collaborationMetrics {
-                CollaborationMetricsView(metrics: metrics)
-                    .padding(.horizontal, 20)
-            }
-        }
-    }
-    
-    // MARK: - Today's Highlights
-    private var todayHighlights: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            HStack {
-                Image(systemName: "sparkles")
-                    .foregroundColor(UI.primary)
-                
-                Text("Today's Highlights")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 15) {
-                    TodayHighlightCard(
-                        icon: "calendar.badge.clock",
-                        title: "Next Meeting",
-                        subtitle: "Mobile Dev Team",
-                        time: "2:00 PM",
-                        color: UI.primary
-                    )
+            // Legacy Smart Calendar Features (optional - can be removed or kept for comparison)
+            if analytics.productivityTrends.isEmpty {
+                // Show placeholder when no legacy data
+                VStack(spacing: 16) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.system(size: 40))
+                        .foregroundColor(UI.muted)
                     
-                    TodayHighlightCard(
-                        icon: "clock.badge.checkmark",
-                        title: "Focus Time",
-                        subtitle: "Best for deep work",
-                        time: "10:00 AM",
-                        color: UI.success
-                    )
-                    
-                    TodayHighlightCard(
-                        icon: "person.3.fill",
-                        title: "Group Available",
-                        subtitle: "Study Buddies",
-                        time: "4:00 PM",
-                        color: UI.warning
-                    )
+                    Text("Enhanced insights powered by AI")
+                        .font(.subheadline)
+                        .foregroundColor(UI.muted)
                 }
-                .padding(.horizontal, 20)
+                .padding(.vertical, 40)
+            } else {
+                // Legacy insights (if still needed)
+                Group {
+                    // Productivity Trends
+                    if !analytics.productivityTrends.isEmpty {
+                        ProductivityChart(trends: analytics.productivityTrends)
+                            .padding(.horizontal, 20)
+                    }
+                    
+                    // Study Patterns
+                    if !analytics.studyPatterns.isEmpty {
+                        StudyPatternsView(patterns: analytics.studyPatterns)
+                            .padding(.horizontal, 20)
+                    }
+                    
+                    // Collaboration Metrics
+                    if let metrics = analytics.collaborationMetrics {
+                        CollaborationMetricsView(metrics: metrics)
+                            .padding(.horizontal, 20)
+                    }
+                }
             }
         }
-    }
-}
-
-struct TodayHighlightCard: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-    let time: String
-    let color: Color
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: icon)
-                    .foregroundColor(color)
-                    .font(.title3)
-                
-                Spacer()
-                
-                Text(time)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(color)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(UI.muted)
-            }
-        }
-        .padding(15)
-        .frame(width: 140, height: 100)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(.white)
-                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
-        )
     }
 }
 
@@ -460,11 +384,6 @@ struct AssignmentsTabContent: View {
             // Smart Feature: Workload Analysis
             if let analysis = assignmentViewModel.workloadAnalysis {
                 WorkloadInsightCard(analysis: analysis)
-            }
-            
-            // BQ 2.1 Card - Highest Weight Pending Assignment
-            if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
-                HighestWeightAssignmentCard(assignment: highestWeightAssignment)
             }
             
             // Today's Assignments List
@@ -809,64 +728,3 @@ struct TodayAssignmentRow: View {
     }
 }
 
-// MARK: - BQ 2.1: Highest Weight Assignment Card
-struct HighestWeightAssignmentCard: View {
-    let assignment: Assignment
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.orange)
-                
-                Text("High Priority Alert")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                
-                Spacer()
-                
-                Text("\(assignment.weightPercentage)%")
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.2))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .foregroundColor(.orange)
-            }
-            
-            VStack(alignment: .leading, spacing: 6) {
-                Text(assignment.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(UI.navy)
-                
-                HStack {
-                    Label(assignment.courseName, systemImage: "book.fill")
-                        .font(.caption)
-                        .foregroundColor(Color(hex: assignment.courseColor))
-                    
-                    Spacer()
-                    
-                    Label(assignment.formattedDueDate, systemImage: "calendar")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Text("This is your highest weight pending assignment and will have the greatest impact on your final grade.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 4)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color(.systemBackground))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-    }
-}
