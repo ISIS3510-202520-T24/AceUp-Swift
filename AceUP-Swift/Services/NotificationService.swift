@@ -125,4 +125,3 @@ enum NotificationService {
         schedule(id: id, title: title, body: body, date: fireDate)
     }
 }
-}
