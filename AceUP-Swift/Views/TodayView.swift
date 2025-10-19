@@ -430,6 +430,7 @@ struct AssignmentsTabContent: View {
     @State private var days: Int? = nil
     @State private var sending = false
     @State private var notificationStatus = "Checking..."
+    @State private var pendingNotifications: [String] = []
     private let userKey = UserKeyManager.shared.userKey()
     
     init(assignmentViewModel: AssignmentViewModel) {
@@ -500,9 +501,15 @@ struct AssignmentsTabContent: View {
             
             // Test button for BQ 2.1 - Highest Weight Assignment Notification
             VStack(spacing: 8) {
-                Text("Notification Status: \(notificationStatus)")
+                Text("Status: \(notificationStatus)")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                
+                if !pendingNotifications.isEmpty {
+                    Text("Pending: \(pendingNotifications.count) notifications")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                }
                 
                 Button {
                     // First, check notification authorization
@@ -511,24 +518,29 @@ struct AssignmentsTabContent: View {
                         
                         // If authorized, send test notification
                         if status.contains("Authorized") {
+                            let testDate = Calendar.current.date(byAdding: .second, value: 5, to: Date()) ?? Date()
+                            
                             if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
-                                // Schedule immediate notification for testing (10 seconds from now)
-                                let testDate = Calendar.current.date(byAdding: .second, value: 10, to: Date()) ?? Date()
                                 NotificationService.schedule(
                                     id: "test_bq_2_1_immediate",
-                                    title: "🧪 Test BQ 2.1 Notification",
-                                    body: "Testing highest weight assignment: '\(highestWeightAssignment.title)' (\(highestWeightAssignment.weightPercentage)% of grade)",
+                                    title: "🧪 BQ 2.1 Test Alert",
+                                    body: "Highest weight: '\(highestWeightAssignment.title)' (\(highestWeightAssignment.weightPercentage)% of grade)",
                                     date: testDate
                                 )
                             } else {
-                                // Test with fake data if no assignments
-                                let testDate = Calendar.current.date(byAdding: .second, value: 10, to: Date()) ?? Date()
                                 NotificationService.schedule(
                                     id: "test_bq_2_1_immediate",
-                                    title: "🧪 Test BQ 2.1 Notification",
-                                    body: "No pending assignments found. This is a test notification.",
+                                    title: "🧪 BQ 2.1 Test Alert",
+                                    body: "No pending assignments found. This is a test notification in 5 seconds!",
                                     date: testDate
                                 )
+                            }
+                            
+                            // Check pending notifications after scheduling
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                NotificationService.checkPendingNotifications { notifications in
+                                    pendingNotifications = notifications
+                                }
                             }
                         } else if status.contains("Not determined") {
                             // Request permission
@@ -538,7 +550,7 @@ struct AssignmentsTabContent: View {
                 } label: {
                     HStack {
                         Image(systemName: "bell.fill")
-                        Text("Test BQ 2.1 (10s delay)")
+                        Text("Test BQ 2.1 (5s delay)")
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -549,6 +561,11 @@ struct AssignmentsTabContent: View {
             // Check notification authorization status when view appears
             NotificationService.checkAuthorizationStatus { status in
                 notificationStatus = status
+            }
+            
+            // Check pending notifications
+            NotificationService.checkPendingNotifications { notifications in
+                pendingNotifications = notifications
             }
         }
     }

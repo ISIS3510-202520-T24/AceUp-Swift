@@ -31,11 +31,50 @@ enum NotificationService {
         )
 
         let req = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-        UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
+        UNUserNotificationCenter.current().add(req) { error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("❌ Failed to schedule notification '\(id)': \(error.localizedDescription)")
+                } else {
+                    print("✅ Successfully scheduled notification '\(id)' for \(date)")
+                }
+            }
+        }
     }
 
     static func cancel(id: String) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
+    }
+    
+    // Debug helpers
+    static func checkAuthorizationStatus(completion: @escaping (String) -> Void) {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            DispatchQueue.main.async {
+                switch settings.authorizationStatus {
+                case .notDetermined:
+                    completion("Not determined - needs permission request")
+                case .denied:
+                    completion("Denied - go to Settings to enable")
+                case .authorized:
+                    completion("Authorized ✅")
+                case .provisional:
+                    completion("Provisional - quiet notifications only")
+                case .ephemeral:
+                    completion("Ephemeral - app clips only")
+                @unknown default:
+                    completion("Unknown status")
+                }
+            }
+        }
+    }
+    
+    static func checkPendingNotifications(completion: @escaping ([String]) -> Void) {
+        UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+            DispatchQueue.main.async {
+                let ids = requests.map { "\($0.identifier): \($0.trigger?.debugDescription ?? "no trigger")" }
+                completion(ids)
+            }
+        }
     }
     
     // Debug helper to check notification status

@@ -10,8 +10,9 @@ import SwiftUI
 import FirebaseCore
 import FirebaseAnalytics
 import FirebaseAuth
+import UserNotifications
 
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     
     func application(_ application: UIApplication,
                        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
@@ -26,8 +27,29 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             print("Firebase configuration failed in AppDelegate")
         }
         
+        // Set up notification delegate to show notifications in foreground
+        UNUserNotificationCenter.current().delegate = self
+        
         return true
       }
+    
+    // MARK: - UNUserNotificationCenterDelegate
+    
+    // Show notifications even when app is in foreground (for testing)
+    func userNotificationCenter(_ center: UNUserNotificationCenter, 
+                               willPresent notification: UNNotification, 
+                               withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        // Show banner, sound, and badge even in foreground
+        completionHandler([.banner, .sound, .badge])
+    }
+    
+    // Handle notification tap
+    func userNotificationCenter(_ center: UNUserNotificationCenter, 
+                               didReceive response: UNNotificationResponse, 
+                               withCompletionHandler completionHandler: @escaping () -> Void) {
+        print("📱 User tapped on notification: \(response.notification.request.identifier)")
+        completionHandler()
+    }
     
     
     private func configureAppearance() {
