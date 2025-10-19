@@ -33,19 +33,6 @@ struct TodayInsightsView: View {
                         }
                 }
                 
-                // High Priority Task Alert (BQ 2.1)
-                if let highPriorityTask = insightsAnalytics.nextHighPriorityTask {
-                    HighPriorityTaskCard(assignment: highPriorityTask)
-                        .onTapGesture {
-                            Task {
-                                await AnalyticsClient.shared.track(event: .insightCardTapped, properties: [
-                                    "card_type": "high_priority_task",
-                                    "weight_percentage": highPriorityTask.weightPercentage
-                                ])
-                            }
-                        }
-                }
-                
                 // Motivational Message
                 if let motivationalMessage = insightsAnalytics.motivationalMessage {
                     MotivationalMessageCard(message: motivationalMessage)
@@ -306,66 +293,6 @@ struct StatusIndicator: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill((isOnTrack ? UI.success : UI.warning).opacity(0.1))
         )
-    }
-}
-
-// MARK: - High Priority Task Card
-
-struct HighPriorityTaskCard: View {
-    let assignment: Assignment
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.orange)
-                    .font(.title3)
-                
-                Text("High Priority Alert")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                
-                Spacer()
-                
-                PercentageBadge(percentage: assignment.weightPercentage)
-            }
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Text(assignment.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(UI.navy)
-                    .lineLimit(2)
-                
-                HStack {
-                    Label(assignment.courseName, systemImage: "book.fill")
-                        .font(.caption)
-                        .foregroundColor(Color(hex: assignment.courseColor))
-                    
-                    Spacer()
-                    
-                    Label("\(assignment.daysUntilDue) days", systemImage: "calendar")
-                        .font(.caption)
-                        .foregroundColor(assignment.daysUntilDue <= 1 ? .red : UI.muted)
-                }
-                
-                Text("This assignment has the highest impact on your final grade. Consider prioritizing it!")
-                    .font(.caption)
-                    .foregroundColor(UI.muted)
-                    .padding(.top, 4)
-            }
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-                )
-        )
-        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
     }
 }
 

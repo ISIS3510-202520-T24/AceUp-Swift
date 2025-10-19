@@ -147,7 +147,7 @@ struct SmartInsightsTabContent: View {
                 .environmentObject(insightsAnalytics)
             
             // Legacy Smart Calendar Features (optional - can be removed or kept for comparison)
-            if analytics.weeklyInsights.isEmpty && analytics.productivityTrends.isEmpty {
+            if analytics.productivityTrends.isEmpty {
                 // Show placeholder when no legacy data
                 VStack(spacing: 16) {
                     Image(systemName: "chart.line.uptrend.xyaxis")
@@ -162,12 +162,6 @@ struct SmartInsightsTabContent: View {
             } else {
                 // Legacy insights (if still needed)
                 Group {
-                    // Weekly Insights
-                    if let latestInsight = analytics.weeklyInsights.first {
-                        SmartInsightsCard(insight: latestInsight)
-                            .padding(.horizontal, 20)
-                    }
-                    
                     // Productivity Trends
                     if !analytics.productivityTrends.isEmpty {
                         ProductivityChart(trends: analytics.productivityTrends)
@@ -390,11 +384,6 @@ struct AssignmentsTabContent: View {
             // Smart Feature: Workload Analysis
             if let analysis = assignmentViewModel.workloadAnalysis {
                 WorkloadInsightCard(analysis: analysis)
-            }
-            
-            // BQ 2.1 Card - Highest Weight Pending Assignment
-            if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
-                HighestWeightAssignmentCard(assignment: highestWeightAssignment)
             }
             
             // Today's Assignments List
@@ -739,64 +728,3 @@ struct TodayAssignmentRow: View {
     }
 }
 
-// MARK: - BQ 2.1: Highest Weight Assignment Card
-struct HighestWeightAssignmentCard: View {
-    let assignment: Assignment
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.orange)
-                
-                Text("High Priority Alert")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                
-                Spacer()
-                
-                Text("\(assignment.weightPercentage)%")
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.2))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .foregroundColor(.orange)
-            }
-            
-            VStack(alignment: .leading, spacing: 6) {
-                Text(assignment.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(UI.navy)
-                
-                HStack {
-                    Label(assignment.courseName, systemImage: "book.fill")
-                        .font(.caption)
-                        .foregroundColor(Color(hex: assignment.courseColor))
-                    
-                    Spacer()
-                    
-                    Label(assignment.formattedDueDate, systemImage: "calendar")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Text("This is your highest weight pending assignment and will have the greatest impact on your final grade.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 4)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color(.systemBackground))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-    }
-}
