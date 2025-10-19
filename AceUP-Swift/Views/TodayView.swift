@@ -11,6 +11,8 @@ struct TodayView: View {
     let onMenuTapped: () -> Void
     @State private var selectedTab: TodayTab = .assignments
     @StateObject private var smartAnalytics = SmartCalendarAnalytics()
+    @StateObject private var sharedCalendarViewModel = SharedCalendarViewModel()
+    @State private var showingCreateAction = false
     
     init(onMenuTapped: @escaping () -> Void = {}) {
         self.onMenuTapped = onMenuTapped
@@ -67,6 +69,12 @@ struct TodayView: View {
                     )
                     
                     TabButton(
+                        title: "Shared",
+                        isSelected: selectedTab == .shared,
+                        action: { selectedTab = .shared }
+                    )
+                    
+                    TabButton(
                         title: "Insights",
                         isSelected: selectedTab == .insights,
                         action: { selectedTab = .insights }
@@ -85,6 +93,8 @@ struct TodayView: View {
                             TimetableTabContent()
                         case .exams:
                             ExamsTabContent()
+                        case .shared:
+                            SharedTabContent(viewModel: sharedCalendarViewModel)
                         case .insights:
                             SmartInsightsTabContent(analytics: smartAnalytics)
                         }
@@ -101,7 +111,17 @@ struct TodayView: View {
                 Spacer()
                 HStack {
                     Spacer()
-                    Button(action: {}) {
+                    Button(action: {
+                        switch selectedTab {
+                        case .assignments:
+                            // Handle assignment creation
+                            break
+                        case .shared:
+                            showingCreateAction = true
+                        default:
+                            break
+                        }
+                    }) {
                         Image(systemName: "plus")
                             .font(.title2)
                             .fontWeight(.semibold)
@@ -116,7 +136,28 @@ struct TodayView: View {
                 }
             }
         )
+                }
         .navigationBarHidden(true)
+        .actionSheet(isPresented: $showingCreateAction) {
+            ActionSheet(
+                title: Text("Create or Join"),
+                buttons: [
+                    .default(Text("Create New Group")) {
+                        sharedCalendarViewModel.showingCreateGroup = true
+                    },
+                    .default(Text("Join Existing Group")) {
+                        sharedCalendarViewModel.showingJoinGroup = true
+                    },
+                    .cancel()
+                ]
+            )
+        }
+        .sheet(isPresented: $sharedCalendarViewModel.showingCreateGroup) {
+            CreateGroupView(viewModel: sharedCalendarViewModel)
+        }
+        .sheet(isPresented: $sharedCalendarViewModel.showingJoinGroup) {
+            JoinGroupView(viewModel: sharedCalendarViewModel)
+        }
     }
 }
 
@@ -125,6 +166,7 @@ enum TodayTab: String, CaseIterable {
     case assignments = "Assignments"
     case timetable = "Timetable"
     case exams = "Exams"
+    case shared = "Shared"
     case insights = "Insights"
 }
 
@@ -448,6 +490,131 @@ struct AssignmentsTabContent: View {
             Spacer()
         }
         .padding(.horizontal, 40)
+    }
+}
+
+// MARK: - Shared Tab Content
+struct SharedTabContent: View {
+    @ObservedObject var viewModel: SharedCalendarViewModel
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            if viewModel.groups.isEmpty {
+                EmptySharedView()
+            } else {
+                SharedGroupsList(groups: viewModel.groups, viewModel: viewModel)
+            }
+        }
+        .onAppear {
+            Task {
+                await viewModel.loadGroups()
+            }
+        }
+    }
+}
+
+struct EmptySharedView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Spacer().frame(height: 60)
+            
+            Image(systemName: "person.3.fill")
+                .font(.system(size: 60))
+                .foregroundColor(UI.muted)
+            
+            VStack(spacing: 8) {
+                Text("No Shared Groups")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(UI.navy)
+                
+                Text("Create or join a group to start collaborating with others")
+                    .font(.body)
+                    .foregroundColor(UI.muted)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
+            
+            Spacer()
+        }
+    }
+}
+
+struct SharedGroupsList: View {
+    let groups: [CalendarGroup]
+    @ObservedObject var viewModel: SharedCalendarViewModel
+    
+    var body: some View {
+        LazyVStack(spacing: 16) {
+            ForEach(groups) { group in
+                SharedGroupCard(group: group, viewModel: viewModel)
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+}
+
+struct SharedGroupCard: View {
+    let group: CalendarGroup
+    @ObservedObject var viewModel: SharedCalendarViewModel
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(group.name)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(UI.navy)
+                    
+                    Text(group.description)
+                        .font(.caption)
+                        .foregroundColor(UI.muted)
+                        .lineLimit(2)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("\(group.memberCount)")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundColor(Color(hex: group.color))
+                    
+                    Text("members")
+                        .font(.caption2)
+                        .foregroundColor(UI.muted)
+                }
+            }
+            
+            HStack {
+                Label("Created \(group.createdAt.formatted(.dateTime.day().month(.abbreviated)))", 
+                      systemImage: "calendar")
+                    .font(.caption)
+                    .foregroundColor(UI.muted)
+                
+                Spacer()
+                
+                if let code = group.inviteCode {
+                    Button(action: {
+                        // Share invite code
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "square.and.arrow.up")
+                            Text("Invite")
+                        }
+                        .font(.caption)
+                        .foregroundColor(UI.primary)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+        )
     }
 }
 
