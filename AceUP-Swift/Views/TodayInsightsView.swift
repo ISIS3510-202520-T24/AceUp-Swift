@@ -23,7 +23,7 @@ struct TodayInsightsView: View {
                     
                     // Today's Progress Analysis (BQ 2.2)
                     if let progressAnalysis = insightsAnalytics.progressAnalysis {
-                        ProgressAnalysisCard(analysis: progressAnalysis, geometry: geometry)
+                        ProgressAnalysisCard(analysis: progressAnalysis)
                             .onTapGesture {
                                 Task {
                                     await AnalyticsClient.shared.track(event: .insightCardTapped, properties: [
@@ -90,8 +90,8 @@ struct TodayInsightsView: View {
                     TodaysInsightsSummary(insights: insightsAnalytics.todaysInsights)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 100) // Extra padding for FAB
+            .padding(.horizontal, geometry.size.width * 0.05) // 5% of screen width
+            .padding(.bottom, geometry.size.height * 0.12) // 12% for FAB space
         }
         .refreshable {
             await refreshInsights()
