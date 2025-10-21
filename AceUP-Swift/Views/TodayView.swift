@@ -19,35 +19,36 @@ struct TodayView: View {
     }
     
      var body: some View {
-         VStack(spacing: 0) {
-             // Header
-             VStack {
-                 HStack {
-                     Button(action: onMenuTapped) {
-                         Image(systemName: "line.3.horizontal")
+         GeometryReader { geometry in
+             VStack(spacing: 0) {
+                 // Header
+                 VStack {
+                     HStack {
+                         Button(action: onMenuTapped) {
+                             Image(systemName: "line.3.horizontal")
+                                 .foregroundColor(UI.navy)
+                                 .font(.body)
+                         }
+                        
+                         Spacer()
+                        
+                         Text("Today")
+                             .font(.headline)
+                             .fontWeight(.semibold)
                              .foregroundColor(UI.navy)
-                             .font(.body)
+                        
+                         Spacer()
+                        
+                         Color.clear
+                             .frame(width: 24)
                      }
-                    
-                     Spacer()
-                    
-                     Text("Today")
-                         .font(.headline)
-                         .fontWeight(.semibold)
-                         .foregroundColor(UI.navy)
-                    
-                     Spacer()
-                    
-                     Color.clear
-                         .frame(width: 24)
+                     .padding(.horizontal, 16)
                  }
-                 .padding(.horizontal, 16)
-             }
-             .frame(height: 60)
-             .background(Color(hex: "#B8C8DB"))
-            
-            // Main Content
-            VStack(spacing: 0) {
+                 .frame(height: geometry.size.height * 0.08) // 8% of screen height
+                 .background(Color(hex: "#B8C8DB"))
+                
+                // Main Content
+                VStack(spacing: 0) {
                 // Tab Navigation
                 HStack(spacing: 8) {
                     TabButton(
@@ -74,12 +75,12 @@ struct TodayView: View {
                         action: { selectedTab = .insights }
                     )
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 20)
+                .padding(.horizontal, geometry.size.width * 0.05) // 5% of screen width
+                .padding(.vertical, geometry.size.height * 0.02) // 2% of screen height
                 
                 // Tab Content
                 ScrollView {
-                    VStack(spacing: 20) {
+                    VStack(spacing: geometry.size.height * 0.02) { // 2% of screen height
                         switch selectedTab {
                         case .assignments:
                             AssignmentsTabContent(assignmentViewModel: assignmentViewModel)
@@ -91,7 +92,7 @@ struct TodayView: View {
                             SmartInsightsTabContent(analytics: smartAnalytics)
                         }
                     }
-                    .padding(.bottom, 100) // Extra padding for FAB
+                    .padding(.bottom, geometry.size.height * 0.12) // 12% for FAB space
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -110,19 +111,20 @@ struct TodayView: View {
                             .font(.title2)
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
+                            .frame(width: geometry.size.width * 0.14, height: geometry.size.width * 0.14) // 14% of screen width
                             .background(UI.primary)
                             .clipShape(Circle())
                             .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
                     }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 30)
+                    .padding(.trailing, geometry.size.width * 0.05) // 5% of screen width
+                    .padding(.bottom, geometry.size.height * 0.04) // 4% of screen height
                 }
             }
         )
         .navigationBarHidden(true)
         .sheet(isPresented: $showingCreateAssignment) {
             CreateAssignmentView(viewModel: assignmentViewModel)
+        }
         }
     }
 }

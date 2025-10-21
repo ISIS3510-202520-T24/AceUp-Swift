@@ -15,23 +15,24 @@ struct TodayInsightsView: View {
     @State private var selectedInsight: TodayInsight?
     
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 20) {
-                // Header with refresh button
-                insightsHeader
-                
-                // Today's Progress Analysis (BQ 2.2)
-                if let progressAnalysis = insightsAnalytics.progressAnalysis {
-                    ProgressAnalysisCard(analysis: progressAnalysis)
-                        .onTapGesture {
-                            Task {
-                                await AnalyticsClient.shared.track(event: .insightCardTapped, properties: [
-                                    "card_type": "progress_analysis",
-                                    "completion_rate": progressAnalysis.completionRate
-                                ])
+        GeometryReader { geometry in
+            ScrollView {
+                LazyVStack(spacing: geometry.size.height * 0.025) { // 2.5% of screen height
+                    // Header with refresh button
+                    insightsHeader(geometry: geometry)
+                    
+                    // Today's Progress Analysis (BQ 2.2)
+                    if let progressAnalysis = insightsAnalytics.progressAnalysis {
+                        ProgressAnalysisCard(analysis: progressAnalysis, geometry: geometry)
+                            .onTapGesture {
+                                Task {
+                                    await AnalyticsClient.shared.track(event: .insightCardTapped, properties: [
+                                        "card_type": "progress_analysis",
+                                        "completion_rate": progressAnalysis.completionRate
+                                    ])
+                                }
                             }
-                        }
-                }
+                    }
                 
                 // Motivational Message
                 if let motivationalMessage = insightsAnalytics.motivationalMessage {
@@ -100,11 +101,12 @@ struct TodayInsightsView: View {
                 await insightsAnalytics.generateTodaysInsights()
             }
         }
+        }
     }
     
     // MARK: - Views
     
-    private var insightsHeader: some View {
+    private func insightsHeader(geometry: GeometryProxy) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Smart Insights")
