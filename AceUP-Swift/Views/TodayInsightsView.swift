@@ -711,6 +711,8 @@ struct InsightSummaryCard: View {
                 .fill(Color(hex: insight.color).opacity(0.05))
         )
     }
+}
+
 #Preview {
     TodayInsightsView()
 }
