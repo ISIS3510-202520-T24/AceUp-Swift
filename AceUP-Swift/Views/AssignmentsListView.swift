@@ -20,37 +20,39 @@ struct AssignmentsListView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            headerView
-            
-            // Filter and Search
-            filterAndSearchView
-            
-            // Smart Recommendations
-            if !viewModel.smartRecommendations.isEmpty {
-                smartRecommendationsView
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Header
+                headerView(geometry: geometry)
+                
+                // Filter and Search
+                filterAndSearchView(geometry: geometry)
+                
+                // Smart Recommendations
+                if !viewModel.smartRecommendations.isEmpty {
+                    smartRecommendationsView(geometry: geometry)
+                }
+                
+                // Assignment List
+                assignmentListView(geometry: geometry)
             }
-            
-            // Assignment List
-            assignmentListView
-        }
-        .navigationBarHidden(true)
-        .overlay(fabButton, alignment: .bottomTrailing)
-        .sheet(isPresented: $viewModel.showingCreateAssignment) {
-            CreateAssignmentView(viewModel: viewModel)
-        }
-        .sheet(isPresented: $showingWorkloadAnalysis) {
-            WorkloadAnalysisView(analysis: viewModel.workloadAnalysis)
-        }
-        .task {
-            await viewModel.loadAssignments()
+            .navigationBarHidden(true)
+            .overlay(fabButton(geometry: geometry), alignment: .bottomTrailing)
+            .sheet(isPresented: $viewModel.showingCreateAssignment) {
+                CreateAssignmentView(viewModel: viewModel)
+            }
+            .sheet(isPresented: $showingWorkloadAnalysis) {
+                WorkloadAnalysisView(analysis: viewModel.workloadAnalysis)
+            }
+            .task {
+                await viewModel.loadAssignments()
+            }
         }
     }
     
     // MARK: - Header
     
-    private var headerView: some View {
+    private func headerView(geometry: GeometryProxy) -> some View {
         VStack {
             HStack {
                 Button(action: onMenuTapped) {
@@ -76,14 +78,14 @@ struct AssignmentsListView: View {
             }
             .padding(.horizontal, 16)
         }
-        .frame(height: 60)
+        .frame(height: geometry.size.width > geometry.size.height ? 50 : 60) // Shorter in landscape
         .background(Color(hex: "#B8C8DB"))
     }
     
     // MARK: - Filter and Search
     
-    private var filterAndSearchView: some View {
-        VStack(spacing: 12) {
+    private func filterAndSearchView(geometry: GeometryProxy) -> some View {
+        VStack(spacing: geometry.size.width > geometry.size.height ? 8 : 12) {
             // Search bar
             HStack {
                 Image(systemName: "magnifyingglass")
@@ -107,7 +109,7 @@ struct AssignmentsListView: View {
             
             // Filter buttons
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+                HStack(spacing: geometry.size.width > geometry.size.height ? 8 : 12) {
                     ForEach(AssignmentFilter.allCases, id: \.self) { filter in
                         FilterButton(
                             title: filter.displayName,
@@ -120,14 +122,14 @@ struct AssignmentsListView: View {
                 .padding(.horizontal, 16)
             }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, geometry.size.width > geometry.size.height ? 8 : 12) // Less padding in landscape
         .background(UI.neutralLight)
     }
     
     // MARK: - Smart Recommendations
     
-    private var smartRecommendationsView: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private func smartRecommendationsView(geometry: GeometryProxy) -> some View {
+        VStack(alignment: .leading, spacing: geometry.size.width > geometry.size.height ? 8 : 12) {
             HStack {
                 Image(systemName: "sparkles")
                     .foregroundColor(UI.primary)
@@ -143,7 +145,7 @@ struct AssignmentsListView: View {
             .padding(.horizontal, 16)
             
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+                HStack(spacing: geometry.size.width > geometry.size.height ? 8 : 12) {
                     ForEach(viewModel.smartRecommendations.prefix(3), id: \.id) { recommendation in
                         SmartRecommendationCard(recommendation: recommendation) {
                             // Handle recommendation action
@@ -154,15 +156,15 @@ struct AssignmentsListView: View {
                 .padding(.horizontal, 16)
             }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, geometry.size.width > geometry.size.height ? 8 : 12) // Less padding in landscape
         .background(Color(.systemGroupedBackground))
     }
     
     // MARK: - Assignment List
     
-    private var assignmentListView: some View {
+    private func assignmentListView(geometry: GeometryProxy) -> some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
+            LazyVStack(spacing: geometry.size.width > geometry.size.height ? 8 : 12) {
                 ForEach(filteredAssignments) { assignment in
                     AssignmentCard(
                         assignment: assignment,
@@ -191,19 +193,20 @@ struct AssignmentsListView: View {
     
     // MARK: - FAB
     
-    private var fabButton: some View {
+    private func fabButton(geometry: GeometryProxy) -> some View {
         Button(action: { viewModel.showingCreateAssignment = true }) {
             Image(systemName: "plus")
                 .font(.title2)
                 .fontWeight(.semibold)
                 .foregroundColor(.white)
-                .frame(width: 56, height: 56)
+                .frame(width: geometry.size.width > geometry.size.height ? 48 : 56, 
+                       height: geometry.size.width > geometry.size.height ? 48 : 56) // Smaller in landscape
                 .background(UI.primary)
                 .clipShape(Circle())
                 .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
         }
-        .padding(.trailing, 20)
-        .padding(.bottom, 30)
+        .padding(.trailing, geometry.size.width > geometry.size.height ? 15 : 20)
+        .padding(.bottom, geometry.size.width > geometry.size.height ? 15 : 30)
     }
     
     // MARK: - Computed Properties

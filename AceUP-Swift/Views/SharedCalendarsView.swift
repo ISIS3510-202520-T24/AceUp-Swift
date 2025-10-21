@@ -23,44 +23,24 @@ struct SharedCalendarsView: View {
     
     var body: some View {
         NavigationView {
-            ZStack {
-                VStack(spacing: 0) {
-                    // Header
-                    headerView
+            GeometryReader { geometry in
+                ZStack {
+                    VStack(spacing: 0) {
+                        // Header
+                        headerView(geometry: geometry)
+                        
+                        // Main Content
+                        mainContent(geometry: geometry)
+                    }
                     
-                    // Main Content
-                    mainContent
-                }
-                
-                // Smart Suggestions Overlay
-                if !viewModel.recentSuggestions.isEmpty {
-                    smartSuggestionsOverlay
-                }
-                
-                // Loading Overlay
-                if viewModel.isLoading {
-                    loadingOverlay
-                }
-                
-                // Floating Action Button - moved to main ZStack level
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        Button(action: {
-                            showingActionSheet = true
-                        }) {
-                            Image(systemName: "plus")
-                                .font(.title2)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .frame(width: 56, height: 56)
-                                .background(UI.primary)
-                                .clipShape(Circle())
-                                .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
-                        }
-                        .padding(.trailing, 20)
-                        .padding(.bottom, 30)
+                    // Smart Suggestions Overlay
+                    if !viewModel.recentSuggestions.isEmpty {
+                        smartSuggestionsOverlay
+                    }
+                    
+                    // Loading Overlay
+                    if viewModel.isLoading {
+                        loadingOverlay
                     }
                 }
             }
@@ -108,7 +88,7 @@ struct SharedCalendarsView: View {
     }
     
     // MARK: - Header View
-    private var headerView: some View {
+    private func headerView(geometry: GeometryProxy) -> some View {
         VStack {
             HStack {
                 Button(action: onMenuTapped) {
@@ -136,27 +116,51 @@ struct SharedCalendarsView: View {
             }
             .padding(.horizontal, 16)
         }
-        .frame(height: 60)
+        .frame(height: geometry.size.width > geometry.size.height ? 50 : 60) // Shorter in landscape
         .background(Color(hex: "#B8C8DB"))
     }
     
     // MARK: - Main Content
-    private var mainContent: some View {
+    private func mainContent(geometry: GeometryProxy) -> some View {
         VStack(spacing: 0) {
             // Stats Section
-            statsSection
+            statsSection(geometry: geometry)
             
             // Groups List Section
-            groupsListSection
+            groupsListSection(geometry: geometry)
             
             Spacer()
         }
         .background(UI.neutralLight)
+        .overlay(
+            // Floating Action Button
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        showingActionSheet = true
+                    }) {
+                        Image(systemName: "plus")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .frame(width: geometry.size.width > geometry.size.height ? 48 : 56, 
+                                   height: geometry.size.width > geometry.size.height ? 48 : 56) // Smaller in landscape
+                            .background(UI.primary)
+                            .clipShape(Circle())
+                            .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                    }
+                    .padding(.trailing, geometry.size.width > geometry.size.height ? 15 : 20)
+                    .padding(.bottom, geometry.size.width > geometry.size.height ? 15 : 30)
+                }
+            }
+        )
     }
     
     // MARK: - Stats Section
-    private var statsSection: some View {
-        VStack(spacing: 15) {
+    private func statsSection(geometry: GeometryProxy) -> some View {
+        VStack(spacing: geometry.size.width > geometry.size.height ? 10 : 15) {
             HStack {
                 Text("Total Groups:")
                     .font(.title2)
@@ -195,12 +199,12 @@ struct SharedCalendarsView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 20)
+        .padding(.vertical, geometry.size.width > geometry.size.height ? 15 : 20) // Less padding in landscape
         .background(UI.neutralLight)
     }
     
     // MARK: - Groups List Section
-    private var groupsListSection: some View {
+    private func groupsListSection(geometry: GeometryProxy) -> some View {
         VStack(spacing: 0) {
             HStack {
                 Text("Your Groups")
@@ -210,7 +214,7 @@ struct SharedCalendarsView: View {
                 Spacer()
             }
             .padding(.horizontal, 20)
-            .padding(.top, 20)
+            .padding(.top, geometry.size.width > geometry.size.height ? 15 : 20) // Less padding in landscape
             .padding(.bottom, 10)
             .background(UI.neutralLight)
             

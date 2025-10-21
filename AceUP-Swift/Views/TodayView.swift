@@ -19,67 +19,70 @@ struct TodayView: View {
     }
     
      var body: some View {
-         VStack(spacing: 0) {
-             // Header
-             VStack {
-                 HStack {
-                     Button(action: onMenuTapped) {
-                         Image(systemName: "line.3.horizontal")
+         GeometryReader { geometry in
+             VStack(spacing: 0) {
+                 // Header
+                 VStack {
+                     HStack {
+                         Button(action: onMenuTapped) {
+                             Image(systemName: "line.3.horizontal")
+                                 .foregroundColor(UI.navy)
+                                 .font(.body)
+                         }
+                        
+                         Spacer()
+                        
+                         Text("Today")
+                             .font(.headline)
+                             .fontWeight(.semibold)
                              .foregroundColor(UI.navy)
-                             .font(.body)
+                        
+                         Spacer()
+                        
+                         Color.clear
+                             .frame(width: 24)
                      }
-                    
-                     Spacer()
-                    
-                     Text("Today")
-                         .font(.headline)
-                         .fontWeight(.semibold)
-                         .foregroundColor(UI.navy)
-                    
-                     Spacer()
-                    
-                     Color.clear
-                         .frame(width: 24)
+                     .padding(.horizontal, 16)
                  }
-                 .padding(.horizontal, 16)
-             }
-             .frame(height: 60)
-             .background(Color(hex: "#B8C8DB"))
-            
-            // Main Content
-            VStack(spacing: 0) {
+                 .frame(height: geometry.size.width > geometry.size.height ? 50 : 60) // Shorter header in landscape
+                 .background(Color(hex: "#B8C8DB"))
+                
+                // Main Content
+                VStack(spacing: 0) {
                 // Tab Navigation
-                HStack(spacing: 8) {
-                    TabButton(
-                        title: "Assignments",
-                        isSelected: selectedTab == .assignments,
-                        action: { selectedTab = .assignments }
-                    )
-                    
-                    TabButton(
-                        title: "Timetable", 
-                        isSelected: selectedTab == .timetable,
-                        action: { selectedTab = .timetable }
-                    )
-                    
-                    TabButton(
-                        title: "Exams",
-                        isSelected: selectedTab == .exams,
-                        action: { selectedTab = .exams }
-                    )
-                    
-                    TabButton(
-                        title: "Insights",
-                        isSelected: selectedTab == .insights,
-                        action: { selectedTab = .insights }
-                    )
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: geometry.size.width > geometry.size.height ? 16 : 8) {
+                        TabButton(
+                            title: "Assignments",
+                            isSelected: selectedTab == .assignments,
+                            action: { selectedTab = .assignments }
+                        )
+                        
+                        TabButton(
+                            title: "Timetable", 
+                            isSelected: selectedTab == .timetable,
+                            action: { selectedTab = .timetable }
+                        )
+                        
+                        TabButton(
+                            title: "Exams",
+                            isSelected: selectedTab == .exams,
+                            action: { selectedTab = .exams }
+                        )
+                        
+                        TabButton(
+                            title: "Insights",
+                            isSelected: selectedTab == .insights,
+                            action: { selectedTab = .insights }
+                        )
+                    }
+                    .padding(.horizontal, 20)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 20)
+                .padding(.vertical, geometry.size.width > geometry.size.height ? 10 : 20) // Less padding in landscape
                 
                 // Tab Content
                 ScrollView {
-                    VStack(spacing: 20) {
+                    VStack(spacing: geometry.size.width > geometry.size.height ? 15 : 20) {
                         switch selectedTab {
                         case .assignments:
                             AssignmentsTabContent(assignmentViewModel: assignmentViewModel)
@@ -91,7 +94,7 @@ struct TodayView: View {
                             SmartInsightsTabContent(analytics: smartAnalytics)
                         }
                     }
-                    .padding(.bottom, 100) // Extra padding for FAB
+                    .padding(.bottom, geometry.size.width > geometry.size.height ? 80 : 100) // Less bottom padding in landscape
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -110,16 +113,18 @@ struct TodayView: View {
                             .font(.title2)
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
+                            .frame(width: geometry.size.width > geometry.size.height ? 48 : 56, 
+                                   height: geometry.size.width > geometry.size.height ? 48 : 56) // Smaller FAB in landscape
                             .background(UI.primary)
                             .clipShape(Circle())
                             .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
                     }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 30)
+                    .padding(.trailing, geometry.size.width > geometry.size.height ? 15 : 20)
+                    .padding(.bottom, geometry.size.width > geometry.size.height ? 15 : 30)
                 }
             }
         )
+     }
         .navigationBarHidden(true)
         .sheet(isPresented: $showingCreateAssignment) {
             CreateAssignmentView(viewModel: assignmentViewModel)
@@ -138,50 +143,9 @@ enum TodayTab: String, CaseIterable {
 // MARK: - Smart Insights Tab Content
 struct SmartInsightsTabContent: View {
     @ObservedObject var analytics: SmartCalendarAnalytics
-    @StateObject private var insightsAnalytics = TodayInsightsAnalytics()
     
     var body: some View {
-        VStack(spacing: 20) {
-            // New Enhanced Insights powered by TodayInsightsAnalytics
-            TodayInsightsView()
-                .environmentObject(insightsAnalytics)
-            
-            // Legacy Smart Calendar Features (optional - can be removed or kept for comparison)
-            if analytics.productivityTrends.isEmpty {
-                // Show placeholder when no legacy data
-                VStack(spacing: 16) {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.system(size: 40))
-                        .foregroundColor(UI.muted)
-                    
-                    Text("Enhanced insights powered by AI")
-                        .font(.subheadline)
-                        .foregroundColor(UI.muted)
-                }
-                .padding(.vertical, 40)
-            } else {
-                // Legacy insights (if still needed)
-                Group {
-                    // Productivity Trends
-                    if !analytics.productivityTrends.isEmpty {
-                        ProductivityChart(trends: analytics.productivityTrends)
-                            .padding(.horizontal, 20)
-                    }
-                    
-                    // Study Patterns
-                    if !analytics.studyPatterns.isEmpty {
-                        StudyPatternsView(patterns: analytics.studyPatterns)
-                            .padding(.horizontal, 20)
-                    }
-                    
-                    // Collaboration Metrics
-                    if let metrics = analytics.collaborationMetrics {
-                        CollaborationMetricsView(metrics: metrics)
-                            .padding(.horizontal, 20)
-                    }
-                }
-            }
-        }
+        TodayInsightsView()
     }
 }
 
