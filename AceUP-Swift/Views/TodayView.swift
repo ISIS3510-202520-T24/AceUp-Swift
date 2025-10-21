@@ -143,12 +143,9 @@ enum TodayTab: String, CaseIterable {
 // MARK: - Smart Insights Tab Content
 struct SmartInsightsTabContent: View {
     @ObservedObject var analytics: SmartCalendarAnalytics
-    @StateObject private var insightsAnalytics = TodayInsightsAnalytics()
     
     var body: some View {
-        // Remove the VStack wrapper to give TodayInsightsView full control
         TodayInsightsView()
-            .environmentObject(insightsAnalytics)
             .frame(maxWidth: .infinity, maxHeight: .infinity) // Ensure it takes full available space
     }
 }

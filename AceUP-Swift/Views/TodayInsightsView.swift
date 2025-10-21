@@ -22,6 +22,23 @@ struct TodayInsightsView: View {
                     insightsHeader
                         .padding(.top, 10) // Add top padding to prevent cutoff
                     
+                    // Debug: Always show this to verify the view is working
+                    Text("Debug: TodayInsightsView is loaded")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .padding()
+                    
+                    // Debug: Show data state
+                    VStack {
+                        Text("Progress Analysis: \(insightsAnalytics.progressAnalysis != nil ? "Available" : "Nil")")
+                        Text("Motivational Message: \(insightsAnalytics.motivationalMessage != nil ? "Available" : "Nil")")
+                        Text("Productivity Score: \(insightsAnalytics.productivityScore != nil ? "Available" : "Nil")")
+                        Text("Workload Prediction: \(insightsAnalytics.workloadPrediction != nil ? "Available" : "Nil")")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                    .padding()
+                    
                     // Today's Progress Analysis (BQ 2.2)
                     if let progressAnalysis = insightsAnalytics.progressAnalysis {
                         ProgressAnalysisCard(analysis: progressAnalysis)
@@ -99,8 +116,11 @@ struct TodayInsightsView: View {
                 await refreshInsights()
             }
             .onAppear {
+                print("TodayInsightsView appeared")
                 Task {
+                    print("Calling generateTodaysInsights")
                     await insightsAnalytics.generateTodaysInsights()
+                    print("generateTodaysInsights completed")
                 }
             }
         }
