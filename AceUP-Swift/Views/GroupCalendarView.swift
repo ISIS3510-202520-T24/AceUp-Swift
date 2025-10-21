@@ -49,22 +49,21 @@ struct GroupCalendarView: View {
             .sheet(isPresented: $showingDatePicker) {
                 DatePickerView(selectedDate: $viewModel.selectedDate)
             }
-        }
-    }
-        .sheet(isPresented: $showingMemberList) {
-            if let group = viewModel.selectedGroup {
-                GroupMembersView(group: group)
+            .sheet(isPresented: $showingMemberList) {
+                if let group = viewModel.selectedGroup {
+                    GroupMembersView(group: group)
+                }
             }
-        }
-        .sheet(isPresented: $viewModel.showingEventCreation) {
-            if let timeSlot = viewModel.selectedTimeSlot {
-                CreateEventView(
-                    timeSlot: timeSlot,
-                    group: viewModel.selectedGroup,
-                    onEventCreated: {
-                        viewModel.refreshSelectedGroup()
-                    }
-                )
+            .sheet(isPresented: $viewModel.showingEventCreation) {
+                if let timeSlot = viewModel.selectedTimeSlot {
+                    CreateEventView(
+                        timeSlot: timeSlot,
+                        group: viewModel.selectedGroup,
+                        onEventCreated: {
+                            viewModel.refreshSelectedGroup()
+                        }
+                    )
+                }
             }
         }
     }
