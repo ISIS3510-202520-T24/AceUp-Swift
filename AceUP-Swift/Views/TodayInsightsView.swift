@@ -20,6 +20,7 @@ struct TodayInsightsView: View {
                 LazyVStack(spacing: geometry.size.width > geometry.size.height ? 15 : 20) {
                     // Header with refresh button
                     insightsHeader
+                        .padding(.top, 10) // Add top padding to prevent cutoff
                     
                     // Today's Progress Analysis (BQ 2.2)
                     if let progressAnalysis = insightsAnalytics.progressAnalysis {
@@ -90,9 +91,10 @@ struct TodayInsightsView: View {
                         TodaysInsightsSummary(insights: insightsAnalytics.todaysInsights)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, geometry.size.width > geometry.size.height ? 16 : 20) // Adjust horizontal padding
                 .padding(.bottom, geometry.size.width > geometry.size.height ? 80 : 100) // Less padding in landscape
             }
+            .clipped() // Ensure content doesn't overflow
             .refreshable {
                 await refreshInsights()
             }
@@ -132,7 +134,8 @@ struct TodayInsightsView: View {
             }
             .disabled(isRefreshing)
         }
-        .padding(.bottom, 8)
+        .padding(.bottom, 12) // Increased bottom padding
+        .frame(minHeight: 50) // Ensure minimum height to prevent clipping
     }
     
     private func refreshInsights() async {
@@ -233,11 +236,13 @@ struct ProgressAnalysisCard: View {
             }
         }
         .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading) // Ensure proper alignment
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.white)
                 .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
         )
+        .fixedSize(horizontal: false, vertical: true) // Allow vertical expansion, constrain horizontal
     }
     
     private func timeIcon(_ timeOfDay: TimePeriod) -> String {
@@ -354,6 +359,7 @@ struct MotivationalMessageCard: View {
             }
         }
         .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading) // Ensure proper alignment
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(messageColor.opacity(0.05))
@@ -362,6 +368,7 @@ struct MotivationalMessageCard: View {
                         .stroke(messageColor.opacity(0.2), lineWidth: 1)
                 )
         )
+        .fixedSize(horizontal: false, vertical: true) // Allow vertical expansion, constrain horizontal
     }
     
     private var messageIcon: String {
@@ -429,11 +436,13 @@ struct ProductivityScoreCard: View {
             }
         }
         .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading) // Ensure proper alignment
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.white)
                 .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
         )
+        .fixedSize(horizontal: false, vertical: true) // Allow vertical expansion, constrain horizontal
     }
 }
 
@@ -479,11 +488,13 @@ struct WorkloadPredictionCard: View {
             }
         }
         .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading) // Ensure proper alignment
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.white)
                 .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
         )
+        .fixedSize(horizontal: false, vertical: true) // Allow vertical expansion, constrain horizontal
     }
 }
 
@@ -712,6 +723,7 @@ struct InsightSummaryCard: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color(hex: insight.color).opacity(0.05))
         )
+        .fixedSize(horizontal: false, vertical: true) // Allow vertical expansion, constrain horizontal
     }
 }
 

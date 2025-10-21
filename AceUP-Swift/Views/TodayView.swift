@@ -146,47 +146,10 @@ struct SmartInsightsTabContent: View {
     @StateObject private var insightsAnalytics = TodayInsightsAnalytics()
     
     var body: some View {
-        VStack(spacing: 20) {
-            // New Enhanced Insights powered by TodayInsightsAnalytics
-            TodayInsightsView()
-                .environmentObject(insightsAnalytics)
-            
-            // Legacy Smart Calendar Features (optional - can be removed or kept for comparison)
-            if analytics.productivityTrends.isEmpty {
-                // Show placeholder when no legacy data
-                VStack(spacing: 16) {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.system(size: 40))
-                        .foregroundColor(UI.muted)
-                    
-                    Text("Enhanced insights powered by AI")
-                        .font(.subheadline)
-                        .foregroundColor(UI.muted)
-                }
-                .padding(.vertical, 40)
-            } else {
-                // Legacy insights (if still needed)
-                Group {
-                    // Productivity Trends
-                    if !analytics.productivityTrends.isEmpty {
-                        ProductivityChart(trends: analytics.productivityTrends)
-                            .padding(.horizontal, 20)
-                    }
-                    
-                    // Study Patterns
-                    if !analytics.studyPatterns.isEmpty {
-                        StudyPatternsView(patterns: analytics.studyPatterns)
-                            .padding(.horizontal, 20)
-                    }
-                    
-                    // Collaboration Metrics
-                    if let metrics = analytics.collaborationMetrics {
-                        CollaborationMetricsView(metrics: metrics)
-                            .padding(.horizontal, 20)
-                    }
-                }
-            }
-        }
+        // Remove the VStack wrapper to give TodayInsightsView full control
+        TodayInsightsView()
+            .environmentObject(insightsAnalytics)
+            .frame(maxWidth: .infinity, maxHeight: .infinity) // Ensure it takes full available space
     }
 }
 
