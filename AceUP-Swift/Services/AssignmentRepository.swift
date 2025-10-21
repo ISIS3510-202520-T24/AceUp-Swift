@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import FirebaseFirestore
 
 @MainActor
 final class AssignmentRepository: ObservableObject, AssignmentRepositoryProtocol {
@@ -9,6 +10,7 @@ final class AssignmentRepository: ObservableObject, AssignmentRepositoryProtocol
 
     init(dataProvider: AssignmentDataProviderProtocol) { self.dataProvider = dataProvider }
     convenience init() { self.init(dataProvider: HybridAssignmentDataProvider()) }
+
 
     // CRUD
     func getAllAssignments() async throws -> [Assignment] {
