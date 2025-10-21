@@ -146,7 +146,6 @@ struct SmartInsightsTabContent: View {
     
     var body: some View {
         TodayInsightsView()
-            .frame(maxWidth: .infinity, maxHeight: .infinity) // Ensure it takes full available space
     }
 }
 
