@@ -417,7 +417,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = \"AceUP Group Invitation\";\n    CFBundleURLSchemes =     (\n        aceup\n    );\n}";
 				INFOPLIST_KEY_NSCameraUsageDescription = "AceUP needs camera access to scan QR codes for joining groups";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "AceUp needs Face ID fotr authentication ";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -460,7 +459,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = \"AceUP Group Invitation\";\n    CFBundleURLSchemes =     (\n        aceup\n    );\n}";
 				INFOPLIST_KEY_NSCameraUsageDescription = "AceUP needs camera access to scan QR codes for joining groups";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "AceUp needs Face ID fotr authentication ";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

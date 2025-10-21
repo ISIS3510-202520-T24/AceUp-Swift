@@ -70,3 +70,4 @@ FirebaseConfig.plist
 
 # macOS
 .DS_Store
+project.pbxproj
