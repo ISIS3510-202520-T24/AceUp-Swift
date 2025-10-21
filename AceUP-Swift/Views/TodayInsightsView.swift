@@ -23,6 +23,37 @@ struct TodayInsightsView: View {
                     insightsHeader
                         .padding(.top, 10) // Add top padding to prevent cutoff
                     
+                    // Debug info to check what's actually loaded
+                    VStack {
+                        Text("🔍 Debug Info:")
+                            .font(.headline)
+                            .foregroundColor(.blue)
+                        
+                        Text("Progress: \(insightsAnalytics.progressAnalysis != nil ? "✅" : "❌")")
+                        Text("Motivation: \(insightsAnalytics.motivationalMessage != nil ? "✅" : "❌")")
+                        Text("Productivity: \(insightsAnalytics.productivityScore != nil ? "✅" : "❌")")
+                        Text("Workload: \(insightsAnalytics.workloadPrediction != nil ? "✅" : "❌")")
+                        
+                        if let progress = insightsAnalytics.progressAnalysis {
+                            Text("Progress Data: \(progress.completedTasks)/\(progress.totalTasks)")
+                        }
+                    }
+                    .padding()
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(8)
+                    
+                    if insightsAnalytics.progressAnalysis == nil && 
+                       insightsAnalytics.motivationalMessage == nil && 
+                       insightsAnalytics.productivityScore == nil && 
+                       insightsAnalytics.workloadPrediction == nil {
+                        
+                        Text("🔄 Loading insights...")
+                            .font(.headline)
+                            .foregroundColor(UI.primary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding()
+                    }
+                    
                     // Today's Progress Analysis (BQ 2.2)
                     if let progressAnalysis = insightsAnalytics.progressAnalysis {
                         ProgressAnalysisCard(analysis: progressAnalysis)
@@ -112,8 +143,18 @@ struct TodayInsightsView: View {
             .onAppear {
                 Task {
                     await insightsAnalytics.generateTodaysInsights()
+                    // Small delay then force UI refresh
+                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
                     refreshID = UUID() // Force UI refresh
                 }
+            }
+            .onReceive(insightsAnalytics.$progressAnalysis) { _ in
+                // Force refresh when progress analysis updates
+                refreshID = UUID()
+            }
+            .onReceive(insightsAnalytics.$motivationalMessage) { _ in
+                // Force refresh when motivational message updates
+                refreshID = UUID()
             }
         }
     }
