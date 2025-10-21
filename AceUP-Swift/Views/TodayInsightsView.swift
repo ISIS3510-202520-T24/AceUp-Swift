@@ -13,31 +13,15 @@ struct TodayInsightsView: View {
     @StateObject private var insightsAnalytics = TodayInsightsAnalytics()
     @State private var isRefreshing = false
     @State private var selectedInsight: TodayInsight?
+    @State private var refreshID = UUID() // Force refresh
     
     var body: some View {
         GeometryReader { geometry in
             ScrollView {
-                LazyVStack(spacing: geometry.size.width > geometry.size.height ? 15 : 20) {
+                VStack(spacing: geometry.size.width > geometry.size.height ? 15 : 20) {
                     // Header with refresh button
                     insightsHeader
                         .padding(.top, 10) // Add top padding to prevent cutoff
-                    
-                    // Debug: Always show this to verify the view is working
-                    Text("Debug: TodayInsightsView is loaded")
-                        .font(.caption)
-                        .foregroundColor(.red)
-                        .padding()
-                    
-                    // Debug: Show data state
-                    VStack {
-                        Text("Progress Analysis: \(insightsAnalytics.progressAnalysis != nil ? "Available" : "Nil")")
-                        Text("Motivational Message: \(insightsAnalytics.motivationalMessage != nil ? "Available" : "Nil")")
-                        Text("Productivity Score: \(insightsAnalytics.productivityScore != nil ? "Available" : "Nil")")
-                        Text("Workload Prediction: \(insightsAnalytics.workloadPrediction != nil ? "Available" : "Nil")")
-                    }
-                    .font(.caption)
-                    .foregroundColor(.blue)
-                    .padding()
                     
                     // Today's Progress Analysis (BQ 2.2)
                     if let progressAnalysis = insightsAnalytics.progressAnalysis {
@@ -50,6 +34,9 @@ struct TodayInsightsView: View {
                                     ])
                                 }
                             }
+                    } else {
+                        // Show a placeholder while loading
+                        ProgressPlaceholderCard()
                     }
                     
                     // Motivational Message
@@ -63,6 +50,8 @@ struct TodayInsightsView: View {
                                     ])
                                 }
                             }
+                    } else {
+                        MotivationalPlaceholderCard()
                     }
                     
                     // Productivity Score
@@ -77,6 +66,8 @@ struct TodayInsightsView: View {
                                     ])
                                 }
                             }
+                    } else {
+                        ProductivityPlaceholderCard()
                     }
                     
                     // Workload Prediction
@@ -91,6 +82,8 @@ struct TodayInsightsView: View {
                                     ])
                                 }
                             }
+                    } else {
+                        WorkloadPlaceholderCard()
                     }
                     
                     // Smart Reminders
@@ -110,17 +103,16 @@ struct TodayInsightsView: View {
                 }
                 .padding(.horizontal, geometry.size.width > geometry.size.height ? 16 : 20) // Adjust horizontal padding
                 .padding(.bottom, geometry.size.width > geometry.size.height ? 80 : 100) // Less padding in landscape
+                .id(refreshID) // Force refresh when this changes
             }
             .clipped() // Ensure content doesn't overflow
             .refreshable {
                 await refreshInsights()
             }
             .onAppear {
-                print("TodayInsightsView appeared")
                 Task {
-                    print("Calling generateTodaysInsights")
                     await insightsAnalytics.generateTodaysInsights()
-                    print("generateTodaysInsights completed")
+                    refreshID = UUID() // Force UI refresh
                 }
             }
         }
@@ -162,6 +154,7 @@ struct TodayInsightsView: View {
         isRefreshing = true
         await insightsAnalytics.refreshInsights()
         try? await Task.sleep(nanoseconds: 500_000_000) // Small delay for smooth animation
+        refreshID = UUID() // Force UI refresh
         isRefreshing = false
     }
 }
@@ -744,6 +737,128 @@ struct InsightSummaryCard: View {
                 .fill(Color(hex: insight.color).opacity(0.05))
         )
         .fixedSize(horizontal: false, vertical: true) // Allow vertical expansion, constrain horizontal
+    }
+}
+
+// MARK: - Placeholder Cards
+
+struct ProgressPlaceholderCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "chart.pie.fill")
+                    .foregroundColor(UI.primary)
+                    .font(.title3)
+                
+                Text("Today's Progress")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(UI.navy)
+                
+                Spacer()
+            }
+            
+            Text("Analyzing your progress...")
+                .font(.subheadline)
+                .foregroundColor(UI.muted)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.gray.opacity(0.1))
+        )
+        .redacted(reason: .placeholder)
+    }
+}
+
+struct MotivationalPlaceholderCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "star.fill")
+                    .foregroundColor(UI.primary)
+                    .font(.title3)
+                
+                Text("Daily Motivation")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(UI.navy)
+                
+                Spacer()
+            }
+            
+            Text("Preparing your personalized motivation...")
+                .font(.subheadline)
+                .foregroundColor(UI.muted)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.gray.opacity(0.1))
+        )
+        .redacted(reason: .placeholder)
+    }
+}
+
+struct ProductivityPlaceholderCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "brain.head.profile")
+                    .foregroundColor(UI.primary)
+                    .font(.title3)
+                
+                Text("Productivity Score")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(UI.navy)
+                
+                Spacer()
+            }
+            
+            Text("Calculating your productivity...")
+                .font(.subheadline)
+                .foregroundColor(UI.muted)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.gray.opacity(0.1))
+        )
+        .redacted(reason: .placeholder)
+    }
+}
+
+struct WorkloadPlaceholderCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "calendar.badge.clock")
+                    .foregroundColor(UI.primary)
+                    .font(.title3)
+                
+                Text("Workload Forecast")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(UI.navy)
+                
+                Spacer()
+            }
+            
+            Text("Predicting your upcoming workload...")
+                .font(.subheadline)
+                .foregroundColor(UI.muted)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.gray.opacity(0.1))
+        )
+        .redacted(reason: .placeholder)
     }
 }
 
