@@ -10,144 +10,113 @@ import SwiftUI
 struct SidebarView: View {
     @Binding var selectedView: AppView
     @Binding var isPresented: Bool
-    
+    @Environment(\.verticalSizeClass) private var vClass   // para ajustar en landscape
+
+    var isLandscape: Bool { vClass == .compact } // en iPhone landscape suele ser .compact
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            
+        GeometryReader { geo in
             VStack(alignment: .leading, spacing: 0) {
-                Text("AceUp")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 8)
-                    .padding(.bottom, 12)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(UI.navy)
-            
-            
-            VStack(alignment: .leading, spacing: 0) {
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("My Schedules")
-                        .font(.title3)
+
+                // Header
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("AceUp")
+                        .font(isLandscape ? .title3 : .title2)
                         .fontWeight(.semibold)
-                        .foregroundColor(UI.navy)
+                        .foregroundColor(.white)
                         .padding(.horizontal, 24)
-                        .padding(.top, 20)
-                        .padding(.bottom, 10)
-                    
-                    MenuItemView(
-                        icon: nil,
-                        title: "Today",
-                        isSelected: selectedView == .today,
-                        action: {
-                            selectedView = .today
-                            isPresented = false
-                        }
-                    )
-                    
-                    MenuItemView(
-                        icon: nil,
-                        title: "Week View",
-                        isSelected: selectedView == .weekView,
-                        action: {
-                            selectedView = .weekView
-                            isPresented = false
-                        }
-                    )
-                    
-                    MenuItemView(
-                        icon: nil,
-                        title: "Calendar",
-                        isSelected: selectedView == .calendar,
-                        action: {
-                            selectedView = .calendar
-                            isPresented = false
-                        }
-                    )
-                    
-                    MenuItemView(
-                        icon: nil,
-                        title: "Shared",
-                        isSelected: selectedView == .sharedCalendars,
-                        action: {
-                            selectedView = .sharedCalendars
-                            isPresented = false
-                        }
-                    )
+                        .padding(.top, 8)
+                        .padding(.bottom, 12)
                 }
-                
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("My Data")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .foregroundColor(UI.navy)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 20)
-                        .padding(.bottom, 10)
-                    
-                    MenuItemView(
-                        icon: nil,
-                        title: "Planner",
-                        isSelected: selectedView == .planner,
-                        action: {
-                            selectedView = .planner
-                            isPresented = false
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(UI.navy)  // el azul del screenshot
+
+                //HAZ EL MENÚ SCROLLABLE
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+
+                        // -- Sección: My Schedules
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("My Schedules")
+                                .font(.title3).fontWeight(.semibold)
+                                .foregroundColor(UI.navy)
+                                .padding(.horizontal, 24)
+                                .padding(.top, isLandscape ? 12 : 20)
+                                .padding(.bottom, 10)
+
+                            MenuItemView(icon: nil, title: "Today",
+                                         isSelected: selectedView == .today) {
+                                selectedView = .today; isPresented = false
+                            }
+
+                            MenuItemView(icon: nil, title: "Week View",
+                                         isSelected: selectedView == .weekView) {
+                                selectedView = .weekView; isPresented = false
+                            }
+
+                            MenuItemView(icon: nil, title: "Calendar",
+                                         isSelected: selectedView == .calendar) {
+                                selectedView = .calendar; isPresented = false
+                            }
+
+                            MenuItemView(icon: nil, title: "Shared",
+                                         isSelected: selectedView == .sharedCalendars) {
+                                selectedView = .sharedCalendars; isPresented = false
+                            }
                         }
-                    )
-                    
-                    MenuItemView(
-                        icon: nil,
-                        title: "Assignments",
-                        isSelected: selectedView == .assignments,
-                        action: {
-                            selectedView = .assignments
-                            isPresented = false
+
+                        // -- Sección: My Data
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("My Data")
+                                .font(.title3).fontWeight(.semibold)
+                                .foregroundColor(UI.navy)
+                                .padding(.horizontal, 24)
+                                .padding(.top, isLandscape ? 12 : 20)
+                                .padding(.bottom, 10)
+
+                            MenuItemView(icon: nil, title: "Planner",
+                                         isSelected: selectedView == .planner) {
+                                selectedView = .planner; isPresented = false
+                            }
+
+                            MenuItemView(icon: nil, title: "Assignments",
+                                         isSelected: selectedView == .assignments) {
+                                selectedView = .assignments; isPresented = false
+                            }
+
+                            MenuItemView(icon: nil, title: "Teachers",
+                                         isSelected: selectedView == .teachers) {
+                                selectedView = .teachers; isPresented = false
+                            }
+
+                            MenuItemView(icon: nil, title: "Holidays",
+                                         isSelected: selectedView == .holidays) {
+                                selectedView = .holidays; isPresented = false
+                            }
                         }
-                    )
-                    
-                    MenuItemView(
-                        icon: nil,
-                        title: "Teachers",
-                        isSelected: selectedView == .teachers,
-                        action: {
-                            selectedView = .teachers
-                            isPresented = false
+
+                        // Settings fijo al final del scroll
+                        MenuItemView(icon: "gear", title: "Settings",
+                                     isSelected: selectedView == .settings) {
+                            selectedView = .settings; isPresented = false
                         }
-                    )
-                    
-                    MenuItemView(
-                        icon: nil,
-                        title: "Holidays",
-                        isSelected: selectedView == .holidays,
-                        action: {
-                            selectedView = .holidays
-                            isPresented = false
-                        }
-                    )
-                }
-                
-                Spacer()
-                
-                
-                MenuItemView(
-                    icon: "gear",
-                    title: "Settings",
-                    isSelected: selectedView == .settings,
-                    action: {
-                        selectedView = .settings
-                        isPresented = false
+                        .padding(.top, 16)
+                        .padding(.bottom, 20)
                     }
-                )
-                .padding(.bottom, 20)
+                    .background(UI.neutralLight)
+                    .padding(.bottom, 8) // aire para que no quede pegado al borde
+                }
             }
             .background(UI.neutralLight)
+            // Gesto para cerrar deslizando hacia la izquierda (opcional pero útil)
+            .gesture(
+                DragGesture().onEnded { value in
+                    if value.translation.width < -60 {
+                        withAnimation(.easeInOut) { isPresented = false }
+                    }
+                }
+            )
         }
-        .frame(width: 280)
-        .background(UI.neutralLight)
     }
 }
 

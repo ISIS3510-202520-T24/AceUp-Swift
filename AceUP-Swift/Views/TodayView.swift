@@ -59,7 +59,7 @@ struct TodayView: View {
                         )
                         
                         TabButton(
-                            title: "Timetable", 
+                            title: "Timetable",
                             isSelected: selectedTab == .timetable,
                             action: { selectedTab = .timetable }
                         )
@@ -78,8 +78,7 @@ struct TodayView: View {
                     }
                     .padding(.horizontal, 20)
                 }
-                .padding(.vertical, geometry.size.width > geometry.size.height ? 10 : 20) // Less padding in landscape
-                
+    
                 // Tab Content
                 ScrollView {
                     VStack(spacing: geometry.size.width > geometry.size.height ? 15 : 20) {
