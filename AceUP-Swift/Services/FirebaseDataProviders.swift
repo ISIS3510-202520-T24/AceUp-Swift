@@ -41,25 +41,6 @@ final class FirebaseAssignmentDataProvider: AssignmentDataProviderProtocol {
     func delete(_ id: String) async throws {
         try await assignmentsCollection.document(id).delete()
     }
-    
-    func updateStatus(_ id: String, status: AssignmentStatus, finalGrade: Double?) async throws {
-        // (Opcional) Verificación rápida de usuario
-        guard Auth.auth().currentUser != nil else { throw FirebaseError.userNotAuthenticated }
-
-        var payload: [String: Any] = [
-            "status": status.rawValue,
-            "updatedAt": FieldValue.serverTimestamp()
-        ]
-        if let g = finalGrade {
-            payload["grade"] = g
-        }
-
-        // Si quieres asegurarte de no tocar docs de otros usuarios, puedes chequear antes:
-        // let doc = try await assignmentsCollection.document(id).getDocument()
-        // guard let data = doc.data(), data["userId"] as? String == currentUserId else { throw FirebaseError.permissionDenied }
-
-        try await assignmentsCollection.document(id).updateData(payload)
-    }
 
     // MARK: Mapping
 

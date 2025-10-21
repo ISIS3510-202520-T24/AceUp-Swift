@@ -10,7 +10,6 @@ import Firebase
 import FirebaseAuth
 import FirebaseCore
 import FirebaseAnalytics
-import UserNotifications
 
 @main
 struct AceUP_SwiftApp: App {
@@ -22,11 +21,6 @@ struct AceUP_SwiftApp: App {
     init() {
         FirebaseConfig.shared.configure()
         NotificationService.requestAuthorization()
-        
-        // Notificaciones locales (solo informativas)
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { _,_ in }
-        UNUserNotificationCenter.current().delegate = NotificationCenterService.shared
-
 
         // Verifica configuración
         if !FirebaseConfig.shared.verifyConfiguration() {
@@ -43,18 +37,11 @@ struct AceUP_SwiftApp: App {
         // Mantener GA4 user_id sincronizado cuando cambie el estado de Auth
         _ = Auth.auth().addStateDidChangeListener { _, user in
             if let u = user {
-                // GA4 user_id
                 FirebaseAnalytics.Analytics.setUserID(u.uid)
-                // 🔔 Empieza a escuchar tareas del usuario y programar notis
-                AssignmentsNotifier.shared.startListeningForUser(u.uid)
             } else {
-                // Limpia GA4
                 FirebaseAnalytics.Analytics.setUserID(nil)
-                // 📴 Detén el listener al cerrar sesión
-                AssignmentsNotifier.shared.stop()
             }
         }
-
     }
 
     var body: some Scene {
@@ -273,5 +260,3 @@ struct LoadingView: View {
         }
     }
 }
-
-
