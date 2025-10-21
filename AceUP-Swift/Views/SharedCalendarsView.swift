@@ -42,28 +42,6 @@ struct SharedCalendarsView: View {
                     if viewModel.isLoading {
                         loadingOverlay
                     }
-                    
-                    // Floating Action Button - moved to main ZStack level
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            Button(action: {
-                                showingActionSheet = true
-                            }) {
-                                Image(systemName: "plus")
-                                    .font(.title2)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.white)
-                                    .frame(width: geometry.size.width * 0.14, height: geometry.size.width * 0.14) // 14% of screen width
-                                    .background(UI.primary)
-                                    .clipShape(Circle())
-                                    .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
-                            }
-                            .padding(.trailing, geometry.size.width * 0.05) // 5% of screen width
-                            .padding(.bottom, geometry.size.height * 0.04) // 4% of screen height
-                        }
-                    }
                 }
             }
             .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
@@ -136,9 +114,9 @@ struct SharedCalendarsView: View {
                         .font(.subheadline)
                 }
             }
-            .padding(.horizontal, geometry.size.width * 0.04) // 4% of screen width
+            .padding(.horizontal, 16)
         }
-        .frame(height: geometry.size.height * 0.08) // 8% of screen height
+        .frame(height: geometry.size.width > geometry.size.height ? 50 : 60) // Shorter in landscape
         .background(Color(hex: "#B8C8DB"))
     }
     
@@ -154,11 +132,35 @@ struct SharedCalendarsView: View {
             Spacer()
         }
         .background(UI.neutralLight)
+        .overlay(
+            // Floating Action Button
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        showingActionSheet = true
+                    }) {
+                        Image(systemName: "plus")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .frame(width: geometry.size.width > geometry.size.height ? 48 : 56, 
+                                   height: geometry.size.width > geometry.size.height ? 48 : 56) // Smaller in landscape
+                            .background(UI.primary)
+                            .clipShape(Circle())
+                            .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                    }
+                    .padding(.trailing, geometry.size.width > geometry.size.height ? 15 : 20)
+                    .padding(.bottom, geometry.size.width > geometry.size.height ? 15 : 30)
+                }
+            }
+        )
     }
     
     // MARK: - Stats Section
     private func statsSection(geometry: GeometryProxy) -> some View {
-        VStack(spacing: geometry.size.height * 0.02) { // 2% of screen height
+        VStack(spacing: geometry.size.width > geometry.size.height ? 10 : 15) {
             HStack {
                 Text("Total Groups:")
                     .font(.title2)
@@ -196,8 +198,8 @@ struct SharedCalendarsView: View {
                 }
             }
         }
-        .padding(.horizontal, geometry.size.width * 0.05) // 5% of screen width
-        .padding(.vertical, geometry.size.height * 0.025) // 2.5% of screen height
+        .padding(.horizontal, 20)
+        .padding(.vertical, geometry.size.width > geometry.size.height ? 15 : 20) // Less padding in landscape
         .background(UI.neutralLight)
     }
     
@@ -211,9 +213,9 @@ struct SharedCalendarsView: View {
                     .foregroundColor(UI.navy)
                 Spacer()
             }
-            .padding(.horizontal, geometry.size.width * 0.05) // 5% of screen width
-            .padding(.top, geometry.size.height * 0.025) // 2.5% of screen height
-            .padding(.bottom, geometry.size.height * 0.012) // 1.2% of screen height
+            .padding(.horizontal, 20)
+            .padding(.top, geometry.size.width > geometry.size.height ? 15 : 20) // Less padding in landscape
+            .padding(.bottom, 10)
             .background(UI.neutralLight)
             
             if viewModel.groups.isEmpty {
@@ -238,7 +240,7 @@ struct SharedCalendarsView: View {
                             
                             if group.id != viewModel.groups.last?.id {
                                 Divider()
-                                    .padding(.horizontal, geometry.size.width * 0.05) // 5% of screen width
+                                    .padding(.horizontal, 20)
                             }
                         }
                     }

@@ -26,28 +26,31 @@ struct GroupCalendarView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            headerView
-            
-            // Date Navigation
-            dateNavigationView
-            
-            // Weekly Calendar
-            weeklyCalendarView
-            
-            // Schedule Content
-            scheduleContentView
-        }
-        .navigationBarHidden(true)
-        .onAppear {
-            if let group = group {
-                viewModel.setGroup(group)
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Header
+                headerView
+                
+                // Date Navigation
+                dateNavigationView
+                
+                // Weekly Calendar
+                weeklyCalendarView
+                
+                // Schedule Content
+                scheduleContentView
+            }
+            .navigationBarHidden(true)
+            .onAppear {
+                if let group = group {
+                    viewModel.setGroup(group)
+                }
+            }
+            .sheet(isPresented: $showingDatePicker) {
+                DatePickerView(selectedDate: $viewModel.selectedDate)
             }
         }
-        .sheet(isPresented: $showingDatePicker) {
-            DatePickerView(selectedDate: $viewModel.selectedDate)
-        }
+    }
         .sheet(isPresented: $showingMemberList) {
             if let group = viewModel.selectedGroup {
                 GroupMembersView(group: group)

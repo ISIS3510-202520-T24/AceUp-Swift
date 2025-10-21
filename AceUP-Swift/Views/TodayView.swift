@@ -44,43 +44,45 @@ struct TodayView: View {
                      }
                      .padding(.horizontal, 16)
                  }
-                 .frame(height: geometry.size.height * 0.08) // 8% of screen height
+                 .frame(height: geometry.size.width > geometry.size.height ? 50 : 60) // Shorter header in landscape
                  .background(Color(hex: "#B8C8DB"))
                 
                 // Main Content
                 VStack(spacing: 0) {
                 // Tab Navigation
-                HStack(spacing: 8) {
-                    TabButton(
-                        title: "Assignments",
-                        isSelected: selectedTab == .assignments,
-                        action: { selectedTab = .assignments }
-                    )
-                    
-                    TabButton(
-                        title: "Timetable", 
-                        isSelected: selectedTab == .timetable,
-                        action: { selectedTab = .timetable }
-                    )
-                    
-                    TabButton(
-                        title: "Exams",
-                        isSelected: selectedTab == .exams,
-                        action: { selectedTab = .exams }
-                    )
-                    
-                    TabButton(
-                        title: "Insights",
-                        isSelected: selectedTab == .insights,
-                        action: { selectedTab = .insights }
-                    )
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: geometry.size.width > geometry.size.height ? 16 : 8) {
+                        TabButton(
+                            title: "Assignments",
+                            isSelected: selectedTab == .assignments,
+                            action: { selectedTab = .assignments }
+                        )
+                        
+                        TabButton(
+                            title: "Timetable", 
+                            isSelected: selectedTab == .timetable,
+                            action: { selectedTab = .timetable }
+                        )
+                        
+                        TabButton(
+                            title: "Exams",
+                            isSelected: selectedTab == .exams,
+                            action: { selectedTab = .exams }
+                        )
+                        
+                        TabButton(
+                            title: "Insights",
+                            isSelected: selectedTab == .insights,
+                            action: { selectedTab = .insights }
+                        )
+                    }
+                    .padding(.horizontal, 20)
                 }
-                .padding(.horizontal, geometry.size.width * 0.05) // 5% of screen width
-                .padding(.vertical, geometry.size.height * 0.02) // 2% of screen height
+                .padding(.vertical, geometry.size.width > geometry.size.height ? 10 : 20) // Less padding in landscape
                 
                 // Tab Content
                 ScrollView {
-                    VStack(spacing: geometry.size.height * 0.02) { // 2% of screen height
+                    VStack(spacing: geometry.size.width > geometry.size.height ? 15 : 20) {
                         switch selectedTab {
                         case .assignments:
                             AssignmentsTabContent(assignmentViewModel: assignmentViewModel)
@@ -92,7 +94,7 @@ struct TodayView: View {
                             SmartInsightsTabContent(analytics: smartAnalytics)
                         }
                     }
-                    .padding(.bottom, geometry.size.height * 0.12) // 12% for FAB space
+                    .padding(.bottom, geometry.size.width > geometry.size.height ? 80 : 100) // Less bottom padding in landscape
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -111,20 +113,21 @@ struct TodayView: View {
                             .font(.title2)
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
-                            .frame(width: geometry.size.width * 0.14, height: geometry.size.width * 0.14) // 14% of screen width
+                            .frame(width: geometry.size.width > geometry.size.height ? 48 : 56, 
+                                   height: geometry.size.width > geometry.size.height ? 48 : 56) // Smaller FAB in landscape
                             .background(UI.primary)
                             .clipShape(Circle())
                             .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
                     }
-                    .padding(.trailing, geometry.size.width * 0.05) // 5% of screen width
-                    .padding(.bottom, geometry.size.height * 0.04) // 4% of screen height
+                    .padding(.trailing, geometry.size.width > geometry.size.height ? 15 : 20)
+                    .padding(.bottom, geometry.size.width > geometry.size.height ? 15 : 30)
                 }
             }
         )
+     }
         .navigationBarHidden(true)
         .sheet(isPresented: $showingCreateAssignment) {
             CreateAssignmentView(viewModel: assignmentViewModel)
-        }
         }
     }
 }

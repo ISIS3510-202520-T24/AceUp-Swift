@@ -38,15 +38,15 @@ struct AssignmentsListView: View {
             }
             .navigationBarHidden(true)
             .overlay(fabButton(geometry: geometry), alignment: .bottomTrailing)
-        }
-        .sheet(isPresented: $viewModel.showingCreateAssignment) {
-            CreateAssignmentView(viewModel: viewModel)
-        }
-        .sheet(isPresented: $showingWorkloadAnalysis) {
-            WorkloadAnalysisView(analysis: viewModel.workloadAnalysis)
-        }
-        .task {
-            await viewModel.loadAssignments()
+            .sheet(isPresented: $viewModel.showingCreateAssignment) {
+                CreateAssignmentView(viewModel: viewModel)
+            }
+            .sheet(isPresented: $showingWorkloadAnalysis) {
+                WorkloadAnalysisView(analysis: viewModel.workloadAnalysis)
+            }
+            .task {
+                await viewModel.loadAssignments()
+            }
         }
     }
     
@@ -76,16 +76,16 @@ struct AssignmentsListView: View {
                         .font(.body)
                 }
             }
-            .padding(.horizontal, geometry.size.width * 0.04) // 4% of screen width
+            .padding(.horizontal, 16)
         }
-        .frame(height: geometry.size.height * 0.08) // 8% of screen height
+        .frame(height: geometry.size.width > geometry.size.height ? 50 : 60) // Shorter in landscape
         .background(Color(hex: "#B8C8DB"))
     }
     
     // MARK: - Filter and Search
     
     private func filterAndSearchView(geometry: GeometryProxy) -> some View {
-        VStack(spacing: geometry.size.height * 0.015) { // 1.5% of screen height
+        VStack(spacing: geometry.size.width > geometry.size.height ? 8 : 12) {
             // Search bar
             HStack {
                 Image(systemName: "magnifyingglass")
@@ -101,15 +101,15 @@ struct AssignmentsListView: View {
                     }
                 }
             }
-            .padding(.horizontal, geometry.size.width * 0.04) // 4% of screen width
-            .padding(.vertical, geometry.size.height * 0.01) // 1% of screen height
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
             .background(Color(.systemGray6))
             .cornerRadius(8)
-            .padding(.horizontal, geometry.size.width * 0.04) // 4% of screen width
+            .padding(.horizontal, 16)
             
             // Filter buttons
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: geometry.size.width * 0.03) { // 3% of screen width
+                HStack(spacing: geometry.size.width > geometry.size.height ? 8 : 12) {
                     ForEach(AssignmentFilter.allCases, id: \.self) { filter in
                         FilterButton(
                             title: filter.displayName,
@@ -119,17 +119,17 @@ struct AssignmentsListView: View {
                         )
                     }
                 }
-                .padding(.horizontal, geometry.size.width * 0.04) // 4% of screen width
+                .padding(.horizontal, 16)
             }
         }
-        .padding(.vertical, geometry.size.height * 0.015) // 1.5% of screen height
+        .padding(.vertical, geometry.size.width > geometry.size.height ? 8 : 12) // Less padding in landscape
         .background(UI.neutralLight)
     }
     
     // MARK: - Smart Recommendations
     
     private func smartRecommendationsView(geometry: GeometryProxy) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: geometry.size.width > geometry.size.height ? 8 : 12) {
             HStack {
                 Image(systemName: "sparkles")
                     .foregroundColor(UI.primary)
@@ -145,7 +145,7 @@ struct AssignmentsListView: View {
             .padding(.horizontal, 16)
             
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+                HStack(spacing: geometry.size.width > geometry.size.height ? 8 : 12) {
                     ForEach(viewModel.smartRecommendations.prefix(3), id: \.id) { recommendation in
                         SmartRecommendationCard(recommendation: recommendation) {
                             // Handle recommendation action
@@ -156,7 +156,7 @@ struct AssignmentsListView: View {
                 .padding(.horizontal, 16)
             }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, geometry.size.width > geometry.size.height ? 8 : 12) // Less padding in landscape
         .background(Color(.systemGroupedBackground))
     }
     
@@ -164,7 +164,7 @@ struct AssignmentsListView: View {
     
     private func assignmentListView(geometry: GeometryProxy) -> some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
+            LazyVStack(spacing: geometry.size.width > geometry.size.height ? 8 : 12) {
                 ForEach(filteredAssignments) { assignment in
                     AssignmentCard(
                         assignment: assignment,
@@ -199,13 +199,14 @@ struct AssignmentsListView: View {
                 .font(.title2)
                 .fontWeight(.semibold)
                 .foregroundColor(.white)
-                .frame(width: geometry.size.width * 0.14, height: geometry.size.width * 0.14) // 14% of screen width
+                .frame(width: geometry.size.width > geometry.size.height ? 48 : 56, 
+                       height: geometry.size.width > geometry.size.height ? 48 : 56) // Smaller in landscape
                 .background(UI.primary)
                 .clipShape(Circle())
                 .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
         }
-        .padding(.trailing, geometry.size.width * 0.05) // 5% of screen width
-        .padding(.bottom, geometry.size.height * 0.04) // 4% of screen height
+        .padding(.trailing, geometry.size.width > geometry.size.height ? 15 : 20)
+        .padding(.bottom, geometry.size.width > geometry.size.height ? 15 : 30)
     }
     
     // MARK: - Computed Properties

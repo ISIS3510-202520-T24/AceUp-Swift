@@ -17,9 +17,9 @@ struct TodayInsightsView: View {
     var body: some View {
         GeometryReader { geometry in
             ScrollView {
-                LazyVStack(spacing: geometry.size.height * 0.025) { // 2.5% of screen height
+                LazyVStack(spacing: geometry.size.width > geometry.size.height ? 15 : 20) {
                     // Header with refresh button
-                    insightsHeader(geometry: geometry)
+                    insightsHeader
                     
                     // Today's Progress Analysis (BQ 2.2)
                     if let progressAnalysis = insightsAnalytics.progressAnalysis {
@@ -33,80 +33,80 @@ struct TodayInsightsView: View {
                                 }
                             }
                     }
-                
-                // Motivational Message
-                if let motivationalMessage = insightsAnalytics.motivationalMessage {
-                    MotivationalMessageCard(message: motivationalMessage)
-                        .onTapGesture {
-                            Task {
-                                await AnalyticsClient.shared.track(event: .motivationalMessageShown, properties: [
-                                    "message_type": motivationalMessage.type.rawValue,
-                                    "action_suggestion": motivationalMessage.actionSuggestion
-                                ])
+                    
+                    // Motivational Message
+                    if let motivationalMessage = insightsAnalytics.motivationalMessage {
+                        MotivationalMessageCard(message: motivationalMessage)
+                            .onTapGesture {
+                                Task {
+                                    await AnalyticsClient.shared.track(event: .motivationalMessageShown, properties: [
+                                        "message_type": motivationalMessage.type.rawValue,
+                                        "action_suggestion": motivationalMessage.actionSuggestion
+                                    ])
+                                }
                             }
-                        }
-                }
-                
-                // Productivity Score
-                if let productivityScore = insightsAnalytics.productivityScore {
-                    ProductivityScoreCard(score: productivityScore)
-                        .onTapGesture {
-                            Task {
-                                await AnalyticsClient.shared.track(event: .insightCardTapped, properties: [
-                                    "card_type": "productivity_score",
-                                    "score": productivityScore.score,
-                                    "level": productivityScore.level.rawValue
-                                ])
+                    }
+                    
+                    // Productivity Score
+                    if let productivityScore = insightsAnalytics.productivityScore {
+                        ProductivityScoreCard(score: productivityScore)
+                            .onTapGesture {
+                                Task {
+                                    await AnalyticsClient.shared.track(event: .insightCardTapped, properties: [
+                                        "card_type": "productivity_score",
+                                        "score": productivityScore.score,
+                                        "level": productivityScore.level.rawValue
+                                    ])
+                                }
                             }
-                        }
-                }
-                
-                // Workload Prediction
-                if let workloadPrediction = insightsAnalytics.workloadPrediction {
-                    WorkloadPredictionCard(prediction: workloadPrediction)
-                        .onTapGesture {
-                            Task {
-                                await AnalyticsClient.shared.track(event: .insightCardTapped, properties: [
-                                    "card_type": "workload_prediction",
-                                    "peak_days": workloadPrediction.peakWorkloadDays.count,
-                                    "max_workload": workloadPrediction.maxWorkload
-                                ])
+                    }
+                    
+                    // Workload Prediction
+                    if let workloadPrediction = insightsAnalytics.workloadPrediction {
+                        WorkloadPredictionCard(prediction: workloadPrediction)
+                            .onTapGesture {
+                                Task {
+                                    await AnalyticsClient.shared.track(event: .insightCardTapped, properties: [
+                                        "card_type": "workload_prediction",
+                                        "peak_days": workloadPrediction.peakWorkloadDays.count,
+                                        "max_workload": workloadPrediction.maxWorkload
+                                    ])
+                                }
                             }
-                        }
+                    }
+                    
+                    // Smart Reminders
+                    if !insightsAnalytics.smartReminders.isEmpty {
+                        SmartRemindersSection(reminders: insightsAnalytics.smartReminders)
+                    }
+                    
+                    // Collaboration Opportunities
+                    if !insightsAnalytics.collaborationOpportunities.isEmpty {
+                        CollaborationOpportunitiesSection(opportunities: insightsAnalytics.collaborationOpportunities)
+                    }
+                    
+                    // Today's Insights Summary
+                    if !insightsAnalytics.todaysInsights.isEmpty {
+                        TodaysInsightsSummary(insights: insightsAnalytics.todaysInsights)
+                    }
                 }
-                
-                // Smart Reminders
-                if !insightsAnalytics.smartReminders.isEmpty {
-                    SmartRemindersSection(reminders: insightsAnalytics.smartReminders)
-                }
-                
-                // Collaboration Opportunities
-                if !insightsAnalytics.collaborationOpportunities.isEmpty {
-                    CollaborationOpportunitiesSection(opportunities: insightsAnalytics.collaborationOpportunities)
-                }
-                
-                // Today's Insights Summary
-                if !insightsAnalytics.todaysInsights.isEmpty {
-                    TodaysInsightsSummary(insights: insightsAnalytics.todaysInsights)
+                .padding(.horizontal, 20)
+                .padding(.bottom, geometry.size.width > geometry.size.height ? 80 : 100) // Less padding in landscape
+            }
+            .refreshable {
+                await refreshInsights()
+            }
+            .onAppear {
+                Task {
+                    await insightsAnalytics.generateTodaysInsights()
                 }
             }
-            .padding(.horizontal, geometry.size.width * 0.05) // 5% of screen width
-            .padding(.bottom, geometry.size.height * 0.12) // 12% for FAB space
-        }
-        .refreshable {
-            await refreshInsights()
-        }
-        .onAppear {
-            Task {
-                await insightsAnalytics.generateTodaysInsights()
-            }
-        }
         }
     }
     
     // MARK: - Views
     
-    private func insightsHeader(geometry: GeometryProxy) -> some View {
+    private var insightsHeader: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Smart Insights")
