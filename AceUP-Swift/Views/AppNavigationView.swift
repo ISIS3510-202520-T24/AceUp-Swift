@@ -21,7 +21,8 @@ struct AppNavigationView: View {
     }
     
     var body: some View {
-        ZStack {
+        GeometryReader { geometry in
+            ZStack {
             // Main content
             Group {
                 switch selectedView {
@@ -128,6 +129,7 @@ struct AppNavigationView: View {
                         selectedView: $selectedView,
                         isPresented: $isSidebarPresented
                     )
+                    .frame(width: geometry.size.width * 0.75) // 75% of screen width
                     .transition(.move(edge: .leading))
                     
                     Spacer()
@@ -148,6 +150,7 @@ struct AppNavigationView: View {
                 selectedView = .sharedCalendars
                 showJoinGroupView = true
             }
+        }
         }
     }
 }

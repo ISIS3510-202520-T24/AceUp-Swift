@@ -12,10 +12,9 @@ import SwiftUI
 /// ViewModel for assignment management using MVVM pattern
 /// Handles assignment business logic and state management
 @MainActor
-class AssignmentViewModel: ObservableObject {
+final class AssignmentViewModel: ObservableObject {
     
-    // MARK: - Published Properties
-    
+    // Published Properties
     @Published var assignments: [Assignment] = []
     @Published var todaysAssignments: [Assignment] = []
     @Published var upcomingAssignments: [Assignment] = []
@@ -31,6 +30,15 @@ class AssignmentViewModel: ObservableObject {
     @Published var showingCreateAssignment = false
     @Published var selectedAssignment: Assignment?
     
+    // MARK: - BQ 2.1 Computed Property
+    /// The highest weight pending assignment (for BQ 2.1 notifications)
+    var highestWeightPendingAssignment: Assignment? {
+        let allPendingAssignments = assignments.filter { 
+            ($0.status == .pending || $0.status == .inProgress) && !$0.isOverdue 
+        }
+        return allPendingAssignments.max(by: { $0.weight < $1.weight })
+    }
+    
     // Form properties
     @Published var newAssignmentTitle = ""
     @Published var newAssignmentDescription = ""
@@ -41,33 +49,45 @@ class AssignmentViewModel: ObservableObject {
     @Published var newAssignmentEstimatedHours: Double?
     @Published var newAssignmentTags: [String] = []
     
-    // MARK: - Dependencies
-    
+    // Dependencies
     private let repository: AssignmentRepositoryProtocol
     private let workloadAnalyzer: WorkloadAnalyzer
     private var cancellables = Set<AnyCancellable>()
+    private var dataProvider: AssignmentDataProviderProtocol
     
-    // MARK: - Initialization
-    
+    // Initialization
     init(
         repository: AssignmentRepositoryProtocol? = nil,
-        workloadAnalyzer: WorkloadAnalyzer = WorkloadAnalyzer()
+        workloadAnalyzer: WorkloadAnalyzer = WorkloadAnalyzer(),
+        dataProvider: AssignmentDataProviderProtocol? = nil
     ) {
-        self.repository = repository ?? AssignmentRepository()
+        // Provider (por defecto híbrido)
+        let provider = dataProvider ?? HybridAssignmentDataProvider()
+        self.dataProvider = provider
+        
+        // Repo por defecto, concreto que conforma el protocolo
+        self.repository = repository ?? AssignmentRepository(dataProvider: provider)
         self.workloadAnalyzer = workloadAnalyzer
         
         setupBindings()
-        Task {
-            await loadAssignments()
-        }
+        Task { await loadAssignments() }
     }
     
     // MARK: - Public Methods
-    
+
+    /// Actualiza la nota usando el repositorio (emite GA4 + colector desde el repo)
+    func updateGrade(_ id: String, to newGrade: Double) async {
+        do {
+            try await repository.updateGrade(id, grade: newGrade)
+            await loadAssignments()
+        } catch {
+            errorMessage = "Failed to update grade: \(error.localizedDescription)"
+        }
+    }
+
     func loadAssignments() async {
         isLoading = true
         errorMessage = nil
-        
         do {
             assignments = try await repository.getAllAssignments()
             await updateDerivedData()
@@ -76,7 +96,6 @@ class AssignmentViewModel: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
-        
         isLoading = false
     }
     
@@ -103,6 +122,8 @@ class AssignmentViewModel: ObservableObject {
             await loadAssignments()
             clearForm()
             showingCreateAssignment = false
+            // Update BQ 2.1 notification since a new assignment was added
+            await scheduleHighestWeightAssignmentNotification()
         } catch {
             errorMessage = "Failed to create assignment: \(error.localizedDescription)"
         }
@@ -112,6 +133,8 @@ class AssignmentViewModel: ObservableObject {
         do {
             try await repository.updateAssignment(assignment)
             await loadAssignments()
+            // Update BQ 2.1 notification since assignment weights might have changed
+            await scheduleHighestWeightAssignmentNotification()
         } catch {
             errorMessage = "Failed to update assignment: \(error.localizedDescription)"
         }
@@ -121,15 +144,20 @@ class AssignmentViewModel: ObservableObject {
         do {
             try await repository.deleteAssignment(id)
             await loadAssignments()
+            // Update BQ 2.1 notification since an assignment was removed
+            await scheduleHighestWeightAssignmentNotification()
         } catch {
             errorMessage = "Failed to delete assignment: \(error.localizedDescription)"
         }
     }
     
-    func markAsCompleted(_ id: String) async {
+    /// Marca como completada usando el repositorio (emite GA4 + colector desde el repo)
+    func markAsCompleted(_ id: String, finalGrade: Double? = nil) async {
         do {
-            try await repository.markAsCompleted(id)
+            try await repository.markCompleted(id, finalGrade: finalGrade)
             await loadAssignments()
+            // Update BQ 2.1 notification since the highest weight assignment might have changed
+            await scheduleHighestWeightAssignmentNotification()
         } catch {
             errorMessage = "Failed to mark assignment as completed: \(error.localizedDescription)"
         }
@@ -175,26 +203,25 @@ class AssignmentViewModel: ObservableObject {
     }
     
     func getAssignmentsByPriority(_ priority: Priority) -> [Assignment] {
-        return assignments.filter { $0.priority == priority && $0.status == .pending }
+        assignments.filter { $0.priority == priority && $0.status == .pending }
     }
     
     func getAssignmentsByStatus(_ status: AssignmentStatus) -> [Assignment] {
-        return assignments.filter { $0.status == status }
+        assignments.filter { $0.status == status }
     }
     
     func getAssignmentsByUrgency(_ urgency: UrgencyLevel) -> [Assignment] {
-        return assignments.filter { $0.urgencyLevel == urgency }
+        assignments.filter { $0.urgencyLevel == urgency }
     }
     
     func searchAssignments(_ query: String) -> [Assignment] {
         guard !query.isEmpty else { return assignments }
-        
-        let lowercaseQuery = query.lowercased()
-        return assignments.filter { assignment in
-            assignment.title.lowercased().contains(lowercaseQuery) ||
-            assignment.courseName.lowercased().contains(lowercaseQuery) ||
-            assignment.description?.lowercased().contains(lowercaseQuery) == true ||
-            assignment.tags.contains { $0.lowercased().contains(lowercaseQuery) }
+        let q = query.lowercased()
+        return assignments.filter { a in
+            a.title.lowercased().contains(q) ||
+            a.courseName.lowercased().contains(q) ||
+            a.description?.lowercased().contains(q) == true ||
+            a.tags.contains { $0.lowercased().contains(q) }
         }
     }
     
@@ -209,7 +236,7 @@ class AssignmentViewModel: ObservableObject {
         newAssignmentTags = []
     }
     
-    // MARK: - Private Methods
+    // Private Methods
     
     private func setupBindings() {
         // Auto-refresh data periodically
@@ -234,10 +261,8 @@ class AssignmentViewModel: ObservableObject {
         
         // Upcoming assignments (next 7 days)
         let nextWeek = calendar.date(byAdding: .day, value: 7, to: now) ?? now
-        upcomingAssignments = assignments.filter { assignment in
-            assignment.dueDate > now && 
-            assignment.dueDate <= nextWeek && 
-            assignment.status == .pending
+        upcomingAssignments = assignments.filter { a in
+            a.dueDate > now && a.dueDate <= nextWeek && a.status == .pending
         }.sorted { $0.dueDate < $1.dueDate }
         
         // Completed assignments
@@ -266,12 +291,33 @@ class AssignmentViewModel: ObservableObject {
             highestWeightPending: todaysPending.max { $0.weight < $1.weight },
             estimatedTimeRemaining: todaysPending.compactMap { $0.estimatedTimeRemaining }.reduce(0, +)
         )
+
+        // Notificación para el BQ 2.4 
+        NotificationService.scheduleTodayPendingReminderIfNeeded(pendingCount: todaysPending.count)
+        
+        // BQ 2.1: Schedule notification for highest weight pending assignment
+        await scheduleHighestWeightAssignmentNotification()
     }
     
-
+    /// BQ 2.1: Find the highest weight pending assignment and schedule notification
+    private func scheduleHighestWeightAssignmentNotification() async {
+        // Find the highest weight pending assignment across all assignments (not just today's)
+        let allPendingAssignments = assignments.filter { 
+            ($0.status == .pending || $0.status == .inProgress) && !$0.isOverdue 
+        }
+        
+        guard let highestWeightAssignment = allPendingAssignments.max(by: { $0.weight < $1.weight }) else {
+            return // No pending assignments found
+        }
+        
+        // Only schedule notification if the assignment is significant (weight >= 10%)
+        guard highestWeightAssignment.weight >= 0.1 else { return }
+        
+        NotificationService.scheduleHighestWeightAssignmentReminder(assignment: highestWeightAssignment)
+    }
 }
 
-// MARK: - Supporting Models
+// Supporting Models
 
 struct TodaysSummary {
     let totalAssignments: Int

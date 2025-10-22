@@ -26,42 +26,44 @@ struct GroupCalendarView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            headerView
-            
-            // Date Navigation
-            dateNavigationView
-            
-            // Weekly Calendar
-            weeklyCalendarView
-            
-            // Schedule Content
-            scheduleContentView
-        }
-        .navigationBarHidden(true)
-        .onAppear {
-            if let group = group {
-                viewModel.setGroup(group)
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Header
+                headerView
+                
+                // Date Navigation
+                dateNavigationView
+                
+                // Weekly Calendar
+                weeklyCalendarView
+                
+                // Schedule Content
+                scheduleContentView
             }
-        }
-        .sheet(isPresented: $showingDatePicker) {
-            DatePickerView(selectedDate: $viewModel.selectedDate)
-        }
-        .sheet(isPresented: $showingMemberList) {
-            if let group = viewModel.selectedGroup {
-                GroupMembersView(group: group)
+            .navigationBarHidden(true)
+            .onAppear {
+                if let group = group {
+                    viewModel.setGroup(group)
+                }
             }
-        }
-        .sheet(isPresented: $viewModel.showingEventCreation) {
-            if let timeSlot = viewModel.selectedTimeSlot {
-                CreateEventView(
-                    timeSlot: timeSlot,
-                    group: viewModel.selectedGroup,
-                    onEventCreated: {
-                        viewModel.refreshSelectedGroup()
-                    }
-                )
+            .sheet(isPresented: $showingDatePicker) {
+                DatePickerView(selectedDate: $viewModel.selectedDate)
+            }
+            .sheet(isPresented: $showingMemberList) {
+                if let group = viewModel.selectedGroup {
+                    GroupMembersView(group: group)
+                }
+            }
+            .sheet(isPresented: $viewModel.showingEventCreation) {
+                if let timeSlot = viewModel.selectedTimeSlot {
+                    CreateEventView(
+                        timeSlot: timeSlot,
+                        group: viewModel.selectedGroup,
+                        onEventCreated: {
+                            viewModel.refreshSelectedGroup()
+                        }
+                    )
+                }
             }
         }
     }

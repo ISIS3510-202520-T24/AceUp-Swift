@@ -84,7 +84,10 @@ final class AuthService: ObservableObject {
             await MainActor.run {
                 self.user = result.user
             }
-            
+
+            // Genera userkey para analytics BQ2.4
+            AppAnalytics.shared.identify(userId: result.user.uid)
+
             return (result.user, userRef)
             
         } catch let error as NSError {
@@ -139,6 +142,9 @@ final class AuthService: ObservableObject {
                 Task { @MainActor in
                     self.user = user
                 }
+
+                // asegurar que el collector tenga un userkey estable
+                AppAnalytics.shared.identify(userId: user.uid)
 
                 let appUser = AppUser(
                     uid: user.uid,
@@ -219,9 +225,9 @@ final class AuthService: ObservableObject {
         
         do {
             try await db.collection("users").document(user.uid).setData(data, merge: true)
-            print("🔥 User profile saved successfully")
+            print("User profile saved successfully")
         } catch {
-            print("🔥 Failed to save user profile: \(error)")
+            print("Failed to save user profile: \(error)")
             throw error
         }
     }

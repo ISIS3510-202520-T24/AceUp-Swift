@@ -1,151 +1,105 @@
-//
-//  FirebaseDataProviders.swift
-//  AceUP-Swift
-//
-//  Created by Ángel Farfán Arcila on 7/10/25.
-//
-
 import Foundation
 import FirebaseFirestore
 import FirebaseAuth
 
-/// Firebase implementation of AssignmentDataProviderProtocol
-/// Handles cloud storage and synchronization for assignments
-class FirebaseAssignmentDataProvider: AssignmentDataProviderProtocol {
-    
+final class FirebaseAssignmentDataProvider: AssignmentDataProviderProtocol {
+
     private let db = Firestore.firestore()
-    private var currentUserId: String {
-        return Auth.auth().currentUser?.uid ?? "anonymous"
-    }
-    
-    // MARK: - Collection References
-    
-    private var assignmentsCollection: CollectionReference {
-        return db.collection("assignments")
-    }
-    
-    // MARK: - AssignmentDataProviderProtocol Implementation
-    
+    private var currentUserId: String { Auth.auth().currentUser?.uid ?? "anonymous" }
+
+    private var assignmentsCollection: CollectionReference { db.collection("assignments") }
+
+    // MARK: Protocol
+
     func fetchAll() async throws -> [Assignment] {
         let snapshot = try await assignmentsCollection
             .whereField("userId", isEqualTo: currentUserId)
             .order(by: "dueDate")
             .getDocuments()
-        
-        return snapshot.documents.compactMap { document in
-            try? self.documentToAssignment(document)
-        }
+
+        return snapshot.documents.compactMap { try? self.documentToAssignment($0) }
     }
-    
+
     func fetchById(_ id: String) async throws -> Assignment? {
         let document = try await assignmentsCollection.document(id).getDocument()
-        
         guard document.exists,
               let data = document.data(),
-              data["userId"] as? String == currentUserId else {
-            return nil
-        }
-        
+              data["userId"] as? String == currentUserId else { return nil }
         return try documentToAssignment(document)
     }
-    
+
     func save(_ assignment: Assignment) async throws {
         let data = try assignmentToFirestoreData(assignment)
         try await assignmentsCollection.document(assignment.id).setData(data)
     }
-    
+
     func update(_ assignment: Assignment) async throws {
         let data = try assignmentToFirestoreData(assignment)
         try await assignmentsCollection.document(assignment.id).setData(data, merge: true)
     }
-    
+
     func delete(_ id: String) async throws {
         try await assignmentsCollection.document(id).delete()
     }
-    
-    // MARK: - Data Conversion Methods
-    
+
+    // MARK: Mapping
+
     private func documentToAssignment(_ document: QueryDocumentSnapshot) throws -> Assignment {
-        let data = document.data()
-        return try createAssignment(from: data, documentID: document.documentID)
+        try createAssignment(from: document.data(), documentID: document.documentID)
     }
-    
+
     private func documentToAssignment(_ document: DocumentSnapshot) throws -> Assignment {
-        guard let data = document.data() else {
-            throw FirebaseError.invalidData
-        }
+        guard let data = document.data() else { throw FirebaseError.invalidData }
         return try createAssignment(from: data, documentID: document.documentID)
     }
-    
+
     private func createAssignment(from data: [String: Any], documentID: String) throws -> Assignment {
-        
-        guard let title = data["title"] as? String,
-              let courseId = data["courseId"] as? String,
-              let courseName = data["courseName"] as? String,
-              let dueDate = (data["dueDate"] as? Timestamp)?.dateValue(),
-              let weight = data["weight"] as? Double,
-              let priority = data["priority"] as? String,
-              let status = data["status"] as? String,
-              let createdAt = (data["createdAt"] as? Timestamp)?.dateValue(),
-              let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() else {
-            throw FirebaseError.invalidData
-        }
-        
-        // Parse optional fields
+        guard
+            let title = data["title"] as? String,
+            let courseId = data["courseId"] as? String,
+            let courseName = data["courseName"] as? String,
+            let dueDate = (data["dueDate"] as? Timestamp)?.dateValue(),
+            let weight = data["weight"] as? Double,
+            let priorityRaw = data["priority"] as? String,
+            let statusRaw = data["status"] as? String,
+            let createdAt = (data["createdAt"] as? Timestamp)?.dateValue(),
+            let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue()
+        else { throw FirebaseError.invalidData }
+
         let description = data["description"] as? String
         let courseColor = data["courseColor"] as? String ?? "#122C4A"
         let estimatedHours = data["estimatedHours"] as? Double
         let actualHours = data["actualHours"] as? Double
         let tags = data["tags"] as? [String] ?? []
-        
-        // Parse subtasks
+        let grade = data["grade"] as? Double // 👈 soporta grade
+
         let subtasksData = data["subtasks"] as? [[String: Any]] ?? []
-        let subtasks = subtasksData.compactMap { subtaskData -> Subtask? in
-            guard let id = subtaskData["id"] as? String,
-                  let title = subtaskData["title"] as? String else {
-                return nil
-            }
-            
-            let description = subtaskData["description"] as? String
-            let isCompleted = subtaskData["isCompleted"] as? Bool ?? false
-            let estimatedHours = subtaskData["estimatedHours"] as? Double
-            let completedAt = (subtaskData["completedAt"] as? Timestamp)?.dateValue()
-            let createdAt = (subtaskData["createdAt"] as? Timestamp)?.dateValue() ?? Date()
-            
-            return Subtask(
-                id: id,
-                title: title,
-                description: description,
-                isCompleted: isCompleted,
-                estimatedHours: estimatedHours,
-                completedAt: completedAt,
-                createdAt: createdAt
-            )
+        let subtasks: [Subtask] = subtasksData.compactMap { m in
+            guard let id = m["id"] as? String,
+                  let title = m["title"] as? String else { return nil }
+            let description = m["description"] as? String
+            let isCompleted = m["isCompleted"] as? Bool ?? false
+            let estimatedHours = m["estimatedHours"] as? Double
+            let completedAt = (m["completedAt"] as? Timestamp)?.dateValue()
+            let createdAt = (m["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+            return Subtask(id: id, title: title, description: description,
+                           isCompleted: isCompleted, estimatedHours: estimatedHours,
+                           completedAt: completedAt, createdAt: createdAt)
         }
-        
-        // Parse attachments
+
         let attachmentsData = data["attachments"] as? [[String: Any]] ?? []
-        let attachments = attachmentsData.compactMap { attachmentData -> AssignmentAttachment? in
-            guard let id = attachmentData["id"] as? String,
-                  let name = attachmentData["name"] as? String,
-                  let url = attachmentData["url"] as? String,
-                  let type = attachmentData["type"] as? String else {
-                return nil
-            }
-            
-            let size = attachmentData["size"] as? Int64
-            let uploadedAt = (attachmentData["uploadedAt"] as? Timestamp)?.dateValue() ?? Date()
-            
-            return AssignmentAttachment(
-                id: id,
-                name: name,
-                url: url,
-                type: AttachmentType(rawValue: type) ?? .other,
-                size: size,
-                uploadedAt: uploadedAt
-            )
+        let attachments: [AssignmentAttachment] = attachmentsData.compactMap { m in
+            guard let id = m["id"] as? String,
+                  let name = m["name"] as? String,
+                  let url = m["url"] as? String,
+                  let typeRaw = m["type"] as? String else { return nil }
+            let size = m["size"] as? Int64
+            let uploadedAt = (m["uploadedAt"] as? Timestamp)?.dateValue() ?? Date()
+            return AssignmentAttachment(id: id, name: name, url: url,
+                                        type: AttachmentType(rawValue: typeRaw) ?? .other,
+                                        size: size, uploadedAt: uploadedAt)
         }
-        
+
         return Assignment(
             id: documentID,
             title: title,
@@ -157,321 +111,81 @@ class FirebaseAssignmentDataProvider: AssignmentDataProviderProtocol {
             weight: weight,
             estimatedHours: estimatedHours,
             actualHours: actualHours,
-            priority: Priority(rawValue: priority) ?? .medium,
-            status: AssignmentStatus(rawValue: status) ?? .pending,
+            priority: Priority(rawValue: priorityRaw) ?? .medium,
+            status: AssignmentStatus(rawValue: statusRaw) ?? .pending,
             tags: tags,
             attachments: attachments,
             subtasks: subtasks,
             createdAt: createdAt,
-            updatedAt: updatedAt
+            updatedAt: updatedAt,
+            grade: grade // 👈 mapea al modelo
         )
     }
-    
-    private func assignmentToFirestoreData(_ assignment: Assignment) throws -> [String: Any] {
+
+    private func assignmentToFirestoreData(_ a: Assignment) throws -> [String: Any] {
         var data: [String: Any] = [
-            "title": assignment.title,
-            "courseId": assignment.courseId,
-            "courseName": assignment.courseName,
-            "courseColor": assignment.courseColor,
-            "dueDate": Timestamp(date: assignment.dueDate),
-            "weight": assignment.weight,
-            "priority": assignment.priority.rawValue,
-            "status": assignment.status.rawValue,
-            "tags": assignment.tags,
-            "createdAt": Timestamp(date: assignment.createdAt),
-            "updatedAt": Timestamp(date: assignment.updatedAt),
+            "title": a.title,
+            "courseId": a.courseId,
+            "courseName": a.courseName,
+            "courseColor": a.courseColor,
+            "dueDate": Timestamp(date: a.dueDate),
+            "weight": a.weight,
+            "priority": a.priority.rawValue,
+            "status": a.status.rawValue,
+            "tags": a.tags,
+            "createdAt": Timestamp(date: a.createdAt),
+            "updatedAt": Timestamp(date: a.updatedAt),
             "userId": currentUserId
         ]
-        
-        // Add optional fields
-        if let description = assignment.description {
-            data["description"] = description
-        }
-        
-        if let estimatedHours = assignment.estimatedHours {
-            data["estimatedHours"] = estimatedHours
-        }
-        
-        if let actualHours = assignment.actualHours {
-            data["actualHours"] = actualHours
-        }
-        
-        // Convert subtasks
-        let subtasksData = assignment.subtasks.map { subtask -> [String: Any] in
-            var subtaskData: [String: Any] = [
-                "id": subtask.id,
-                "title": subtask.title,
-                "isCompleted": subtask.isCompleted,
-                "createdAt": Timestamp(date: subtask.createdAt)
+        if let d = a.description { data["description"] = d }
+        if let eh = a.estimatedHours { data["estimatedHours"] = eh }
+        if let ah = a.actualHours { data["actualHours"] = ah }
+        if let g = a.grade { data["grade"] = g } // 👈 persiste grade
+
+        data["subtasks"] = a.subtasks.map { s in
+            var m: [String: Any] = [
+                "id": s.id,
+                "title": s.title,
+                "isCompleted": s.isCompleted,
+                "createdAt": Timestamp(date: s.createdAt)
             ]
-            
-            if let description = subtask.description {
-                subtaskData["description"] = description
-            }
-            
-            if let estimatedHours = subtask.estimatedHours {
-                subtaskData["estimatedHours"] = estimatedHours
-            }
-            
-            if let completedAt = subtask.completedAt {
-                subtaskData["completedAt"] = Timestamp(date: completedAt)
-            }
-            
-            return subtaskData
+            if let d = s.description { m["description"] = d }
+            if let eh = s.estimatedHours { m["estimatedHours"] = eh }
+            if let c = s.completedAt { m["completedAt"] = Timestamp(date: c) }
+            return m
         }
-        data["subtasks"] = subtasksData
-        
-        // Convert attachments
-        let attachmentsData = assignment.attachments.map { attachment -> [String: Any] in
-            var attachmentData: [String: Any] = [
-                "id": attachment.id,
-                "name": attachment.name,
-                "url": attachment.url,
-                "type": attachment.type.rawValue,
-                "uploadedAt": Timestamp(date: attachment.uploadedAt)
+
+        data["attachments"] = a.attachments.map { att in
+            var m: [String: Any] = [
+                "id": att.id,
+                "name": att.name,
+                "url": att.url,
+                "type": att.type.rawValue,
+                "uploadedAt": Timestamp(date: att.uploadedAt)
             ]
-            
-            if let size = attachment.size {
-                attachmentData["size"] = size
-            }
-            
-            return attachmentData
+            if let size = att.size { m["size"] = size }
+            return m
         }
-        data["attachments"] = attachmentsData
-        
+
         return data
     }
 }
 
-// MARK: - Firebase Errors
-
+// Errores comunes
 enum FirebaseError: LocalizedError {
     case invalidData
     case userNotAuthenticated
     case networkError(Error)
     case documentNotFound
     case permissionDenied
-    
+
     var errorDescription: String? {
         switch self {
-        case .invalidData:
-            return "Invalid data format received from Firebase"
-        case .userNotAuthenticated:
-            return "User not authenticated"
-        case .networkError(let error):
-            return "Network error: \(error.localizedDescription)"
-        case .documentNotFound:
-            return "Document not found in Firebase"
-        case .permissionDenied:
-            return "Permission denied to access this resource"
+        case .invalidData: return "Invalid data format received from Firebase"
+        case .userNotAuthenticated: return "User not authenticated"
+        case .networkError(let e): return "Network error: \(e.localizedDescription)"
+        case .documentNotFound: return "Document not found in Firebase"
+        case .permissionDenied: return "Permission denied to access this resource"
         }
-    }
-}
-
-// MARK: - Holiday Firebase Data Provider
-
-class FirebaseHolidayDataProvider: ObservableObject {
-    
-    private let db = Firestore.firestore()
-    
-    func fetchHolidays(for country: String, year: Int) async throws -> [Holiday] {
-        let snapshot = try await db.collection("holidays")
-            .whereField("country", isEqualTo: country)
-            .whereField("year", isEqualTo: year)
-            .order(by: "date")
-            .getDocuments()
-        
-        return snapshot.documents.compactMap { document in
-            try? self.documentToHoliday(document)
-        }
-    }
-    
-    func fetchAllHolidays() async throws -> [Holiday] {
-        let snapshot = try await db.collection("holidays")
-            .order(by: "date")
-            .getDocuments()
-        
-        return snapshot.documents.compactMap { document in
-            try? self.documentToHoliday(document)
-        }
-    }
-    
-    func saveHoliday(_ holiday: Holiday) async throws {
-        let data = holidayToFirestoreData(holiday)
-        try await db.collection("holidays").document(holiday.id).setData(data)
-    }
-    
-    private func holidayToFirestoreData(_ holiday: Holiday) -> [String: Any] {
-        var data: [String: Any] = [
-            "name": holiday.name,
-            "localName": holiday.localName,
-            "date": holiday.date,
-            "countryCode": holiday.countryCode,
-            "country": holiday.countryCode, // for querying
-            "year": Calendar.current.component(.year, from: holiday.dateValue)
-        ]
-        
-        if let fixed = holiday.fixed {
-            data["fixed"] = fixed
-        }
-        
-        if let global = holiday.global {
-            data["global"] = global
-        }
-        
-        if let counties = holiday.counties {
-            data["counties"] = counties
-        }
-        
-        if let launchYear = holiday.launchYear {
-            data["launchYear"] = launchYear
-        }
-        
-        if let types = holiday.types {
-            data["types"] = types
-        }
-        
-        return data
-    }
-    
-    private func documentToHoliday(_ document: QueryDocumentSnapshot) throws -> Holiday {
-        let data = document.data()
-        
-        guard let name = data["name"] as? String,
-              let date = data["date"] as? String,
-              let countryCode = data["countryCode"] as? String else {
-            throw FirebaseError.invalidData
-        }
-        
-        let localName = data["localName"] as? String ?? name
-        let fixed = data["fixed"] as? Bool
-        let global = data["global"] as? Bool
-        let counties = data["counties"] as? [String]
-        let launchYear = data["launchYear"] as? Int
-        let types = data["types"] as? [String]
-        
-        return Holiday(
-            date: date,
-            localName: localName,
-            name: name,
-            countryCode: countryCode,
-            fixed: fixed,
-            global: global,
-            counties: counties,
-            launchYear: launchYear,
-            types: types
-        )
-    }
-}
-
-// MARK: - Course Firebase Data Provider
-
-class FirebaseCourseDataProvider: ObservableObject {
-    
-    private let db = Firestore.firestore()
-    private var currentUserId: String {
-        return Auth.auth().currentUser?.uid ?? "anonymous"
-    }
-    
-    func fetchCourses() async throws -> [Course] {
-        let snapshot = try await db.collection("courses")
-            .whereField("userId", isEqualTo: currentUserId)
-            .getDocuments()
-        
-        return snapshot.documents.compactMap { document in
-            try? self.documentToCourse(document)
-        }
-    }
-    
-    func saveCourse(_ course: Course) async throws {
-        let data = try courseToFirestoreData(course)
-        try await db.collection("courses").document(course.id).setData(data)
-    }
-    
-    func updateCourse(_ course: Course) async throws {
-        let data = try courseToFirestoreData(course)
-        try await db.collection("courses").document(course.id).setData(data, merge: true)
-    }
-    
-    func deleteCourse(_ courseId: String) async throws {
-        try await db.collection("courses").document(courseId).delete()
-    }
-    
-    private func documentToCourse(_ document: QueryDocumentSnapshot) throws -> Course {
-        let data = document.data()
-        
-        guard let name = data["name"] as? String,
-              let code = data["code"] as? String,
-              let credits = data["credits"] as? Int,
-              let instructor = data["instructor"] as? String,
-              let semester = data["semester"] as? String,
-              let year = data["year"] as? Int else {
-            throw FirebaseError.invalidData
-        }
-        
-        let color = data["color"] as? String ?? "#122C4A"
-        let currentGrade = data["currentGrade"] as? Double
-        let targetGrade = data["targetGrade"] as? Double
-        let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
-        let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
-        
-        // Parse grade weights
-        let gradeWeightData = data["gradeWeight"] as? [String: Any] ?? [:]
-        let gradeWeight = GradeWeight(
-            assignments: gradeWeightData["assignments"] as? Double ?? 0.4,
-            exams: gradeWeightData["exams"] as? Double ?? 0.4,
-            projects: gradeWeightData["projects"] as? Double ?? 0.15,
-            participation: gradeWeightData["participation"] as? Double ?? 0.05,
-            other: gradeWeightData["other"] as? Double ?? 0.0
-        )
-        
-        return Course(
-            id: document.documentID,
-            name: name,
-            code: code,
-            credits: credits,
-            instructor: instructor,
-            color: color,
-            semester: semester,
-            year: year,
-            gradeWeight: gradeWeight,
-            currentGrade: currentGrade,
-            targetGrade: targetGrade,
-            createdAt: createdAt,
-            updatedAt: updatedAt
-        )
-    }
-    
-    private func courseToFirestoreData(_ course: Course) throws -> [String: Any] {
-        var data: [String: Any] = [
-            "name": course.name,
-            "code": course.code,
-            "credits": course.credits,
-            "instructor": course.instructor,
-            "color": course.color,
-            "semester": course.semester,
-            "year": course.year,
-            "gradeWeight": [
-                "assignments": course.gradeWeight.assignments,
-                "exams": course.gradeWeight.exams,
-                "projects": course.gradeWeight.projects,
-                "participation": course.gradeWeight.participation,
-                "other": course.gradeWeight.other
-            ],
-            "createdAt": Timestamp(date: course.createdAt),
-            "updatedAt": Timestamp(date: course.updatedAt),
-            "userId": currentUserId
-        ]
-        
-        // Add optional fields only if they have values
-        if let currentGrade = course.currentGrade {
-            data["currentGrade"] = currentGrade
-        }
-        
-        if let targetGrade = course.targetGrade {
-            data["targetGrade"] = targetGrade
-        }
-        
-        return data
     }
 }

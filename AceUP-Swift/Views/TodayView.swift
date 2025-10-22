@@ -19,67 +19,69 @@ struct TodayView: View {
     }
     
      var body: some View {
-         VStack(spacing: 0) {
-             // Header
-             VStack {
-                 HStack {
-                     Button(action: onMenuTapped) {
-                         Image(systemName: "line.3.horizontal")
+         GeometryReader { geometry in
+             VStack(spacing: 0) {
+                 // Header
+                 VStack {
+                     HStack {
+                         Button(action: onMenuTapped) {
+                             Image(systemName: "line.3.horizontal")
+                                 .foregroundColor(UI.navy)
+                                 .font(.body)
+                         }
+                        
+                         Spacer()
+                        
+                         Text("Today")
+                             .font(.headline)
+                             .fontWeight(.semibold)
                              .foregroundColor(UI.navy)
-                             .font(.body)
+                        
+                         Spacer()
+                        
+                         Color.clear
+                             .frame(width: 24)
                      }
-                    
-                     Spacer()
-                    
-                     Text("Today")
-                         .font(.headline)
-                         .fontWeight(.semibold)
-                         .foregroundColor(UI.navy)
-                    
-                     Spacer()
-                    
-                     Color.clear
-                         .frame(width: 24)
+                     .padding(.horizontal, 16)
                  }
-                 .padding(.horizontal, 16)
-             }
-             .frame(height: 60)
-             .background(Color(hex: "#B8C8DB"))
-            
-            // Main Content
-            VStack(spacing: 0) {
-                // Tab Navigation
-                HStack(spacing: 8) {
-                    TabButton(
-                        title: "Assignments",
-                        isSelected: selectedTab == .assignments,
-                        action: { selectedTab = .assignments }
-                    )
-                    
-                    TabButton(
-                        title: "Timetable", 
-                        isSelected: selectedTab == .timetable,
-                        action: { selectedTab = .timetable }
-                    )
-                    
-                    TabButton(
-                        title: "Exams",
-                        isSelected: selectedTab == .exams,
-                        action: { selectedTab = .exams }
-                    )
-                    
-                    TabButton(
-                        title: "Insights",
-                        isSelected: selectedTab == .insights,
-                        action: { selectedTab = .insights }
-                    )
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 20)
+                 .frame(height: geometry.size.width > geometry.size.height ? 50 : 60) // Shorter header in landscape
+                 .background(Color(hex: "#B8C8DB"))
                 
+                // Main Content
+                VStack(spacing: 0) {
+                // Tab Navigation
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: geometry.size.width > geometry.size.height ? 16 : 8) {
+                        TabButton(
+                            title: "Assignments",
+                            isSelected: selectedTab == .assignments,
+                            action: { selectedTab = .assignments }
+                        )
+                        
+                        TabButton(
+                            title: "Timetable",
+                            isSelected: selectedTab == .timetable,
+                            action: { selectedTab = .timetable }
+                        )
+                        
+                        TabButton(
+                            title: "Exams",
+                            isSelected: selectedTab == .exams,
+                            action: { selectedTab = .exams }
+                        )
+                        
+                        TabButton(
+                            title: "Insights",
+                            isSelected: selectedTab == .insights,
+                            action: { selectedTab = .insights }
+                        )
+                    }
+                    .padding(.horizontal, 20)
+                }
+    
                 // Tab Content
                 ScrollView {
-                    VStack(spacing: 20) {
+                    VStack(spacing: geometry.size.width > geometry.size.height ? 15 : 20) {
                         switch selectedTab {
                         case .assignments:
                             AssignmentsTabContent(assignmentViewModel: assignmentViewModel)
@@ -91,7 +93,7 @@ struct TodayView: View {
                             SmartInsightsTabContent(analytics: smartAnalytics)
                         }
                     }
-                    .padding(.bottom, 100) // Extra padding for FAB
+                    .padding(.bottom, geometry.size.width > geometry.size.height ? 80 : 100) // Less bottom padding in landscape
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -110,16 +112,18 @@ struct TodayView: View {
                             .font(.title2)
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
+                            .frame(width: geometry.size.width > geometry.size.height ? 48 : 56, 
+                                   height: geometry.size.width > geometry.size.height ? 48 : 56) // Smaller FAB in landscape
                             .background(UI.primary)
                             .clipShape(Circle())
                             .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
                     }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 30)
+                    .padding(.trailing, geometry.size.width > geometry.size.height ? 15 : 20)
+                    .padding(.bottom, geometry.size.width > geometry.size.height ? 15 : 30)
                 }
             }
         )
+     }
         .navigationBarHidden(true)
         .sheet(isPresented: $showingCreateAssignment) {
             CreateAssignmentView(viewModel: assignmentViewModel)
@@ -140,124 +144,7 @@ struct SmartInsightsTabContent: View {
     @ObservedObject var analytics: SmartCalendarAnalytics
     
     var body: some View {
-        VStack(spacing: 20) {
-            // Today's Smart Highlights
-            todayHighlights
-            
-            // Weekly Insights
-            if let latestInsight = analytics.weeklyInsights.first {
-                SmartInsightsCard(insight: latestInsight)
-                    .padding(.horizontal, 20)
-            }
-            
-            // Productivity Trends
-            if !analytics.productivityTrends.isEmpty {
-                ProductivityChart(trends: analytics.productivityTrends)
-                    .padding(.horizontal, 20)
-            }
-            
-            // Study Patterns
-            if !analytics.studyPatterns.isEmpty {
-                StudyPatternsView(patterns: analytics.studyPatterns)
-                    .padding(.horizontal, 20)
-            }
-            
-            // Collaboration Metrics
-            if let metrics = analytics.collaborationMetrics {
-                CollaborationMetricsView(metrics: metrics)
-                    .padding(.horizontal, 20)
-            }
-        }
-    }
-    
-    // MARK: - Today's Highlights
-    private var todayHighlights: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            HStack {
-                Image(systemName: "sparkles")
-                    .foregroundColor(UI.primary)
-                
-                Text("Today's Highlights")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 15) {
-                    TodayHighlightCard(
-                        icon: "calendar.badge.clock",
-                        title: "Next Meeting",
-                        subtitle: "Mobile Dev Team",
-                        time: "2:00 PM",
-                        color: UI.primary
-                    )
-                    
-                    TodayHighlightCard(
-                        icon: "clock.badge.checkmark",
-                        title: "Focus Time",
-                        subtitle: "Best for deep work",
-                        time: "10:00 AM",
-                        color: UI.success
-                    )
-                    
-                    TodayHighlightCard(
-                        icon: "person.3.fill",
-                        title: "Group Available",
-                        subtitle: "Study Buddies",
-                        time: "4:00 PM",
-                        color: UI.warning
-                    )
-                }
-                .padding(.horizontal, 20)
-            }
-        }
-    }
-}
-
-struct TodayHighlightCard: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-    let time: String
-    let color: Color
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: icon)
-                    .foregroundColor(color)
-                    .font(.title3)
-                
-                Spacer()
-                
-                Text(time)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(color)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(UI.navy)
-                
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(UI.muted)
-            }
-        }
-        .padding(15)
-        .frame(width: 140, height: 100)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(.white)
-                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
-        )
+        TodayInsightsView()
     }
 }
 
@@ -428,7 +315,7 @@ struct TimetableTabContent: View {
 struct AssignmentsTabContent: View {
     @ObservedObject var assignmentViewModel: AssignmentViewModel
     @State private var days: Int? = nil
-    @State private var sending = false
+    @State private var isSchedulingNotification = false
     private let userKey = UserKeyManager.shared.userKey()
     
     init(assignmentViewModel: AssignmentViewModel) {
@@ -456,7 +343,7 @@ struct AssignmentsTabContent: View {
             .frame(maxWidth: .infinity)
             .background(Color(.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
+            
             // Smart Feature: Workload Analysis
             if let analysis = assignmentViewModel.workloadAnalysis {
                 WorkloadInsightCard(analysis: analysis)
@@ -465,42 +352,139 @@ struct AssignmentsTabContent: View {
             // Today's Assignments List
             TodaysAssignmentsList(viewModel: assignmentViewModel)
             
-            // Test button for existing analytics
-            Button {
-                sending = true
-                AnalyticsClient.sendAssignmentCompleted(
-                    userKey: userKey,
-                    assignmentId: UUID().uuidString
-                ) { _ in
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                        AnalyticsClient.fetchDaysSinceLastProgress(userKey: userKey) { val in
-                            DispatchQueue.main.async {
-                                days = val
-                                sending = false
+            // Trigger Highest Weight Assignment Notification
+            VStack(spacing: 8) {
+                Button {
+                    // Prevent rapid successive calls
+                    guard !isSchedulingNotification else { return }
+                    isSchedulingNotification = true
+                    
+                    // Check notification authorization and trigger notification
+                    NotificationService.checkAuthorizationStatus { status in
+                        // If authorized, send notification
+                        if status.contains("Authorized") {
+                            if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
+                                NotificationService.scheduleHighestWeightAssignmentReminder(assignment: highestWeightAssignment)
                             }
+                        } else if status.contains("Not determined") {
+                            // Request permission
+                            NotificationService.requestAuthorization()
+                        }
+                        
+                        // Reset flag after 2 seconds
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            isSchedulingNotification = false
                         }
                     }
+                } label: {
+                    HStack {
+                        Image(systemName: isSchedulingNotification ? "hourglass" : "bell.fill")
+                        Text(isSchedulingNotification ? "Scheduling..." : "Set Priority Reminder")
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-            } label: {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text(sending ? "Sending..." : "Test Analytics Event")
+                .buttonStyle(.bordered)
+                .disabled(isSchedulingNotification || assignmentViewModel.highestWeightPendingAssignment == nil)
+                
+                // Test button for immediate notification (for development/testing)
+                Button {
+                    // Prevent rapid successive calls
+                    guard !isSchedulingNotification else { return }
+                    isSchedulingNotification = true
+                    
+                    NotificationService.checkAuthorizationStatus { status in
+                        if status.contains("Authorized") {
+                            let testDate = Calendar.current.date(byAdding: .second, value: 3, to: Date()) ?? Date()
+                            
+                            if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
+                                NotificationService.schedule(
+                                    id: "test_immediate_\(Int(Date().timeIntervalSince1970))",
+                                    title: "High Priority Assignment",
+                                    body: "Your assignment '\(highestWeightAssignment.title)' (\(highestWeightAssignment.weightPercentage)% of grade) needs attention!",
+                                    date: testDate
+                                )
+                            } else {
+                                NotificationService.schedule(
+                                    id: "test_immediate_\(Int(Date().timeIntervalSince1970))",
+                                    title: "High Priority Assignment",
+                                    body: "Test notification - No pending assignments found.",
+                                    date: testDate
+                                )
+                            }
+                        } else if status.contains("Not determined") {
+                            NotificationService.requestAuthorization()
+                        }
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            isSchedulingNotification = false
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "clock.badge.exclamationmark")
+                        Text("Test (3 sec)")
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .disabled(sending)
+                .buttonStyle(.borderedProminent)
+                .disabled(isSchedulingNotification)
 
-            Spacer()
-        }
-        .padding(.horizontal, 20)
-        .onAppear {
-            AnalyticsClient.fetchDaysSinceLastProgress(userKey: userKey) { val in
-                DispatchQueue.main.async { days = val }
+                // BQ 2.4 boton
+                // Test BQ: Days Since Last Activity (Type 2) — demo button
+                Button {
+                    Task {
+                        guard !isSchedulingNotification else { return }
+                        isSchedulingNotification = true
+                        defer { DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { isSchedulingNotification = false } }
+                        do {
+                            let repo = AssignmentRepository()
+                            let all = try await repo.getAllAssignments()
+                            let completed = all.filter { $0.status == .completed }
+                            let lastDate = completed.map { $0.updatedAt }.max() ?? Date.distantPast
+                            let days = Calendar.current.dateComponents([.day], from: lastDate, to: Date()).day ?? 0
+
+                            let body: String
+                            if completed.isEmpty {
+                                body = "We couldn't find completed assignments yet. Update any grade or mark one as done to start tracking."
+                            } else {
+                                body = "It's been \(days) day\(days == 1 ? "" : "s") since your last update."
+                            }
+
+                            NotificationService.schedule(
+                                id: "test_bq_days_since_activity_today",
+                                title: "BQ Test – Days Since Activity",
+                                body: body,
+                                date: Date().addingTimeInterval(3)
+                            )
+
+                            // Analytics event for demo purposes
+                            AnalyticsClient.shared.logEvent(
+                                AnalyticsEventType.smartReminderTriggered.rawValue,
+                                parameters: [
+                                    "type": "inactivity_test_today" as NSString,
+                                    "days_since": NSNumber(value: days),
+                                    "source": "ios_app" as NSString
+                                ]
+                            )
+                        } catch {
+                            NotificationService.schedule(
+                                id: "test_bq_days_since_activity_today_error",
+                                title: "BQ Test – Error",
+                                body: "Failed to compute days since activity: \(error.localizedDescription)",
+                                date: Date().addingTimeInterval(3)
+                            )
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "calendar.badge.clock")
+                        Text("Test BQ: Days Since Activity")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isSchedulingNotification)
             }
-        }
-        .task {
-            await assignmentViewModel.loadAssignments()
         }
     }
 
@@ -762,3 +746,4 @@ struct TodayAssignmentRow: View {
         .padding(.vertical, 4)
     }
 }
+

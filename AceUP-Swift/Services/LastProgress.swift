@@ -1,27 +1,26 @@
+//
+//  LastProgress.swift
+//  AceUP-Swift
+//
+//  Created by Julian David  Parra Forero on 13/10/25.
+//
+
 import Foundation
 
-extension Notification.Name {
-    static let lastProgressUpdated = Notification.Name("lastProgressUpdated")
-}
-
-// Guarda el último timestamp en UserDefaults y calcula días transcurridos
+/// Guarda el último timestamp de progreso (nota registrada o tarea completada)
 final class LastProgress {
     static let shared = LastProgress()
-    private init() {}
-    
-    private let key = "last_progress_at_epoch"
+    private let key = "lastProgressTimestamp"
 
-    func update(date: Date = Date()) {
-        UserDefaults.standard.set(date.timeIntervalSince1970, forKey: key)
-        NotificationCenter.default.post(name: .lastProgressUpdated, object: nil)
+    /// Marca "hubo progreso" ahora
+    func update() {
+        UserDefaults.standard.set(Date(), forKey: key)
     }
 
-    /// Retorna nil si nunca hubo progreso
-    func daysSinceNow() -> Int? {
-        let t = UserDefaults.standard.double(forKey: key)
-        guard t > 0 else { return nil }
-        let now = Date().timeIntervalSince1970
-        let days = Int( (now - t) / 86_400.0 )
+    /// Días transcurridos desde el último progreso; nil si nunca hubo
+    func daysSinceLast() -> Int? {
+        guard let d = UserDefaults.standard.object(forKey: key) as? Date else { return nil }
+        let days = Calendar.current.dateComponents([.day], from: d, to: Date()).day ?? 0
         return max(days, 0)
     }
 }
