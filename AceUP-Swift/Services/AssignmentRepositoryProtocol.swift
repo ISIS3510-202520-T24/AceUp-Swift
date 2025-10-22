@@ -7,6 +7,8 @@ protocol AssignmentRepositoryProtocol: AnyObject {
     func saveAssignment(_ assignment: Assignment) async throws
     func updateAssignment(_ assignment: Assignment) async throws
     func deleteAssignment(_ id: String) async throws
+    
+    func fetchDueTodayNotDone(now: Date) async throws -> [Assignment]
 
     // Subtareas
     func addSubtask(to assignmentId: String, subtask: Subtask) async throws

@@ -10,13 +10,17 @@ import Firebase
 import FirebaseAuth
 import FirebaseCore
 import FirebaseAnalytics
+import UserNotifications
 
 @main
 struct AceUP_SwiftApp: App {
 
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     let persistenceController = PersistenceController.shared
-
+    
+    @StateObject private var repo = AssignmentRepository()
+    @Environment(\.scenePhase) private var scenePhase
+    
     // Configuración de Firebase + sincronización de GA4 user_id
     init() {
         FirebaseConfig.shared.configure()
@@ -52,8 +56,23 @@ struct AceUP_SwiftApp: App {
                 .onOpenURL { url in
                     handleDeepLink(url: url)
                 }
+                .task {
+                    print(" App start: notify <3h")
+                    await NotificationService.notifyAssignmentsDueWithin3Hours(using: repo)
+                    // Prueba rápida:
+                    await NotificationService.debugFireIn10Seconds()
+                }
         }
         .handlesExternalEvents(matching: ["aceup"])
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                Task {
+                    print("▶️ Foreground: notify <3h")
+                    await NotificationService.notifyAssignmentsDueWithin3Hours(using: repo)
+                }
+            }
+        }
+        
     }
 
     // MARK: - Deep Link Handling

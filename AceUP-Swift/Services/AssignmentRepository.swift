@@ -105,7 +105,26 @@ final class AssignmentRepository: ObservableObject, AssignmentRepositoryProtocol
             "grade": finalGrade as Any
         ])
     }
+    
+    func fetchDueTodayNotDone(now: Date) async throws -> [Assignment] {
+        // Asegura cache
+        let all = try await getAllAssignments()
 
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: now)
+        // fin exclusivo = inicio del día siguiente
+        guard let end = cal.date(byAdding: .day, value: 1, to: start) else { return [] }
+
+        // Estados válidos (no completed/cancelled)
+        let validStatuses: Set<AssignmentStatus> = [.pending, .inProgress, .overdue]
+
+        return all
+            .filter { a in
+                validStatuses.contains(a.status) &&
+                a.dueDate >= start && a.dueDate < end
+            }
+            .sorted { $0.dueDate < $1.dueDate }
+    }
     func markCompleted(_ assignmentId: String) async throws {
         try await markCompleted(assignmentId, finalGrade: nil)
     }
