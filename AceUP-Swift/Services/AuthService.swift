@@ -10,12 +10,6 @@ import FirebaseAuth
 import FirebaseFirestore
 import Combine
 
-struct AppUser {
-    let uid: String
-    let email: String
-    let nick: String
-}
-
 final class AuthService: ObservableObject {
     @Published var user: FirebaseAuth.User?
     
@@ -27,17 +21,17 @@ final class AuthService: ObservableObject {
         self.user = auth.currentUser
     }
 
-    // SIGNUP + send email verification
+    // MARK: - SIGNUP + send email verification
     @discardableResult
     func signUp(email: String, password: String, nick: String) async throws -> (FirebaseAuth.User, DocumentReference) {
         // Ensure we're in a clean state
         guard !email.isEmpty, !password.isEmpty, !nick.isEmpty else {
-            throw NSError(domain: "AuthServiceError", code: -1, userInfo: [NSLocalizedDescriptionKey: "All fields are required"])
+            throw AppAuthError.unknown("All fields are required")
         }
         
         // Check network connectivity first (basic check)
         guard await isNetworkAvailable() else {
-            throw NSError(domain: "AuthServiceError", code: -2, userInfo: [NSLocalizedDescriptionKey: "No internet connection available"])
+            throw AppAuthError.network
         }
         
         do {
@@ -45,7 +39,7 @@ final class AuthService: ObservableObject {
             
             // Verify the user was actually created
             guard let currentUser = Auth.auth().currentUser else {
-                throw NSError(domain: "AuthServiceError", code: -3, userInfo: [NSLocalizedDescriptionKey: "User creation succeeded but current user is nil"])
+                throw AppAuthError.unknown("User creation succeeded but current user is nil")
             }
             
             // Create user document in Firestore with retry mechanism
@@ -72,7 +66,7 @@ final class AuthService: ObservableObject {
                     if attempts >= maxAttempts {
                         // If Firestore fails, we should clean up the Firebase Auth user
                         try? await currentUser.delete()
-                        throw NSError(domain: "AuthServiceError", code: -4, userInfo: [NSLocalizedDescriptionKey: "Failed to create user profile after multiple attempts"])
+                        throw AppAuthError.unknown("Failed to create user profile after multiple attempts")
                     }
                     
                     // Wait before retry
@@ -90,24 +84,16 @@ final class AuthService: ObservableObject {
 
             return (result.user, userRef)
             
-        } catch let error as NSError {
-            // Ensure we're in a clean state after failure
-            await MainActor.run {
-                self.user = nil
-            }
-            
-            throw error
         } catch {
             // Ensure we're in a clean state after failure
             await MainActor.run {
                 self.user = nil
             }
-            
-            throw error
+            throw mapFirebaseAuthError(error)
         }
     }
     
-    // Simple network availability check
+    // MARK: - Simple network availability check
     private func isNetworkAvailable() async -> Bool {
         do {
             let url = URL(string: "https://www.google.com")!
@@ -120,21 +106,17 @@ final class AuthService: ObservableObject {
         }
     }
 
-    // LOGIN
+    // MARK: - LOGIN
     @discardableResult
     func SignIn(email: String, password: String) async throws -> AppUser {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<AppUser, Error>) in
             auth.signIn(withEmail: email, password: password) { result, error in
                 if let error = error {
-                    continuation.resume(throwing: error)
+                    continuation.resume(throwing: self.mapFirebaseAuthError(error))
                     return
                 }
                 guard let user = result?.user else {
-                    continuation.resume(throwing: NSError(
-                        domain: "Auth",
-                        code: -1,
-                        userInfo: [NSLocalizedDescriptionKey: "User not found"]
-                    ))
+                    continuation.resume(throwing: AppAuthError.userNotFound)
                     return
                 }
 
@@ -156,12 +138,16 @@ final class AuthService: ObservableObject {
         }
     }
 
-    // FORGOT PASSWORD
+    // MARK: - FORGOT PASSWORD
     func sendPasswordReset(to email: String) async throws {
-        try await auth.sendPasswordReset(withEmail: email)
+        do {
+            try await auth.sendPasswordReset(withEmail: email)
+        } catch {
+            throw mapFirebaseAuthError(error)
+        }
     }
     
-    // SIGN OUT
+    // MARK: - SIGN OUT
     func signOut() throws {
         try auth.signOut()
         // Clear the user property on main thread
@@ -170,7 +156,7 @@ final class AuthService: ObservableObject {
         }
     }
     
-    // GET CURRENT USER
+    // MARK: - GET CURRENT USER
     var currentUser: AppUser? {
         guard let firebaseUser = auth.currentUser else { return nil }
         return AppUser(
@@ -180,33 +166,33 @@ final class AuthService: ObservableObject {
         )
     }
     
-    // CHECK IF USER IS LOGGED IN
+    // MARK: - CHECK IF USER IS LOGGED IN
     var isLoggedIn: Bool {
         return auth.currentUser != nil
     }
 
-    // Resend verification (useful from a notice screen)
+    // MARK: - Resend verification (useful from a notice screen)
     func resendVerificationEmail() async throws {
         guard let user = auth.currentUser else {
-            throw NSError(domain: "Auth", code: 404,
-                          userInfo: [NSLocalizedDescriptionKey: "No active session"])
+            throw AppAuthError.userNotFound
         }
-        try await user.sendEmailVerification()
+        do {
+            try await user.sendEmailVerification()
+        } catch {
+            throw mapFirebaseAuthError(error)
+        }
     }
 
+    // MARK: - Legacy helpers (si decides usarlos internamente)
     private func createUser(email: String, password: String) async throws -> AuthDataResult {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<AuthDataResult, Error>) in
             auth.createUser(withEmail: email, password: password) { result, error in
                 if let error = error {
-                    continuation.resume(throwing: error)
+                    continuation.resume(throwing: self.mapFirebaseAuthError(error))
                     return
                 }
                 guard let result = result else {
-                    continuation.resume(throwing: NSError(
-                        domain: "Auth",
-                        code: -2,
-                        userInfo: [NSLocalizedDescriptionKey: "Create user failed"]
-                    ))
+                    continuation.resume(throwing: AppAuthError.unknown("Create user failed"))
                     return
                 }
                 continuation.resume(returning: result)
@@ -228,7 +214,33 @@ final class AuthService: ObservableObject {
             print("User profile saved successfully")
         } catch {
             print("Failed to save user profile: \(error)")
-            throw error
+            throw mapFirebaseAuthError(error)
         }
+    }
+}
+
+// MARK: - Firebase → AppAuthError mapper
+private extension AuthService {
+    func mapFirebaseAuthError(_ error: Error) -> AppAuthError {
+        let ns = error as NSError
+
+        // En tu SDK, AuthErrorCode ES el enum (no hay AuthErrorCode.Code)
+        if ns.domain == AuthErrorDomain, let code = AuthErrorCode(rawValue: ns.code) {
+            switch code {
+            case .emailAlreadyInUse:     return .emailAlreadyInUse
+            case .weakPassword:          return .weakPassword
+            case .invalidEmail:          return .invalidEmail
+            case .networkError:          return .network
+            case .userNotFound:          return .userNotFound
+            case .wrongPassword:         return .wrongPassword
+            case .requiresRecentLogin:   return .requiresRecentLogin
+            case .tooManyRequests:       return .tooManyRequests
+            case .userDisabled:          return .userDisabled
+            default:                     return .unknown(ns.localizedDescription)
+            }
+        }
+
+        // Fallback si no coincide el dominio o no se pudo parsear
+        return .unknown(error.localizedDescription)
     }
 }
