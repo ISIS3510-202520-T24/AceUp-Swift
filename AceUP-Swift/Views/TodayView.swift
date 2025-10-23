@@ -429,6 +429,49 @@ struct AssignmentsTabContent: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(isSchedulingNotification)
 
+                // BQ 2J Próxima entrega 
+                Button {
+                    // Evitar llamadas rápidas consecutivas
+                    guard !isSchedulingNotification else { return }
+                    isSchedulingNotification = true
+
+                    NotificationService.checkAuthorizationStatus { status in
+                        Task {
+                            defer {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                    isSchedulingNotification = false
+                                }
+                            }
+                            if status.contains("Authorized") {
+                                do {
+                                    let repo = AssignmentRepository()
+                                    let all = try await repo.getAllAssignments()
+                                    NotificationService.scheduleDaysUntilNextDueAssignment(assignments: all)
+                                } catch {
+                                    // Feedback si falla el fetch
+                                    NotificationService.schedule(
+                                        id: "bq_next_due_error_\(Int(Date().timeIntervalSince1970))",
+                                        title: "Error",
+                                        body: "No se pudo obtener las tareas: \(error.localizedDescription)",
+                                        date: Date().addingTimeInterval(3)
+                                    )
+                                }
+                            } else if status.contains("Not determined") {
+                                // Solicitar permiso si aún no se ha otorgado
+                                NotificationService.requestAuthorization()
+                            }
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "calendar.badge.clock")
+                        Text("Próxima entrega (BQ 2.2)")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isSchedulingNotification)
+
                 // BQ 2.4 boton
                 // Test BQ: Days Since Last Activity (Type 2) — demo button
                 Button {

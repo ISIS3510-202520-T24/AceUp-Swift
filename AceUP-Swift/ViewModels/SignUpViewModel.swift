@@ -27,9 +27,10 @@ final class SignUpViewModel: ObservableObject {
     
     // UI states
     @Published var isLoading = false
-    @Published var errorMessage: String?   // ya no se muestra en la vista
+    @Published var errorMessage: String?   
     @Published var didComplete = false
     
+    //Inyección de Facades
     private let authService: AuthService
     private let biometricService: BiometricService
     

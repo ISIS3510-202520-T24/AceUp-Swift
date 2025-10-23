@@ -56,7 +56,7 @@ struct AnalyticsDebugView: View {
         guard !assignmentId.isEmpty else { status = "Falta Assignment ID"; return }
         do {
             try await repo.updateGrade(assignmentId, grade: parsedGrade())
-            status = "grade_recorded enviado ✅"
+            status = "grade_recorded enviado"
         } catch {
             status = "Error updateGrade: \(error.localizedDescription)"
         }
@@ -66,7 +66,7 @@ struct AnalyticsDebugView: View {
         guard !assignmentId.isEmpty else { status = "Falta Assignment ID"; return }
         do {
             try await repo.markCompleted(assignmentId, finalGrade: parsedGrade())
-            status = "assignment_completed enviado ✅"
+            status = "assignment_completed enviado"
         } catch {
             status = "Error markCompleted: \(error.localizedDescription)"
         }
