@@ -185,37 +185,150 @@ enum NotificationService {
 extension NotificationService {
     /// Programa una notificación local si han pasado `threshold` días desde la última actividad.
     /// Recibe `daysSince` (calculado por tu capa de analytics) y evita duplicados con una ventana de enfriamiento.
-    static func scheduleInactivityReminderIfNeeded(daysSince: Int, threshold: Int = 3) {
-        guard daysSince >= threshold else { return }
-
-        // Anti-spam: evita enviar más de 1 notificación de inactividad en 6 horas
+    static func scheduleInactivityReminderIfNeeded(
+        daysSince: Int,
+        threshold: Int = 3,
+        nextAssignment: Assignment? = nil,
+        daysLeft: Int? = nil,
+        fireAfter seconds: TimeInterval = 5,
+        force: Bool = false
+    ) {
         let cooldownKey = "inactivity"
         let now = Date()
-        if let last = lastNotificationTime[cooldownKey], now.timeIntervalSince(last) < 6 * 60 * 60 {
+
+        // Cooldown de 1h (solo si NO forzamos)
+        if !force, let last = lastNotificationTime[cooldownKey],
+           now.timeIntervalSince(last) < 3600 {
+            print("[InactivityReminder] Skip by cooldown")
             return
         }
 
-        let title = "Time to update your progress"
-        let body  = "It's been \(daysSince) days since your last grade update or completed assignment."
+        // Umbral (solo si NO forzamos)
+        if !force && daysSince < threshold {
+            print("[InactivityReminder] Skip by threshold daysSince(\(daysSince)) < \(threshold)")
+            return
+        }
 
-        // Dispara en ~5 segundos (visible de inmediato para el usuario)
+        let plural = (daysSince == 1) ? "" : "s"
+        let title = "Time to Update Your Progress"
+        let body  = "It's been \(daysSince) day\(plural) since you last updated your assignments."
+
+        // Disparo claro en X segundos (evita que quede “en el pasado”)
+        let fireDate = now.addingTimeInterval(seconds)
+
         schedule(
-            id: "inactivity_reminder",
+            id: "\(cooldownKey)_\(Int(now.timeIntervalSince1970))",
             title: title,
             body: body,
-            date: Date().addingTimeInterval(5)
+            date: fireDate
         )
 
         lastNotificationTime[cooldownKey] = now
 
-        // Evento para GA4/BQ (vía tu colector) – útil para auditoría/embudos
+        // Analytics: solo claves válidas en este scope
+        var params: [String: NSObject] = [
+            "type": "inactivity" as NSString,
+            "days_since": NSNumber(value: daysSince),
+            "source": "ios_app" as NSString
+        ]
+        if let daysLeft { params["days_left"] = NSNumber(value: daysLeft) }
+        if let a = nextAssignment {
+            params["assignment_id"] = a.id as NSString
+            params["course_id"]     = a.courseId as NSString
+        }
+
+        AnalyticsClient.shared.logEvent(
+            AnalyticsEventType.smartReminderTriggered.rawValue,
+            parameters: params
+        )
+    }
+    
+    // Cuantos días faltan para la próxima tarea?
+    static func daysUntilNextImportantEvent(from assignments: [Assignment], weightThreshold: Double) -> (assignment: Assignment, daysLeft: Int)? {
+        let now = Date()
+        let calendar = Calendar.current
+        
+        // Filtrar asignaciones por peso y fecha de vencimiento
+        let filtered = assignments.filter { assignment in
+            assignment.weight >= weightThreshold && assignment.dueDate > now
+        }
+        
+        // Encontrar la asignación más cercana
+        guard let next = filtered.min(by: { $0.dueDate < $1.dueDate }) else {
+            return nil
+        }
+        
+        // Calcular los días restantes
+        let daysLeft = calendar.dateComponents([.day], from: now, to: next.dueDate).day ?? 0
+        
+        return (assignment: next, daysLeft: daysLeft)
+    }
+    
+    static func scheduleDaysUntilNextDueAssignment(
+        assignments: [Assignment],
+        cooldownHours: Double = 12.0
+    ) {
+        let cooldownKey = "next_due_assignment_days"
+        let now = Date()
+        if let last = lastNotificationTime[cooldownKey],
+           now.timeIntervalSince(last) < (cooldownHours * 3600.0) {
+            return
+        }
+
+        guard let result = daysUntilNextDueAssignment(from: assignments) else {
+            return
+        }
+
+        let a = result.assignment
+        let daysLeft = result.daysLeft
+
+        let title: String
+        let body: String
+        if daysLeft <= 0 {
+            title = "Assignment due today"
+            body = "“\(a.title)” assignment it´s for(\(a.formattedDueDate))."
+        } else if daysLeft == 1 {
+            title = "1 day left for your next assignment"
+            body = "“\(a.title)” assignment it´s for (\(a.formattedDueDate))."
+        } else {
+            title = "\(daysLeft) days left for your next assignment"
+            body = "“\(a.title)” of \(a.courseName) it´s for \(a.formattedDueDate)."
+        }
+
+        let fireDate = Calendar.current.date(byAdding: .second, value: 10, to: now) ?? now
+
+        schedule(
+            id: cooldownKey,
+            title: title,
+            body: body,
+            date: fireDate
+        )
+
+        lastNotificationTime[cooldownKey] = now
+
         AnalyticsClient.shared.logEvent(
             AnalyticsEventType.smartReminderTriggered.rawValue,
             parameters: [
-                "type": "inactivity" as NSString,
-                "days_since": NSNumber(value: daysSince),
+                "type": "days_until_next_due_assignment" as NSString,
+                "days_left": NSNumber(value: daysLeft),
+                "assignment_id": a.id as NSString,
+                "course_id": a.courseId as NSString,
                 "source": "ios_app" as NSString
             ]
         )
+    }
+
+    @discardableResult
+    static func daysUntilNextDueAssignment(
+        from assignments: [Assignment]
+    ) -> (assignment: Assignment, daysLeft: Int)? {
+        let candidates = assignments.filter { a in
+            (a.status == .pending || a.status == .inProgress) && !a.isOverdue
+        }
+        guard let next = candidates.sorted(by: { $0.dueDate < $1.dueDate }).first else {
+            return nil
+        }
+        let daysLeft = max(0, next.daysUntilDue)
+        return (next, daysLeft)
     }
 }
