@@ -172,6 +172,7 @@ enum AppView {
     case holidays
     case profile
     case settings
+    case scheduleOCR 
 }
 
 #Preview {
