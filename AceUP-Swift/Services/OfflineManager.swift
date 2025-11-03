@@ -76,20 +76,29 @@ class OfflineManager: ObservableObject {
             
             guard let self = self else { return }
             
-            // Debounce rapid network changes with a simple delay
+            // Handle network changes with appropriate debouncing
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 
-                // Wait to debounce rapid changes
-                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                // If going from unsatisfied to satisfied, update immediately
+                // If going from satisfied to unsatisfied, also update immediately
+                // Only debounce for satisfied->satisfied transitions
+                let needsImmediateUpdate = (path.status == .satisfied && !self.isOnline) || 
+                                          (path.status != .satisfied && self.isOnline)
+                
+                if !needsImmediateUpdate {
+                    // Wait to debounce rapid changes for non-critical updates
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                }
                 
                 self.updateConnectionStatus(path)
                 
                 // When path becomes satisfied, test actual internet connectivity
                 if path.status == .satisfied {
                     Task {
-                        // Wait a moment for connection to stabilize
-                        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                        // For immediate updates, test connectivity sooner
+                        let delay: UInt64 = needsImmediateUpdate ? 500_000_000 : 1_000_000_000
+                        try? await Task.sleep(nanoseconds: delay)
                         await self.testInternetConnectivity()
                     }
                 }
@@ -176,15 +185,22 @@ class OfflineManager: ObservableObject {
         
         // More accurate connection detection
         // Path must be satisfied AND have a usable interface
-        let hasUsableInterface = path.usesInterfaceType(NWInterface.InterfaceType.wifi) || 
-                                path.usesInterfaceType(NWInterface.InterfaceType.cellular) || 
-                                path.usesInterfaceType(NWInterface.InterfaceType.wiredEthernet)
+        let hasWifi = path.usesInterfaceType(NWInterface.InterfaceType.wifi)
+        let hasCellular = path.usesInterfaceType(NWInterface.InterfaceType.cellular)
+        let hasEthernet = path.usesInterfaceType(NWInterface.InterfaceType.wiredEthernet)
         
-        let newOnlineStatus = path.status == .satisfied && hasUsableInterface
+        let hasUsableInterface = hasWifi || hasCellular || hasEthernet
+        
+        // If path is satisfied, consider it online even if interface checks are delayed
+        // The interface type checks can lag behind the path status during transitions
+        let newOnlineStatus = path.status == .satisfied
         
         print("🌐 updateConnectionStatus called:")
         print("   - Previous state: \(wasOnline ? "Online" : "Offline")")
         print("   - Path status: \(path.status)")
+        print("   - WiFi: \(hasWifi)")
+        print("   - Cellular: \(hasCellular)")
+        print("   - Ethernet: \(hasEthernet)")
         print("   - Has usable interface: \(hasUsableInterface)")
         print("   - Is expensive: \(path.isExpensive)")
         print("   - Final online status: \(newOnlineStatus)")
@@ -199,13 +215,19 @@ class OfflineManager: ObservableObject {
         Task { @MainActor in
             self.isOnline = newOnlineStatus
             
-            // Determine connection type
-            if path.usesInterfaceType(NWInterface.InterfaceType.wifi) {
+            // Determine connection type based on available interfaces
+            // Check in order of preference: WiFi -> Cellular -> Ethernet
+            if hasWifi {
                 self.connectionType = .wifi
-            } else if path.usesInterfaceType(NWInterface.InterfaceType.cellular) {
+            } else if hasCellular {
                 self.connectionType = .cellular
-            } else if path.usesInterfaceType(NWInterface.InterfaceType.wiredEthernet) {
+            } else if hasEthernet {
                 self.connectionType = .wiredEthernet
+            } else if newOnlineStatus {
+                // Path is satisfied but we couldn't determine the interface type yet
+                // This can happen during network transitions - default to nil and it will update
+                self.connectionType = nil
+                print("🌐 Online but interface type not yet determined - will update on next path change")
             } else {
                 self.connectionType = nil
             }
