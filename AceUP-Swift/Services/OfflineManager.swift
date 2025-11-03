@@ -322,6 +322,50 @@ class OfflineManager: ObservableObject {
         await clearCache()
     }
     
+    /// Get connection status color as hex string
+    var connectionStatusColor: String {
+        if isOnline {
+            return "#10B981" // Green
+        } else {
+            return "#F59E0B" // Orange
+        }
+    }
+    
+    /// Get connection status text
+    var connectionStatusText: String {
+        if isOnline {
+            if let type = connectionType {
+                return "Connected via \(type.displayName)"
+            } else {
+                return "Connected"
+            }
+        } else {
+            return "Offline"
+        }
+    }
+    
+    /// Refresh cache data (alias for prepareForOffline)
+    func refreshCache() async {
+        await prepareForOffline()
+    }
+    
+    /// Get the number of days until cached data becomes stale
+    func getDaysUntilStale() -> Int {
+        let daysSinceSync = Int(offlineDataAge / 86400)
+        return max(0, maxOfflineDays - daysSinceSync)
+    }
+    
+    /// Get offline data age as a formatted string
+    func getOfflineDataAge() -> String {
+        if let lastSync = lastSyncDate {
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .full
+            return formatter.localizedString(for: lastSync, relativeTo: Date())
+        } else {
+            return "Never synced"
+        }
+    }
+    
     // MARK: - Diagnostic Functions
     
     func getSyncDiagnostics() -> SyncDiagnostics {
@@ -380,18 +424,18 @@ enum OfflineCapabilityStatus {
         }
     }
     
-    var color: Color {
+    var color: String {
         switch self {
         case .ready:
-            return .green
+            return "#10B981" // Green
         case .stale:
-            return .orange
+            return "#F59E0B" // Orange
         case .unavailable:
-            return .red
+            return "#EF4444" // Red
         }
     }
     
-    var systemImage: String {
+    var icon: String {
         switch self {
         case .ready:
             return "checkmark.circle.fill"

@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct OfflineSettingsView: View {
-    @StateObject private var offlineManager = OfflineManager.shared
+    @ObservedObject private var offlineManager = OfflineManager.shared
     @State private var showingClearAlert = false
     @State private var showingRefreshAlert = false
     
