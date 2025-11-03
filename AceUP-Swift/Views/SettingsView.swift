@@ -10,7 +10,7 @@ import SwiftUI
 struct SettingsView: View {
     @StateObject private var preferencesManager = UserPreferencesManager.shared
     @StateObject private var syncManager = DataSynchronizationManager.shared
-    @StateObject private var offlineManager = OfflineManager.shared
+    @ObservedObject private var offlineManager = OfflineManager.shared
     @StateObject private var settingsViewModel = UserSettingsViewModel()
     
     @State private var showingOfflineSettings = false
@@ -624,7 +624,7 @@ struct SettingsView: View {
 // MARK: - Sync Diagnostics View
 
 struct SyncDiagnosticsView: View {
-    @StateObject private var syncManager = DataSynchronizationManager.shared
+    @ObservedObject private var syncManager = DataSynchronizationManager.shared
     
     var body: some View {
         List {
@@ -662,7 +662,7 @@ struct SyncDiagnosticsView: View {
 // MARK: - Data Management View
 
 struct DataManagementView: View {
-    @StateObject private var offlineManager = OfflineManager.shared
+    @ObservedObject private var offlineManager = OfflineManager.shared
     @State private var showingClearDataAlert = false
     
     var body: some View {

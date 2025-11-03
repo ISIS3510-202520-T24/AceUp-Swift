@@ -274,17 +274,17 @@ class OfflineManager: ObservableObject {
             // Clear assignments
             let assignmentRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "AssignmentEntity")
             let assignmentDeleteRequest = NSBatchDeleteRequest(fetchRequest: assignmentRequest)
-            try? context.execute(assignmentDeleteRequest)
+            _ = try? context.execute(assignmentDeleteRequest)
             
             // Clear holidays
             let holidayRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "HolidayEntity")
             let holidayDeleteRequest = NSBatchDeleteRequest(fetchRequest: holidayRequest)
-            try? context.execute(holidayDeleteRequest)
+            _ = try? context.execute(holidayDeleteRequest)
             
             // Clear courses
             let courseRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "CourseEntity")
             let courseDeleteRequest = NSBatchDeleteRequest(fetchRequest: courseRequest)
-            try? context.execute(courseDeleteRequest)
+            _ = try? context.execute(courseDeleteRequest)
             
             try? context.save()
         }
@@ -310,6 +310,16 @@ class OfflineManager: ObservableObject {
         if isOnline {
             await performPendingSyncOperations()
         }
+    }
+    
+    /// Get the size of offline data as a formatted string
+    func getOfflineDataSize() -> String {
+        return cachedDataSize
+    }
+    
+    /// Clear all offline data (alias for clearCache)
+    func clearOfflineData() async {
+        await clearCache()
     }
     
     // MARK: - Diagnostic Functions
@@ -345,6 +355,12 @@ enum OfflineStatus {
         case .noData:
             return "No offline data"
         }
+    }
+    
+    var formattedDataAge: String {
+        // This would typically be calculated based on actual data age
+        // For now, return a placeholder
+        return "Less than 1 day"
     }
 }
 
