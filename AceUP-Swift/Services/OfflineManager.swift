@@ -41,6 +41,8 @@ class OfflineManager: ObservableObject {
     private let persistenceController: PersistenceController
     private var cancellables = Set<AnyCancellable>()
     private let userDefaults = UserDefaults.standard
+    private var statusUpdateTask: Task<Void, Never>?
+    private var lastStatusChangeTime: Date = Date()
     
     // Cache constants
     private let maxOfflineDays = 7
@@ -76,8 +78,22 @@ class OfflineManager: ObservableObject {
             
             guard let self = self else { return }
             
-            // Handle network changes on main thread immediately
-            DispatchQueue.main.async {
+            // Cancel any pending status update
+            self.statusUpdateTask?.cancel()
+            
+            // Debounce rapid network changes (wait 500ms before updating)
+            self.statusUpdateTask = Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                
+                // Wait to debounce rapid changes
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                
+                // Check if task was cancelled
+                guard !Task.isCancelled else {
+                    print("🌐 Status update cancelled (debounced)")
+                    return
+                }
+                
                 self.updateConnectionStatus(path)
                 
                 // When path becomes satisfied, test actual internet connectivity
@@ -209,9 +225,9 @@ class OfflineManager: ObservableObject {
             
             // Handle connection restoration - trigger immediately when going from offline to online
             if newOnlineStatus && !wasOnline {
-                print("🌐 Connection restored! Triggering banner update...")
+                print("🌐 Connection restored! Banner will disappear...")
                 
-                // Immediately show connection restored banner
+                // Show connection restored banner briefly
                 self.connectionRestoredRecently = true
                 
                 // Auto-sync when connection is restored
@@ -221,17 +237,17 @@ class OfflineManager: ObservableObject {
                     }
                 }
                 
-                // Hide the "Connected" indication after 3 seconds
+                // Hide the green "Connected" banner after 3 seconds
                 Task {
                     try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
                     await MainActor.run {
-                        print("🌐 Hiding connection restored banner...")
+                        print("🌐 Hiding green connected banner...")
                         self.connectionRestoredRecently = false
                     }
                 }
             } else if !newOnlineStatus && wasOnline {
-                // Connection lost - ensure banner shows immediately
-                print("🚫 Connection lost! Showing offline banner...")
+                // Connection lost - ensure offline banner shows immediately
+                print("🚫 Connection lost! Showing red offline banner...")
                 self.connectionRestoredRecently = false
             }
         }
