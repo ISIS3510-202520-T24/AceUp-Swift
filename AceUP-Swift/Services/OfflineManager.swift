@@ -246,7 +246,8 @@ class OfflineManager: ObservableObject {
         calculateCachedDataSize()
     }
     
-    private func performPendingSyncOperations() async {
+    /// Perform pending sync operations
+    func performPendingSyncOperations() async {
         guard pendingSyncOperations > 0 else { return }
         
         // Simulate sync operations
