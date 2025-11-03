@@ -67,11 +67,11 @@ class OfflineManager: ObservableObject {
     private func setupNetworkMonitoring() {
         print("🌐 Setting up network monitoring...")
         
-        pathMonitor.pathUpdateHandler = { [weak self] path in
+        networkMonitor.pathUpdateHandler = { [weak self] (path: NWPath) in
             print("🌐 Network path changed: \(path.status)")
-            print("   - WiFi: \(path.usesInterfaceType(.wifi))")
-            print("   - Cellular: \(path.usesInterfaceType(.cellular))")
-            print("   - Ethernet: \(path.usesInterfaceType(.wiredEthernet))")
+            print("   - WiFi: \(path.usesInterfaceType(NWInterface.InterfaceType.wifi))")
+            print("   - Cellular: \(path.usesInterfaceType(NWInterface.InterfaceType.cellular))")
+            print("   - Ethernet: \(path.usesInterfaceType(NWInterface.InterfaceType.wiredEthernet))")
             print("   - Is expensive: \(path.isExpensive)")
             
             guard let self = self else { return }
@@ -92,10 +92,10 @@ class OfflineManager: ObservableObject {
         }
         
         let queue = DispatchQueue(label: "NetworkMonitor", qos: .utility)
-        pathMonitor.start(queue: queue)
+        networkMonitor.start(queue: queue)
         
         // Get initial state synchronously
-        let currentPath = pathMonitor.currentPath
+        let currentPath = networkMonitor.currentPath
         print("🌐 Initial network state: \(currentPath.status)")
         
         DispatchQueue.main.async {
@@ -113,7 +113,7 @@ class OfflineManager: ObservableObject {
     /// Force refresh the network status (useful for testing)
     func refreshNetworkStatus() {
         print("🌐 Force refreshing network status...")
-        let currentPath = pathMonitor.currentPath
+        let currentPath = networkMonitor.currentPath
         updateConnectionStatus(currentPath)
     }
     
@@ -121,7 +121,7 @@ class OfflineManager: ObservableObject {
     func testInternetConnectivity() async -> Bool {
         print("🌐 Testing actual internet connectivity...")
         
-        guard pathMonitor.currentPath.status == .satisfied else {
+        guard networkMonitor.currentPath.status == .satisfied else {
             print("🌐 Path not satisfied, no connectivity")
             return false
         }
@@ -170,9 +170,9 @@ class OfflineManager: ObservableObject {
         
         // More accurate connection detection
         // Path must be satisfied AND have a usable interface
-        let hasUsableInterface = path.usesInterfaceType(.wifi) || 
-                                path.usesInterfaceType(.cellular) || 
-                                path.usesInterfaceType(.wiredEthernet)
+        let hasUsableInterface = path.usesInterfaceType(NWInterface.InterfaceType.wifi) || 
+                                path.usesInterfaceType(NWInterface.InterfaceType.cellular) || 
+                                path.usesInterfaceType(NWInterface.InterfaceType.wiredEthernet)
         
         let newOnlineStatus = path.status == .satisfied && hasUsableInterface
         
@@ -194,11 +194,11 @@ class OfflineManager: ObservableObject {
             self.isOnline = newOnlineStatus
             
             // Determine connection type
-            if path.usesInterfaceType(.wifi) {
+            if path.usesInterfaceType(NWInterface.InterfaceType.wifi) {
                 self.connectionType = .wifi
-            } else if path.usesInterfaceType(.cellular) {
+            } else if path.usesInterfaceType(NWInterface.InterfaceType.cellular) {
                 self.connectionType = .cellular
-            } else if path.usesInterfaceType(.wiredEthernet) {
+            } else if path.usesInterfaceType(NWInterface.InterfaceType.wiredEthernet) {
                 self.connectionType = .wiredEthernet
             } else {
                 self.connectionType = nil
