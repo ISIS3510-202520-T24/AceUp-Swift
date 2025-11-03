@@ -186,7 +186,14 @@ class OfflineManager: ObservableObject {
     }
     
     private func validateOfflineCapability() {
-        let daysSinceSync = Int(offlineDataAge / 86400) // Convert to days
+        // Handle infinite or very large values safely
+        let daysSinceSync: Int
+        if offlineDataAge == TimeInterval.infinity || offlineDataAge.isInfinite {
+            daysSinceSync = Int.max
+        } else {
+            daysSinceSync = Int(offlineDataAge / 86400) // Convert to days
+        }
+        
         canWorkOffline = hasOfflineData && daysSinceSync <= maxOfflineDays
         
         // Update offline capability status
@@ -352,6 +359,11 @@ class OfflineManager: ObservableObject {
     
     /// Get the number of days until cached data becomes stale
     func getDaysUntilStale() -> Int {
+        // Handle infinite or very large values safely
+        if offlineDataAge == TimeInterval.infinity || offlineDataAge.isInfinite {
+            return 0 // No data means 0 days left
+        }
+        
         let daysSinceSync = Int(offlineDataAge / 86400)
         return max(0, maxOfflineDays - daysSinceSync)
     }
