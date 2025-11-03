@@ -118,6 +118,7 @@ class OfflineManager: ObservableObject {
     }
     
     /// Test actual internet connectivity (not just network interface)
+    @discardableResult
     func testInternetConnectivity() async -> Bool {
         print("🌐 Testing actual internet connectivity...")
         
