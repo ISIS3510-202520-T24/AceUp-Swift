@@ -650,7 +650,7 @@ struct SyncDiagnosticsView: View {
                 .disabled(!syncManager.isOnline || syncManager.isSyncing)
                 
                 Button("Test Connection") {
-                    offlineManager.checkConnectionStatus()
+                    OfflineManager.shared.checkConnectionStatus()
                 }
                 .disabled(syncManager.isSyncing)
             }
