@@ -83,7 +83,7 @@ struct ContentView: View {
     @State private var isInitializing = true
     @State private var needsMigration = false
     @StateObject private var migrationService = DataMigrationService.shared
-    @StateObject private var offlineManager = OfflineManager.shared
+    @ObservedObject private var offlineManager = OfflineManager.shared
     @StateObject private var authService = AuthService()
 
     var body: some View {
