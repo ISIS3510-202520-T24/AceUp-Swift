@@ -46,7 +46,9 @@ struct OfflineSettingsView: View {
                 // Test Connection Button for debugging
                 Button(action: {
                     print("🧪 Manual network refresh triggered")
-                    offlineManager.refreshNetworkStatus()
+                    Task {
+                        await offlineManager.testInternetConnectivity()
+                    }
                 }) {
                     HStack {
                         Image(systemName: "arrow.clockwise")
@@ -54,10 +56,10 @@ struct OfflineSettingsView: View {
                             .frame(width: 20)
                         
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Test Network Connection")
+                            Text("Test Internet Connection")
                                 .foregroundColor(.blue)
                             
-                            Text("Force check network status")
+                            Text("Test actual internet connectivity")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }

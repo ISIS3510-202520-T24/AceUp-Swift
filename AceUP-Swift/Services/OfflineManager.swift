@@ -72,12 +72,22 @@ class OfflineManager: ObservableObject {
             print("   - WiFi: \(path.usesInterfaceType(.wifi))")
             print("   - Cellular: \(path.usesInterfaceType(.cellular))")
             print("   - Ethernet: \(path.usesInterfaceType(.wiredEthernet))")
+            print("   - Is expensive: \(path.isExpensive)")
             
             guard let self = self else { return }
             
             // Handle network changes on main thread immediately
             DispatchQueue.main.async {
                 self.updateConnectionStatus(path)
+                
+                // When path becomes satisfied, test actual internet connectivity
+                if path.status == .satisfied {
+                    Task {
+                        // Wait a moment for connection to stabilize
+                        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                        await self.testInternetConnectivity()
+                    }
+                }
             }
         }
         
@@ -90,6 +100,13 @@ class OfflineManager: ObservableObject {
         
         DispatchQueue.main.async {
             self.updateConnectionStatus(currentPath)
+            
+            // Test initial connectivity if path is satisfied
+            if currentPath.status == .satisfied {
+                Task {
+                    await self.testInternetConnectivity()
+                }
+            }
         }
     }
     
@@ -100,14 +117,77 @@ class OfflineManager: ObservableObject {
         updateConnectionStatus(currentPath)
     }
     
+    /// Test actual internet connectivity (not just network interface)
+    func testInternetConnectivity() async -> Bool {
+        print("🌐 Testing actual internet connectivity...")
+        
+        guard pathMonitor.currentPath.status == .satisfied else {
+            print("🌐 Path not satisfied, no connectivity")
+            return false
+        }
+        
+        // Test with a simple request to a reliable endpoint
+        let testURL = URL(string: "https://www.google.com")!
+        
+        do {
+            let (_, response) = try await URLSession.shared.data(from: testURL)
+            if let httpResponse = response as? HTTPURLResponse {
+                let isConnected = httpResponse.statusCode == 200
+                print("🌐 Internet connectivity test: \(isConnected ? "SUCCESS" : "FAILED") (status: \(httpResponse.statusCode))")
+                
+                // Update our connection status based on actual internet test
+                Task { @MainActor in
+                    let wasOnline = self.isOnline
+                    self.isOnline = isConnected
+                    
+                    // Trigger connection restoration logic if we just came online
+                    if isConnected && !wasOnline {
+                        self.connectionRestoredRecently = true
+                        
+                        // Hide after 3 seconds
+                        Task {
+                            try? await Task.sleep(nanoseconds: 3_000_000_000)
+                            await MainActor.run {
+                                self.connectionRestoredRecently = false
+                            }
+                        }
+                    } else if !isConnected && wasOnline {
+                        self.connectionRestoredRecently = false
+                    }
+                }
+                
+                return isConnected
+            }
+        } catch {
+            print("🌐 Internet connectivity test failed: \(error.localizedDescription)")
+        }
+        
+        return false
+    }
+    
     private func updateConnectionStatus(_ path: NWPath) {
         let wasOnline = isOnline
-        let newOnlineStatus = path.status == .satisfied
+        
+        // More accurate connection detection
+        // Path must be satisfied AND have a usable interface
+        let hasUsableInterface = path.usesInterfaceType(.wifi) || 
+                                path.usesInterfaceType(.cellular) || 
+                                path.usesInterfaceType(.wiredEthernet)
+        
+        let newOnlineStatus = path.status == .satisfied && hasUsableInterface
         
         print("🌐 updateConnectionStatus called:")
         print("   - Previous state: \(wasOnline ? "Online" : "Offline")")
-        print("   - New state: \(newOnlineStatus ? "Online" : "Offline")")
         print("   - Path status: \(path.status)")
+        print("   - Has usable interface: \(hasUsableInterface)")
+        print("   - Is expensive: \(path.isExpensive)")
+        print("   - Final online status: \(newOnlineStatus)")
+        
+        // Only update if there's an actual change to prevent flickering
+        guard newOnlineStatus != wasOnline else {
+            print("🌐 No status change, skipping update")
+            return
+        }
         
         // Update connection status immediately on main thread
         Task { @MainActor in
