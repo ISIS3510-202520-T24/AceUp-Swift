@@ -155,68 +155,7 @@ class OfflineManager: ObservableObject {
         }
     }
     
-    // MARK: - Private Methods
-    
-    private func setupNetworkMonitoring() {
-        networkMonitor.pathUpdateHandler = { [weak self] path in
-            Task { @MainActor in
-                guard let self = self else { return }
-                let wasOnline = self.isOnline
-                self.isOnline = path.status == .satisfied
-                
-                // Handle network state changes
-                if !wasOnline && path.status == .satisfied {
-                    // Just came back online
-                    await self.handleNetworkRestoration()
-                } else if wasOnline && path.status != .satisfied {
-                    // Just went offline
-                    self.handleGoingOffline()
-                }
-            }
-        }
-        networkMonitor.start(queue: networkQueue)
-    }
-    
-    private func handleGoingOffline() {
-        // Update UI state
-        checkOfflineDataAvailability()
-        
-        // Show offline notification if needed
-        if !canWorkOffline {
-            // Could show a notification here
-        }
-    }
-    
-    private func cacheEssentialData() async {
-        do {
-            // Cache assignments
-            let assignmentProvider = DataSynchronizationManager.shared.getAssignmentProvider()
-            _ = try await assignmentProvider.fetchAll()
-            
-            // Cache holidays for current year
-            let holidayProvider = DataSynchronizationManager.shared.getHolidayProvider()
-            let currentYear = Calendar.current.component(.year, from: Date())
-            let userCountry = UserPreferencesManager.shared.selectedCountry
-            _ = try await holidayProvider.fetchHolidays(for: userCountry, year: currentYear)
-            
-            // Cache courses
-            let courseProvider = DataSynchronizationManager.shared.getCourseProvider()
-            _ = try await courseProvider.fetchCourses()
-            
-            // Update availability
-            checkOfflineDataAvailability()
-            
-        } catch {
-            print("Failed to cache essential data: \(error)")
-        }
-    }
-    
-    private func checkOfflineDataAvailability() {
-        let context = persistenceController.viewContext
-        
-        // Check if we have any assignments cached
-        let assignmentRequest = AssignmentEntity.fetchRequest()
-        let assignmentCount = (try? context.count(for: assignmentRequest)) ?? 0
+    // MARK: - Advanced Cache Management
         
         // Check if we have holidays cached
         let holidayRequest = HolidayEntity.fetchRequest()
@@ -347,6 +286,8 @@ class OfflineManager: ObservableObject {
             // Simulate caching shared calendars
             try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
             print("✅ Cached shared calendars data")
+        } catch is CancellationError {
+            print("⚠️ Shared calendars caching was cancelled")
         } catch {
             print("❌ Failed to cache shared calendars: \(error)")
         }
@@ -366,7 +307,7 @@ class OfflineManager: ObservableObject {
         
         do {
             // Perform pending sync operations
-            for i in 0..<totalOperations {
+            for _ in 0..<totalOperations {
                 // Simulate sync operation
                 try await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
                 
@@ -378,6 +319,8 @@ class OfflineManager: ObservableObject {
             
             print("✅ Completed \(totalOperations) pending sync operations")
             
+        } catch is CancellationError {
+            print("⚠️ Sync operations were cancelled")
         } catch {
             print("❌ Failed to perform sync operations: \(error)")
         }
@@ -509,109 +452,6 @@ struct OfflineStatus {
             return "wifi.slash"
         } else {
             return "exclamationmark.triangle"
-        }
-    }
-}
-
-// MARK: - Offline Banner View
-
-struct OfflineBannerView: View {
-    @StateObject private var offlineManager = OfflineManager.shared
-    
-    var body: some View {
-        if !offlineManager.isOnline {
-            HStack {
-                Image(systemName: offlineManager.canWorkOffline ? "wifi.slash" : "exclamationmark.triangle")
-                    .foregroundColor(.white)
-                
-                Text(offlineManager.getOfflineMessage())
-                    .font(.caption)
-                    .foregroundColor(.white)
-                
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(offlineManager.canWorkOffline ? Color.orange : Color.red)
-        }
-    }
-}
-
-// MARK: - Offline Settings View
-
-struct OfflineSettingsView: View {
-    @StateObject private var offlineManager = OfflineManager.shared
-    @State private var showingClearAlert = false
-    
-    var body: some View {
-        List {
-            Section("Connection Status") {
-                HStack {
-                    Image(systemName: offlineManager.isOnline ? "wifi" : "wifi.slash")
-                        .foregroundColor(offlineManager.isOnline ? .green : .orange)
-                    
-                    Text(offlineManager.isOnline ? "Online" : "Offline")
-                    
-                    Spacer()
-                    
-                    if !offlineManager.isOnline {
-                        Text(offlineManager.canWorkOffline ? "Can work offline" : "Limited functionality")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            
-            Section("Offline Data") {
-                HStack {
-                    Text("Cached Data Available")
-                    Spacer()
-                    Text(offlineManager.hasOfflineData ? "Yes" : "No")
-                        .foregroundColor(offlineManager.hasOfflineData ? .green : .red)
-                }
-                
-                if offlineManager.hasOfflineData {
-                    HStack {
-                        Text("Data Age")
-                        Spacer()
-                        Text(offlineManager.getOfflineStatus().formattedDataAge)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    HStack {
-                        Text("Estimated Size")
-                        Spacer()
-                        Text(offlineManager.getOfflineDataSize())
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            
-            Section("Actions") {
-                Button("Prepare for Offline Use") {
-                    Task {
-                        await offlineManager.prepareForOffline()
-                    }
-                }
-                .disabled(!offlineManager.isOnline)
-                
-                if offlineManager.hasOfflineData {
-                    Button("Clear Offline Data", role: .destructive) {
-                        showingClearAlert = true
-                    }
-                }
-            }
-        }
-        .navigationTitle("Offline Settings")
-        .alert("Clear Offline Data", isPresented: $showingClearAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Clear", role: .destructive) {
-                Task {
-                    await offlineManager.clearOfflineData()
-                }
-            }
-        } message: {
-            Text("This will remove all cached data. You'll need an internet connection to use the app until data is cached again.")
         }
     }
 }
