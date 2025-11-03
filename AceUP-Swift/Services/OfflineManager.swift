@@ -65,67 +65,94 @@ class OfflineManager: ObservableObject {
     // MARK: - Network Monitoring
     
     private func setupNetworkMonitoring() {
-        // Get initial network state immediately
-        let currentPath = networkMonitor.currentPath
-        updateConnectionStatus(currentPath)
+        print("🌐 Setting up network monitoring...")
         
-        // Set up continuous monitoring
-        networkMonitor.pathUpdateHandler = { [weak self] path in
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            print("🌐 Network path changed: \(path.status)")
+            print("   - WiFi: \(path.usesInterfaceType(.wifi))")
+            print("   - Cellular: \(path.usesInterfaceType(.cellular))")
+            print("   - Ethernet: \(path.usesInterfaceType(.wiredEthernet))")
+            
+            guard let self = self else { return }
+            
+            // Handle network changes on main thread immediately
             DispatchQueue.main.async {
-                self?.updateConnectionStatus(path)
+                self.updateConnectionStatus(path)
             }
         }
-        networkMonitor.start(queue: networkQueue)
         
-        print("🌐 Network monitoring started. Initial state: \(isOnline ? "Online" : "Offline")")
+        let queue = DispatchQueue(label: "NetworkMonitor", qos: .utility)
+        pathMonitor.start(queue: queue)
+        
+        // Get initial state synchronously
+        let currentPath = pathMonitor.currentPath
+        print("🌐 Initial network state: \(currentPath.status)")
+        
+        DispatchQueue.main.async {
+            self.updateConnectionStatus(currentPath)
+        }
+    }
+    
+    /// Force refresh the network status (useful for testing)
+    func refreshNetworkStatus() {
+        print("🌐 Force refreshing network status...")
+        let currentPath = pathMonitor.currentPath
+        updateConnectionStatus(currentPath)
     }
     
     private func updateConnectionStatus(_ path: NWPath) {
         let wasOnline = isOnline
         let newOnlineStatus = path.status == .satisfied
         
-        // Update connection status immediately
-        isOnline = newOnlineStatus
+        print("🌐 updateConnectionStatus called:")
+        print("   - Previous state: \(wasOnline ? "Online" : "Offline")")
+        print("   - New state: \(newOnlineStatus ? "Online" : "Offline")")
+        print("   - Path status: \(path.status)")
         
-        // Determine connection type
-        if path.usesInterfaceType(.wifi) {
-            connectionType = .wifi
-        } else if path.usesInterfaceType(.cellular) {
-            connectionType = .cellular
-        } else if path.usesInterfaceType(.wiredEthernet) {
-            connectionType = .wiredEthernet
-        } else {
-            connectionType = nil
-        }
-        
-        validateOfflineCapability()
-        
-        // Handle connection restoration - trigger immediately when going from offline to online
-        if newOnlineStatus && !wasOnline {
-            print("🌐 Connection restored! Triggering banner update...")
+        // Update connection status immediately on main thread
+        Task { @MainActor in
+            self.isOnline = newOnlineStatus
             
-            // Immediately show connection restored banner
-            connectionRestoredRecently = true
+            // Determine connection type
+            if path.usesInterfaceType(.wifi) {
+                self.connectionType = .wifi
+            } else if path.usesInterfaceType(.cellular) {
+                self.connectionType = .cellular
+            } else if path.usesInterfaceType(.wiredEthernet) {
+                self.connectionType = .wiredEthernet
+            } else {
+                self.connectionType = nil
+            }
             
-            // Auto-sync when connection is restored
-            if pendingSyncOperations > 0 {
+            self.validateOfflineCapability()
+            
+            // Handle connection restoration - trigger immediately when going from offline to online
+            if newOnlineStatus && !wasOnline {
+                print("🌐 Connection restored! Triggering banner update...")
+                
+                // Immediately show connection restored banner
+                self.connectionRestoredRecently = true
+                
+                // Auto-sync when connection is restored
+                if self.pendingSyncOperations > 0 {
+                    Task {
+                        await self.performPendingSyncOperations()
+                    }
+                }
+                
+                // Hide the "Connected" indication after 3 seconds
                 Task {
-                    await performPendingSyncOperations()
+                    try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
+                    await MainActor.run {
+                        print("🌐 Hiding connection restored banner...")
+                        self.connectionRestoredRecently = false
+                    }
                 }
+            } else if !newOnlineStatus && wasOnline {
+                // Connection lost - ensure banner shows immediately
+                print("🚫 Connection lost! Showing offline banner...")
+                self.connectionRestoredRecently = false
             }
-            
-            // Hide the "Connected" indication after 3 seconds
-            Task {
-                try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
-                await MainActor.run {
-                    print("🌐 Hiding connection restored banner...")
-                    self.connectionRestoredRecently = false
-                }
-            }
-        } else if !newOnlineStatus && wasOnline {
-            // Connection lost - ensure banner shows immediately
-            print("🚫 Connection lost! Showing offline banner...")
-            connectionRestoredRecently = false
         }
     }
     

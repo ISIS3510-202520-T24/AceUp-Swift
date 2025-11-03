@@ -14,19 +14,19 @@ struct OfflineSettingsView: View {
     
     var body: some View {
         List {
-            // Connection Status Section
+            // Network Status Section
             Section {
                 HStack {
-                    Circle()
-                        .fill(Color(hex: offlineManager.connectionStatusColor))
-                        .frame(width: 12, height: 12)
+                    Image(systemName: "wifi")
+                        .foregroundColor(.blue)
+                        .frame(width: 20)
                     
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Connection Status")
+                        Text("Network Connection")
                             .font(.subheadline)
                             .fontWeight(.medium)
                         
-                        Text(offlineManager.connectionStatusText)
+                        Text(offlineManager.isOnline ? "Connected" : "Offline")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -42,6 +42,29 @@ struct OfflineSettingsView: View {
                     }
                 }
                 .padding(.vertical, 4)
+                
+                // Test Connection Button for debugging
+                Button(action: {
+                    print("🧪 Manual network refresh triggered")
+                    offlineManager.refreshNetworkStatus()
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.clockwise")
+                            .foregroundColor(.blue)
+                            .frame(width: 20)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Test Network Connection")
+                                .foregroundColor(.blue)
+                            
+                            Text("Force check network status")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                    }
+                }
             } header: {
                 Text("Network Status")
             }
