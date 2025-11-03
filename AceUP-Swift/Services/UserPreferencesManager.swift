@@ -207,12 +207,66 @@ class UserPreferencesManager: ObservableObject {
     
     // MARK: - Export/Import Settings
     
+    /// Export user preferences to JSON file with metadata
+    func exportPreferencesToFile() async throws -> URL {
+        let preferences = exportPreferences()
+        
+        // Add metadata
+        let exportData: [String: Any] = [
+            "metadata": [
+                "exportDate": ISO8601DateFormatter().string(from: Date()),
+                "appVersion": currentAppVersion,
+                "platform": "iOS",
+                "format": "AceUp Settings v1.0"
+            ],
+            "preferences": preferences
+        ]
+        
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .short)
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "")
+        let exportURL = documentsPath.appendingPathComponent("AceUp_Settings_\(timestamp).json")
+        
+        let jsonData = try JSONSerialization.data(withJSONObject: exportData, options: .prettyPrinted)
+        try jsonData.write(to: exportURL)
+        
+        return exportURL
+    }
+    
+    /// Import user preferences from JSON file with validation
+    func importPreferencesFromFile(_ url: URL) async throws {
+        let data = try Data(contentsOf: url)
+        
+        guard let jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw PreferencesError.invalidFormat
+        }
+        
+        // Validate file format
+        if let metadata = jsonObject["metadata"] as? [String: Any],
+           let format = metadata["format"] as? String,
+           format.contains("AceUp Settings") {
+            
+            // Import preferences
+            if let preferences = jsonObject["preferences"] as? [String: Any] {
+                importPreferences(preferences)
+            }
+        } else {
+            // Try importing as legacy format (direct preferences object)
+            importPreferences(jsonObject)
+        }
+    }
+    
+    /// Create backup before importing
+    func createBackupBeforeImport() async throws -> URL {
+        return try await exportPreferencesToFile()
+    }
+    
     /// Export user preferences as dictionary
     func exportPreferences() -> [String: Any] {
-        return [
+        var preferences: [String: Any] = [
             Keys.selectedCountry: selectedCountry,
             Keys.enableNotifications: enableNotifications,
-            Keys.notificationTime: notificationTime,
             Keys.enableBiometricLogin: enableBiometricLogin,
             Keys.theme: theme.rawValue,
             Keys.language: language.rawValue,
@@ -226,9 +280,14 @@ class UserPreferencesManager: ObservableObject {
             Keys.enableSmartSuggestions: enableSmartSuggestions,
             Keys.workloadAnalysisEnabled: workloadAnalysisEnabled
         ]
+        
+        // Handle Date serialization
+        preferences[Keys.notificationTime] = notificationTime.timeIntervalSince1970
+        
+        return preferences
     }
     
-    /// Import user preferences from dictionary
+    /// Import user preferences from dictionary with validation
     func importPreferences(_ preferences: [String: Any]) {
         if let country = preferences[Keys.selectedCountry] as? String {
             selectedCountry = country
@@ -236,9 +295,14 @@ class UserPreferencesManager: ObservableObject {
         if let notifications = preferences[Keys.enableNotifications] as? Bool {
             enableNotifications = notifications
         }
-        if let time = preferences[Keys.notificationTime] as? Date {
+        
+        // Handle Date deserialization
+        if let timeInterval = preferences[Keys.notificationTime] as? TimeInterval {
+            notificationTime = Date(timeIntervalSince1970: timeInterval)
+        } else if let time = preferences[Keys.notificationTime] as? Date {
             notificationTime = time
         }
+        
         if let biometric = preferences[Keys.enableBiometricLogin] as? Bool {
             enableBiometricLogin = biometric
         }
@@ -278,6 +342,61 @@ class UserPreferencesManager: ObservableObject {
         if let workload = preferences[Keys.workloadAnalysisEnabled] as? Bool {
             workloadAnalysisEnabled = workload
         }
+    }
+    
+    /// Get preferences summary for display
+    func getPreferencesSummary() -> PreferencesSummary {
+        return PreferencesSummary(
+            totalPreferences: 14,
+            themeMode: theme.displayName,
+            language: language.displayName,
+            notificationsEnabled: enableNotifications,
+            syncFrequency: syncFrequency.displayName,
+            analyticsEnabled: enableAnalytics,
+            lastModified: Date()
+        )
+    }
+    
+    /// Validate preferences data
+    func validatePreferences(_ preferences: [String: Any]) -> [String] {
+        var issues: [String] = []
+        
+        // Validate country code
+        if let country = preferences[Keys.selectedCountry] as? String {
+            if country.count != 2 {
+                issues.append("Invalid country code format")
+            }
+        }
+        
+        // Validate theme
+        if let themeString = preferences[Keys.theme] as? String {
+            if AppTheme(rawValue: themeString) == nil {
+                issues.append("Unknown theme: \(themeString)")
+            }
+        }
+        
+        // Validate language
+        if let langString = preferences[Keys.language] as? String {
+            if AppLanguage(rawValue: langString) == nil {
+                issues.append("Unknown language: \(langString)")
+            }
+        }
+        
+        // Validate sync frequency
+        if let freqString = preferences[Keys.syncFrequency] as? String {
+            if SyncFrequency(rawValue: freqString) == nil {
+                issues.append("Unknown sync frequency: \(freqString)")
+            }
+        }
+        
+        // Validate assignment duration
+        if let duration = preferences[Keys.defaultAssignmentDuration] as? Double {
+            if duration < 0.5 || duration > 24.0 {
+                issues.append("Assignment duration out of range (0.5-24 hours)")
+            }
+        }
+        
+        return issues
     }
     
     // MARK: - Private Methods
@@ -398,5 +517,50 @@ class UserSettingsViewModel: ObservableObject {
     
     func resetSettings() {
         preferences.resetToDefaults()
+    }
+}
+
+// MARK: - Preferences Errors
+
+enum PreferencesError: LocalizedError {
+    case invalidFormat
+    case corruptedData
+    case unsupportedVersion
+    case fileNotFound
+    
+    var errorDescription: String? {
+        switch self {
+        case .invalidFormat:
+            return "Invalid preferences file format"
+        case .corruptedData:
+            return "Preferences data is corrupted"
+        case .unsupportedVersion:
+            return "Unsupported preferences file version"
+        case .fileNotFound:
+            return "Preferences file not found"
+        }
+    }
+}
+
+// MARK: - Preferences Summary
+
+struct PreferencesSummary {
+    let totalPreferences: Int
+    let themeMode: String
+    let language: String
+    let notificationsEnabled: Bool
+    let syncFrequency: String
+    let analyticsEnabled: Bool
+    let lastModified: Date
+    
+    var summary: String {
+        return """
+        \(totalPreferences) preferences configured
+        Theme: \(themeMode)
+        Language: \(language)
+        Notifications: \(notificationsEnabled ? "Enabled" : "Disabled")
+        Sync: \(syncFrequency)
+        Analytics: \(analyticsEnabled ? "Enabled" : "Disabled")
+        """
     }
 }
