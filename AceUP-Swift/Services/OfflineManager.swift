@@ -41,8 +41,6 @@ class OfflineManager: ObservableObject {
     private let persistenceController: PersistenceController
     private var cancellables = Set<AnyCancellable>()
     private let userDefaults = UserDefaults.standard
-    private var statusUpdateTask: Task<Void, Never>?
-    private var lastStatusChangeTime: Date = Date()
     
     // Cache constants
     private let maxOfflineDays = 7
@@ -78,21 +76,12 @@ class OfflineManager: ObservableObject {
             
             guard let self = self else { return }
             
-            // Cancel any pending status update
-            self.statusUpdateTask?.cancel()
-            
-            // Debounce rapid network changes (wait 500ms before updating)
-            self.statusUpdateTask = Task { @MainActor [weak self] in
+            // Debounce rapid network changes with a simple delay
+            Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 
                 // Wait to debounce rapid changes
                 try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-                
-                // Check if task was cancelled
-                guard !Task.isCancelled else {
-                    print("🌐 Status update cancelled (debounced)")
-                    return
-                }
                 
                 self.updateConnectionStatus(path)
                 
