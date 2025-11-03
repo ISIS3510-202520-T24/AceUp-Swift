@@ -9,7 +9,6 @@ import Foundation
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
-import FirebaseStorage
 
 /// Manages user profile data including personal information and profile images
 @MainActor
@@ -33,7 +32,6 @@ class UserProfileManager: ObservableObject {
     // MARK: - Private Properties
     
     private let db = Firestore.firestore()
-    private let storage = Storage.storage()
     private var currentUserId: String? {
         Auth.auth().currentUser?.uid
     }
@@ -124,29 +122,24 @@ class UserProfileManager: ObservableObject {
         defer { isLoading = false }
         
         do {
-            // Upload image to Firebase Storage
-            let storageRef = storage.reference().child("profile_images/\(userId).jpg")
-            let metadata = StorageMetadata()
-            metadata.contentType = "image/jpeg"
+            // For now, we'll save the image data as base64 string in Firestore
+            // In a production app, you'd want to use Firebase Storage or another image hosting service
+            let base64String = imageData.base64EncodedString()
             
-            _ = try await storageRef.putDataAsync(imageData, metadata: metadata)
-            
-            // Get download URL
-            let downloadURL = try await storageRef.downloadURL()
-            
-            // Update Firestore with new image URL
+            // Update Firestore with image data
             try await db.collection("users").document(userId).updateData([
-                "profileImageURL": downloadURL.absoluteString,
+                "profileImageData": base64String,
                 "updatedAt": FieldValue.serverTimestamp()
             ])
             
-            // Update Firebase Auth profile
+            // Update Firebase Auth profile with a placeholder URL
+            // In production, this would be the actual storage URL
             let changeRequest = Auth.auth().currentUser?.createProfileChangeRequest()
-            changeRequest?.photoURL = downloadURL
+            changeRequest?.photoURL = URL(string: "data:image/jpeg;base64,\(base64String)")
             try? await changeRequest?.commitChanges()
             
-            // Update local state
-            self.profileImageURL = downloadURL
+            // Update local state - create a data URL for display
+            self.profileImageURL = URL(string: "data:image/jpeg;base64,\(base64String)")
             
         } catch {
             print("Error updating profile image: \(error)")
@@ -164,9 +157,8 @@ class UserProfileManager: ObservableObject {
             // Delete user data from Firestore
             try await db.collection("users").document(userId).delete()
             
-            // Delete profile image from Storage
-            let storageRef = storage.reference().child("profile_images/\(userId).jpg")
-            try? await storageRef.delete()
+            // Note: Profile image data is stored in Firestore, so it's deleted with the document
+            // If using Firebase Storage in the future, you would delete the image here
             
             // Delete Firebase Auth account
             try await Auth.auth().currentUser?.delete()
@@ -225,8 +217,12 @@ class UserProfileManager: ObservableObject {
             self.academicYear = academicYear
         }
         
-        if let profileImageURLString = data["profileImageURL"] as? String,
-           let url = URL(string: profileImageURLString) {
+        // Handle profile image - check for both base64 data and URL
+        if let profileImageData = data["profileImageData"] as? String {
+            // Convert base64 string to data URL
+            self.profileImageURL = URL(string: "data:image/jpeg;base64,\(profileImageData)")
+        } else if let profileImageURLString = data["profileImageURL"] as? String,
+                  let url = URL(string: profileImageURLString) {
             self.profileImageURL = url
         }
         
@@ -251,23 +247,5 @@ class UserProfileManager: ObservableObject {
     private func extractNameFromEmail(_ email: String) -> String {
         let components = email.components(separatedBy: "@")
         return components.first?.capitalized ?? "User"
-    }
-}
-
-// MARK: - Firebase Storage Extensions
-
-extension StorageReference {
-    func putDataAsync(_ data: Data, metadata: StorageMetadata? = nil) async throws -> StorageMetadata {
-        return try await withCheckedThrowingContinuation { continuation in
-            putData(data, metadata: metadata) { metadata, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else if let metadata = metadata {
-                    continuation.resume(returning: metadata)
-                } else {
-                    continuation.resume(throwing: NSError(domain: "StorageError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unknown error"]))
-                }
-            }
-        }
     }
 }
