@@ -65,17 +65,27 @@ class OfflineManager: ObservableObject {
     // MARK: - Network Monitoring
     
     private func setupNetworkMonitoring() {
+        // Get initial network state immediately
+        let currentPath = networkMonitor.currentPath
+        updateConnectionStatus(currentPath)
+        
+        // Set up continuous monitoring
         networkMonitor.pathUpdateHandler = { [weak self] path in
             DispatchQueue.main.async {
                 self?.updateConnectionStatus(path)
             }
         }
         networkMonitor.start(queue: networkQueue)
+        
+        print("🌐 Network monitoring started. Initial state: \(isOnline ? "Online" : "Offline")")
     }
     
     private func updateConnectionStatus(_ path: NWPath) {
         let wasOnline = isOnline
-        isOnline = path.status == .satisfied
+        let newOnlineStatus = path.status == .satisfied
+        
+        // Update connection status immediately
+        isOnline = newOnlineStatus
         
         // Determine connection type
         if path.usesInterfaceType(.wifi) {
@@ -90,9 +100,11 @@ class OfflineManager: ObservableObject {
         
         validateOfflineCapability()
         
-        // Handle connection restoration
-        if isOnline && !wasOnline {
-            // Show brief "Connected" indication
+        // Handle connection restoration - trigger immediately when going from offline to online
+        if newOnlineStatus && !wasOnline {
+            print("🌐 Connection restored! Triggering banner update...")
+            
+            // Immediately show connection restored banner
             connectionRestoredRecently = true
             
             // Auto-sync when connection is restored
@@ -102,13 +114,18 @@ class OfflineManager: ObservableObject {
                 }
             }
             
-            // Hide the "Connected" indication after 2 seconds
+            // Hide the "Connected" indication after 3 seconds
             Task {
-                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
                 await MainActor.run {
-                    connectionRestoredRecently = false
+                    print("🌐 Hiding connection restored banner...")
+                    self.connectionRestoredRecently = false
                 }
             }
+        } else if !newOnlineStatus && wasOnline {
+            // Connection lost - ensure banner shows immediately
+            print("🚫 Connection lost! Showing offline banner...")
+            connectionRestoredRecently = false
         }
     }
     
@@ -392,6 +409,13 @@ class OfflineManager: ObservableObject {
         } else {
             return "Never synced"
         }
+    }
+    
+    /// Manually check and update connection status (useful for testing)
+    func checkConnectionStatus() {
+        let currentPath = networkMonitor.currentPath
+        updateConnectionStatus(currentPath)
+        print("🌐 Manual connection check: \(isOnline ? "Online" : "Offline")")
     }
     
     // MARK: - Diagnostic Functions
