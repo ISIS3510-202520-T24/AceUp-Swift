@@ -160,7 +160,7 @@ class OfflineManager: ObservableObject {
     // MARK: - Private Helper Methods
     
     private func checkOfflineDataAvailability() {
-        let context = persistenceController.container.viewContext
+        let context = persistenceController.viewContext
         
         // Check if we have assignments cached
         let assignmentRequest = AssignmentEntity.fetchRequest()
@@ -209,7 +209,7 @@ class OfflineManager: ObservableObject {
     }
     
     private func getCacheSize() async -> Int {
-        let context = persistenceController.container.newBackgroundContext()
+        let context = persistenceController.persistentContainer.newBackgroundContext()
         
         return await context.perform {
             var totalSize = 0
@@ -250,9 +250,9 @@ class OfflineManager: ObservableObject {
         guard pendingSyncOperations > 0 else { return }
         
         // Simulate sync operations
-        for i in 0..<pendingSyncOperations {
+        for _ in 0..<pendingSyncOperations {
             // Perform sync operation here
-            await Task.sleep(nanoseconds: 100_000_000) // 0.1 second delay
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second delay
             
             // Update UI on main thread
             await MainActor.run {
@@ -268,7 +268,7 @@ class OfflineManager: ObservableObject {
     // MARK: - Cache Management Functions
     
     func clearCache() async {
-        let context = persistenceController.container.newBackgroundContext()
+        let context = persistenceController.persistentContainer.newBackgroundContext()
         
         await context.perform {
             // Clear assignments
