@@ -32,6 +32,7 @@ class OfflineManager: ObservableObject {
     @Published var cachedDataSize: String = "0 MB"
     @Published var isRefreshingCache = false
     @Published var offlineCapabilityStatus: OfflineCapabilityStatus = .unavailable
+    @Published var connectionRestoredRecently = false
     
     // MARK: - Private Properties
     
@@ -89,10 +90,24 @@ class OfflineManager: ObservableObject {
         
         validateOfflineCapability()
         
-        // Auto-sync when connection is restored
-        if isOnline && !wasOnline && pendingSyncOperations > 0 {
+        // Handle connection restoration
+        if isOnline && !wasOnline {
+            // Show brief "Connected" indication
+            connectionRestoredRecently = true
+            
+            // Auto-sync when connection is restored
+            if pendingSyncOperations > 0 {
+                Task {
+                    await performPendingSyncOperations()
+                }
+            }
+            
+            // Hide the "Connected" indication after 2 seconds
             Task {
-                await performPendingSyncOperations()
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                await MainActor.run {
+                    connectionRestoredRecently = false
+                }
             }
         }
     }

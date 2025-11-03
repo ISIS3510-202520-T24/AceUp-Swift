@@ -267,33 +267,62 @@ struct OfflineDataRow: View {
 // MARK: - Offline Banner Component
 
 struct OfflineBannerView: View {
-    @StateObject private var offlineManager = OfflineManager.shared
+    @ObservedObject private var offlineManager = OfflineManager.shared
     
     var body: some View {
-        if !offlineManager.isOnline {
-            HStack {
-                Image(systemName: offlineManager.canWorkOffline ? "wifi.slash" : "exclamationmark.triangle")
-                    .foregroundColor(.white)
-                    .font(.caption)
-                
-                Text(offlineManager.canWorkOffline ? "Working offline" : "Limited functionality")
-                    .font(.caption)
-                    .foregroundColor(.white)
-                    .fontWeight(.medium)
-                
-                Spacer()
-                
-                if offlineManager.pendingSyncOperations > 0 {
-                    Text("\(offlineManager.pendingSyncOperations) pending")
-                        .font(.caption2)
-                        .foregroundColor(.white.opacity(0.8))
+        Group {
+            if !offlineManager.isOnline {
+                // Offline banner
+                HStack {
+                    Image(systemName: offlineManager.canWorkOffline ? "wifi.slash" : "exclamationmark.triangle")
+                        .foregroundColor(.white)
+                        .font(.caption)
+                    
+                    Text(offlineManager.canWorkOffline ? "Working offline" : "Limited functionality")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .fontWeight(.medium)
+                    
+                    Spacer()
+                    
+                    if offlineManager.pendingSyncOperations > 0 {
+                        Text("\(offlineManager.pendingSyncOperations) pending")
+                            .font(.caption2)
+                            .foregroundColor(.white.opacity(0.8))
+                    }
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(offlineManager.canWorkOffline ? Color.orange : Color.red)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            } else if offlineManager.connectionRestoredRecently {
+                // Connection restored banner (temporary)
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.white)
+                        .font(.caption)
+                    
+                    Text("Connected")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .fontWeight(.medium)
+                    
+                    Spacer()
+                    
+                    if let connectionType = offlineManager.connectionType {
+                        Text(connectionType.displayName)
+                            .font(.caption2)
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.green)
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(offlineManager.canWorkOffline ? Color.orange : Color.red)
-            .animation(.easeInOut, value: offlineManager.isOnline)
         }
+        .animation(.easeInOut(duration: 0.3), value: offlineManager.isOnline)
+        .animation(.easeInOut(duration: 0.3), value: offlineManager.connectionRestoredRecently)
     }
 }
 
