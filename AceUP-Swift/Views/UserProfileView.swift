@@ -220,21 +220,21 @@ struct UserProfileView: View {
             
             HStack {
                 Image(systemName: "checkmark.shield")
-                    .foregroundColor(authService.currentUser?.isEmailVerified == true ? .green : .orange)
+                    .foregroundColor(Auth.auth().currentUser?.isEmailVerified == true ? .green : .orange)
                     .frame(width: 20)
                 
                 Text("Email Verification")
                 
                 Spacer()
                 
-                Text(authService.currentUser?.isEmailVerified == true ? "Verified" : "Pending")
-                    .foregroundColor(authService.currentUser?.isEmailVerified == true ? .green : .orange)
+                Text(Auth.auth().currentUser?.isEmailVerified == true ? "Verified" : "Pending")
+                    .foregroundColor(Auth.auth().currentUser?.isEmailVerified == true ? .green : .orange)
                     .font(.caption)
                 
-                if authService.currentUser?.isEmailVerified == false {
+                if Auth.auth().currentUser?.isEmailVerified == false {
                     Button("Resend") {
                         Task {
-                            try? await authService.resendVerificationEmail()
+                            try? await Auth.auth().currentUser?.sendEmailVerification()
                         }
                     }
                     .font(.caption)
