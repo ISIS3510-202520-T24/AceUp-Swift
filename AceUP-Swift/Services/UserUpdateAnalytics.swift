@@ -140,7 +140,7 @@ class UserUpdateAnalytics: ObservableObject {
         
         // Track in custom analytics pipeline (fire and forget)
         Task { @MainActor in
-            await AppAnalytics.shared.track("update_session_started", props: [
+            AppAnalytics.shared.track("update_session_started", props: [
                 "session_id": session.sessionId,
                 "update_type": updateType.rawValue,
                 "timestamp": ISO8601DateFormatter().string(from: session.startTimestamp)
@@ -211,7 +211,7 @@ class UserUpdateAnalytics: ObservableObject {
         
         // Track in custom analytics pipeline
         Task { @MainActor in
-            await AppAnalytics.shared.track("update_session_completed", props: [
+            AppAnalytics.shared.track("update_session_completed", props: [
                 "session_id": session.sessionId,
                 "update_type": session.updateType.rawValue,
                 "duration_seconds": session.durationSeconds ?? 0,
@@ -255,7 +255,7 @@ class UserUpdateAnalytics: ObservableObject {
         
         // Track in custom analytics pipeline
         Task { @MainActor in
-            await AppAnalytics.shared.track("update_session_abandoned", props: [
+            AppAnalytics.shared.track("update_session_abandoned", props: [
                 "session_id": session.sessionId,
                 "update_type": session.updateType.rawValue,
                 "duration_seconds": session.durationSeconds ?? 0,
@@ -301,7 +301,7 @@ class UserUpdateAnalytics: ObservableObject {
             print("⚠️ [BQ 5.1] No active session for type: \(type.displayName)")
             return
         }
-        completeUpdateSession(sessionId: session.sessionId, fieldsUpdated: fieldsUpdated)
+        completeUpdateSession(sessionId: session.sessionId, fieldsModified: fieldsUpdated)
     }
     
     /// Convenience method: Abandon session by update type
@@ -528,7 +528,7 @@ class UserUpdateAnalytics: ObservableObject {
             "exceeded_by_seconds": duration - threshold
         ])
         
-        await AppAnalytics.shared.track("update_session_slow", props: [
+        AppAnalytics.shared.track("update_session_slow", props: [
             "session_id": session.sessionId,
             "update_type": session.updateType.rawValue,
             "duration_seconds": duration,
