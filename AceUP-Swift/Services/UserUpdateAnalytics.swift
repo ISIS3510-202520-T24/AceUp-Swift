@@ -25,7 +25,7 @@ class UserUpdateAnalytics: ObservableObject {
     
     // MARK: - Properties
     private let db = Firestore.firestore()
-    private var activeUpdateSessions: [String: UpdateSession] = []
+    private var activeUpdateSessions: [String: UpdateSession] = [:]
     
     // User Defaults keys for tracking last update times
     private let lastUpdatePrefix = "lastUpdate_"

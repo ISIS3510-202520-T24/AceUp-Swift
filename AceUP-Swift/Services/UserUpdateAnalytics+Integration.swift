@@ -8,16 +8,12 @@
 //
 
 import Foundation
+import UIKit
+import FirebaseAuth
 
 // MARK: - UserProfileManager Integration
 
 extension UserProfileManager {
-    
-    /// Start tracking profile update session
-    private func startProfileUpdateTracking() -> String {
-        guard let userId = currentUserId else { return "" }
-        return UserUpdateAnalytics.shared.startProfileUpdate(userId: userId)
-    }
     
     /// Enhanced update profile with analytics tracking
     func updateProfileWithTracking(
@@ -26,10 +22,13 @@ extension UserProfileManager {
         studyProgram: String? = nil,
         academicYear: String? = nil
     ) async {
-        guard let userId = currentUserId else { return }
+        guard let userId = Auth.auth().currentUser?.uid else { return }
         
         // Start tracking
-        let sessionId = UserUpdateAnalytics.shared.startProfileUpdate(userId: userId)
+        let sessionId = UserUpdateAnalytics.shared.startUpdateSession(
+            updateType: .personalInfo,
+            userId: userId
+        )
         
         // Track interactions
         if displayName != nil { UserUpdateAnalytics.shared.trackInteraction(sessionId: sessionId) }
@@ -61,7 +60,7 @@ extension UserProfileManager {
     
     /// Enhanced profile image update with analytics tracking
     func updateProfileImageWithTracking(_ image: UIImage) async {
-        guard let userId = currentUserId else { return }
+        guard let userId = Auth.auth().currentUser?.uid else { return }
         
         // Start tracking
         let sessionId = UserUpdateAnalytics.shared.startUpdateSession(
@@ -89,10 +88,13 @@ extension AssignmentRepository {
     
     /// Enhanced create assignment with analytics tracking
     func createAssignmentWithTracking(_ assignment: Assignment) async throws {
-        guard let userId = getCurrentUserId() else { return }
+        guard let userId = Auth.auth().currentUser?.uid else { return }
         
         // Start tracking
-        let sessionId = UserUpdateAnalytics.shared.startAssignmentUpdate(userId: userId)
+        let sessionId = UserUpdateAnalytics.shared.startUpdateSession(
+            updateType: .assignment,
+            userId: userId
+        )
         
         // Track fields as interactions
         UserUpdateAnalytics.shared.trackInteraction(sessionId: sessionId) // title
@@ -105,7 +107,7 @@ extension AssignmentRepository {
         
         do {
             // Perform the creation
-            try await createAssignment(assignment)
+            try await saveAssignment(assignment)
             
             // Track fields modified
             var fieldsModified = ["title", "courseId", "dueDate", "weight", "priority"]
@@ -129,17 +131,20 @@ extension AssignmentRepository {
     
     /// Enhanced update assignment with analytics tracking
     func updateAssignmentWithTracking(_ assignment: Assignment) async throws {
-        guard let userId = getCurrentUserId() else { return }
+        guard let userId = Auth.auth().currentUser?.uid else { return }
         
         // Start tracking
-        let sessionId = UserUpdateAnalytics.shared.startAssignmentUpdate(userId: userId)
+        let sessionId = UserUpdateAnalytics.shared.startUpdateSession(
+            updateType: .assignment,
+            userId: userId
+        )
         
         // Track interaction for the update
         UserUpdateAnalytics.shared.trackInteraction(sessionId: sessionId)
         
         do {
             // Perform the update
-            try await updateAssignment(assignment)
+            try await saveAssignment(assignment)
             
             // Track all fields as potentially modified
             let fieldsModified = ["title", "description", "dueDate", "weight", "priority", "status"]
@@ -148,94 +153,6 @@ extension AssignmentRepository {
             await UserUpdateAnalytics.shared.completeUpdateSession(
                 sessionId: sessionId,
                 fieldsModified: fieldsModified
-            )
-            
-        } catch {
-            // Abandon tracking on error
-            await UserUpdateAnalytics.shared.abandonUpdateSession(sessionId: sessionId)
-            throw error
-        }
-    }
-    
-    /// Helper to get current user ID
-    private func getCurrentUserId() -> String? {
-        // This should be implemented based on your auth service
-        return FirebaseAuth.Auth.auth().currentUser?.uid
-    }
-}
-
-// MARK: - SharedCalendarService Integration
-
-extension SharedCalendarService {
-    
-    /// Enhanced create calendar group with analytics tracking
-    func createGroupWithTracking(
-        name: String,
-        description: String,
-        members: [String],
-        color: String,
-        userId: String
-    ) async throws -> CalendarGroup {
-        
-        // Start tracking
-        let sessionId = UserUpdateAnalytics.shared.startUpdateSession(
-            updateType: .sharedCalendar,
-            userId: userId
-        )
-        
-        // Track interactions
-        UserUpdateAnalytics.shared.trackInteraction(sessionId: sessionId) // name
-        UserUpdateAnalytics.shared.trackInteraction(sessionId: sessionId) // description
-        members.forEach { _ in UserUpdateAnalytics.shared.trackInteraction(sessionId: sessionId) }
-        
-        do {
-            // Perform the creation
-            let group = try await createGroup(
-                name: name,
-                description: description,
-                members: members,
-                color: color,
-                userId: userId
-            )
-            
-            // Track fields modified
-            let fieldsModified = ["name", "description", "members", "color"]
-            
-            // Complete tracking
-            await UserUpdateAnalytics.shared.completeUpdateSession(
-                sessionId: sessionId,
-                fieldsModified: fieldsModified
-            )
-            
-            return group
-            
-        } catch {
-            // Abandon tracking on error
-            await UserUpdateAnalytics.shared.abandonUpdateSession(sessionId: sessionId)
-            throw error
-        }
-    }
-    
-    /// Enhanced update availability with analytics tracking
-    func updateAvailabilityWithTracking(
-        userId: String,
-        slots: [AvailabilitySlot]
-    ) async throws {
-        
-        // Start tracking
-        let sessionId = UserUpdateAnalytics.shared.startAvailabilityUpdate(userId: userId)
-        
-        // Track interactions based on number of slots
-        slots.forEach { _ in UserUpdateAnalytics.shared.trackInteraction(sessionId: sessionId) }
-        
-        do {
-            // Perform the update
-            try await updateAvailability(userId: userId, slots: slots)
-            
-            // Complete tracking
-            await UserUpdateAnalytics.shared.completeUpdateSession(
-                sessionId: sessionId,
-                fieldsModified: ["availabilitySlots"]
             )
             
         } catch {
@@ -274,7 +191,3 @@ extension UserPreferencesManager {
         )
     }
 }
-
-// MARK: - Helper for Import
-
-import FirebaseAuth
