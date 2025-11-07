@@ -55,7 +55,13 @@ struct UserProfileView: View {
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(sourceType: .photoLibrary) { image in
                 Task {
+                    // Track profile image update
+                    UserUpdateAnalytics.shared.startUpdateSession(type: .profileImage)
                     await profileManager.updateProfileImage(image)
+                    UserUpdateAnalytics.shared.completeUpdateSession(
+                        type: .profileImage,
+                        fieldsUpdated: ["profileImage"]
+                    )
                 }
             }
         }
@@ -297,6 +303,7 @@ struct ProfileRow: View {
 
 struct EditProfileView: View {
     @StateObject private var profileManager = UserProfileManager.shared
+    @StateObject private var analytics = UserUpdateAnalytics.shared
     @Environment(\.dismiss) private var dismiss
     
     @State private var displayName: String = ""
@@ -304,6 +311,7 @@ struct EditProfileView: View {
     @State private var studyProgram: String = ""
     @State private var academicYear: String = ""
     @State private var isLoading = false
+    @State private var hasStartedSession = false
     
     var body: some View {
         NavigationView {
@@ -314,6 +322,9 @@ struct EditProfileView: View {
                         Spacer()
                         TextField("Enter name", text: $displayName)
                             .multilineTextAlignment(.trailing)
+                            .onChange(of: displayName) {
+                                trackInteractionOnce()
+                            }
                     }
                     
                     HStack {
@@ -321,6 +332,9 @@ struct EditProfileView: View {
                         Spacer()
                         TextField("Enter university", text: $university)
                             .multilineTextAlignment(.trailing)
+                            .onChange(of: university) {
+                                trackInteractionOnce()
+                            }
                     }
                     
                     HStack {
@@ -328,6 +342,9 @@ struct EditProfileView: View {
                         Spacer()
                         TextField("Enter program", text: $studyProgram)
                             .multilineTextAlignment(.trailing)
+                            .onChange(of: studyProgram) {
+                                trackInteractionOnce()
+                            }
                     }
                     
                     HStack {
@@ -344,6 +361,9 @@ struct EditProfileView: View {
                             Text("PhD").tag("PhD")
                         }
                         .pickerStyle(MenuPickerStyle())
+                        .onChange(of: academicYear) {
+                            trackInteractionOnce()
+                        }
                     }
                 }
                 
@@ -362,9 +382,7 @@ struct EditProfileView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
-                        Task {
-                            await saveProfile()
-                        }
+                        saveProfile()
                     }
                     .disabled(isLoading)
                 }
@@ -373,7 +391,22 @@ struct EditProfileView: View {
         }
         .onAppear {
             loadCurrentValues()
+            // Start analytics session when user opens edit screen
+            analytics.startUpdateSession(type: .personalInfo)
         }
+        .onDisappear {
+            // If user closes without saving, abandon the session
+            if hasStartedSession {
+                analytics.abandonUpdateSession(type: .personalInfo)
+            }
+        }
+    }
+    
+    private func trackInteractionOnce() {
+        if !hasStartedSession {
+            hasStartedSession = true
+        }
+        analytics.trackInteraction(type: .personalInfo)
     }
     
     private func loadCurrentValues() {
@@ -383,18 +416,36 @@ struct EditProfileView: View {
         academicYear = profileManager.academicYear ?? ""
     }
     
-    private func saveProfile() async {
+    private func saveProfile() {
         isLoading = true
-        defer { isLoading = false }
         
-        await profileManager.updateProfile(
-            displayName: displayName.isEmpty ? nil : displayName,
-            university: university.isEmpty ? nil : university,
-            studyProgram: studyProgram.isEmpty ? nil : studyProgram,
-            academicYear: academicYear.isEmpty ? nil : academicYear
-        )
+        // Track which fields were updated
+        var fieldsUpdated: [String] = []
+        if displayName != profileManager.displayName { fieldsUpdated.append("displayName") }
+        if university != (profileManager.university ?? "") { fieldsUpdated.append("university") }
+        if studyProgram != (profileManager.studyProgram ?? "") { fieldsUpdated.append("studyProgram") }
+        if academicYear != (profileManager.academicYear ?? "") { fieldsUpdated.append("academicYear") }
         
-        dismiss()
+        Task {
+            await profileManager.updateProfile(
+                displayName: displayName.isEmpty ? nil : displayName,
+                university: university.isEmpty ? nil : university,
+                studyProgram: studyProgram.isEmpty ? nil : studyProgram,
+                academicYear: academicYear.isEmpty ? nil : academicYear
+            )
+            
+            // Complete analytics session with tracked fields
+            analytics.completeUpdateSession(
+                type: .personalInfo,
+                fieldsUpdated: fieldsUpdated
+            )
+            
+            // Mark session as completed so onDisappear doesn't abandon it
+            hasStartedSession = false
+            isLoading = false
+            
+            dismiss()
+        }
     }
 }
 
@@ -453,9 +504,7 @@ struct ChangePasswordView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Update") {
-                        Task {
-                            await changePassword()
-                        }
+                        changePassword()
                     }
                     .disabled(isLoading || !isValidForm)
                 }
@@ -471,28 +520,31 @@ struct ChangePasswordView: View {
         newPassword.count >= 8
     }
     
-    private func changePassword() async {
+    private func changePassword() {
         isLoading = true
         errorMessage = nil
         successMessage = nil
-        defer { isLoading = false }
         
-        do {
-            // Re-authenticate with current password
-            let user = Auth.auth().currentUser
-            let credential = EmailAuthProvider.credential(withEmail: user?.email ?? "", password: currentPassword)
-            try await user?.reauthenticate(with: credential)
-            
-            // Update password
-            try await user?.updatePassword(to: newPassword)
-            
-            successMessage = "Password updated successfully"
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                dismiss()
+        Task {
+            do {
+                // Re-authenticate with current password
+                let user = Auth.auth().currentUser
+                let credential = EmailAuthProvider.credential(withEmail: user?.email ?? "", password: currentPassword)
+                try await user?.reauthenticate(with: credential)
+                
+                // Update password
+                try await user?.updatePassword(to: newPassword)
+                
+                successMessage = "Password updated successfully"
+                isLoading = false
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    dismiss()
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+                isLoading = false
             }
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
 }
