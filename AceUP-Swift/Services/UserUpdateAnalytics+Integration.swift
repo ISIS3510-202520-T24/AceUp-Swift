@@ -52,7 +52,7 @@ extension UserProfileManager {
         if academicYear != nil { fieldsModified.append("academicYear") }
         
         // Complete tracking
-        await UserUpdateAnalytics.shared.completeUpdateSession(
+        UserUpdateAnalytics.shared.completeUpdateSession(
             sessionId: sessionId,
             fieldsModified: fieldsModified
         )
@@ -75,7 +75,7 @@ extension UserProfileManager {
         await updateProfileImage(image)
         
         // Complete tracking
-        await UserUpdateAnalytics.shared.completeUpdateSession(
+        UserUpdateAnalytics.shared.completeUpdateSession(
             sessionId: sessionId,
             fieldsModified: ["profileImage"]
         )
@@ -117,14 +117,14 @@ extension AssignmentRepository {
             if !assignment.subtasks.isEmpty { fieldsModified.append("subtasks") }
             
             // Complete tracking
-            await UserUpdateAnalytics.shared.completeUpdateSession(
+            UserUpdateAnalytics.shared.completeUpdateSession(
                 sessionId: sessionId,
                 fieldsModified: fieldsModified
             )
             
         } catch {
             // Abandon tracking on error
-            await UserUpdateAnalytics.shared.abandonUpdateSession(sessionId: sessionId)
+            UserUpdateAnalytics.shared.abandonUpdateSession(sessionId: sessionId)
             throw error
         }
     }
@@ -150,14 +150,14 @@ extension AssignmentRepository {
             let fieldsModified = ["title", "description", "dueDate", "weight", "priority", "status"]
             
             // Complete tracking
-            await UserUpdateAnalytics.shared.completeUpdateSession(
+            UserUpdateAnalytics.shared.completeUpdateSession(
                 sessionId: sessionId,
                 fieldsModified: fieldsModified
             )
             
         } catch {
             // Abandon tracking on error
-            await UserUpdateAnalytics.shared.abandonUpdateSession(sessionId: sessionId)
+            UserUpdateAnalytics.shared.abandonUpdateSession(sessionId: sessionId)
             throw error
         }
     }
@@ -185,7 +185,7 @@ extension UserPreferencesManager {
         // Complete tracking after a short delay to capture all changes
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         
-        await UserUpdateAnalytics.shared.completeUpdateSession(
+        UserUpdateAnalytics.shared.completeUpdateSession(
             sessionId: sessionId,
             fieldsModified: ["preferences"]
         )

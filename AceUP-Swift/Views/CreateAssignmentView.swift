@@ -42,9 +42,7 @@ struct CreateAssignmentView: View {
                         viewModel.clearForm()
                         // Abandon analytics session if user cancels
                         if hasStartedSession {
-                            Task {
-                                await UserUpdateAnalytics.shared.abandonUpdateSession(type: .assignment)
-                            }
+                            UserUpdateAnalytics.shared.abandonUpdateSession(type: .assignment)
                         }
                         dismiss()
                     }
@@ -56,7 +54,7 @@ struct CreateAssignmentView: View {
                             await viewModel.createAssignment()
                             if !viewModel.showingCreateAssignment {
                                 // Complete analytics session on successful save
-                                await UserUpdateAnalytics.shared.completeUpdateSession(
+                                UserUpdateAnalytics.shared.completeUpdateSession(
                                     type: .assignment,
                                     fieldsUpdated: ["title", "course", "dueDate", "priority"]
                                 )
@@ -83,13 +81,13 @@ struct CreateAssignmentView: View {
         Section("Assignment Details") {
             TextField("Assignment Title", text: $viewModel.newAssignmentTitle)
                 .textInputAutocapitalization(.words)
-                .onChange(of: viewModel.newAssignmentTitle) { _ in
+                .onChange(of: viewModel.newAssignmentTitle) {
                     UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
                 }
             
             TextField("Course Name", text: $viewModel.newAssignmentCourse)
                 .textInputAutocapitalization(.words)
-                .onChange(of: viewModel.newAssignmentCourse) { _ in
+                .onChange(of: viewModel.newAssignmentCourse) {
                     UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
                 }
             
@@ -99,7 +97,7 @@ struct CreateAssignmentView: View {
                 in: Date()...,
                 displayedComponents: [.date, .hourAndMinute]
             )
-            .onChange(of: viewModel.newAssignmentDueDate) { _ in
+            .onChange(of: viewModel.newAssignmentDueDate) {
                 UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
             }
             
@@ -115,7 +113,7 @@ struct CreateAssignmentView: View {
                 in: 0.01...1.0,
                 step: 0.01
             )
-            .onChange(of: viewModel.newAssignmentWeight) { _ in
+            .onChange(of: viewModel.newAssignmentWeight) {
                 UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
             }
             
@@ -130,7 +128,7 @@ struct CreateAssignmentView: View {
                     .tag(priority)
                 }
             }
-            .onChange(of: viewModel.newAssignmentPriority) { _ in
+            .onChange(of: viewModel.newAssignmentPriority) {
                 UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
             }
         }
