@@ -322,7 +322,7 @@ struct EditProfileView: View {
                         Spacer()
                         TextField("Enter name", text: $displayName)
                             .multilineTextAlignment(.trailing)
-                            .onChange(of: displayName) { _ in
+                            .onChange(of: displayName) {
                                 trackInteractionOnce()
                             }
                     }
@@ -332,7 +332,7 @@ struct EditProfileView: View {
                         Spacer()
                         TextField("Enter university", text: $university)
                             .multilineTextAlignment(.trailing)
-                            .onChange(of: university) { _ in
+                            .onChange(of: university) {
                                 trackInteractionOnce()
                             }
                     }
@@ -342,7 +342,7 @@ struct EditProfileView: View {
                         Spacer()
                         TextField("Enter program", text: $studyProgram)
                             .multilineTextAlignment(.trailing)
-                            .onChange(of: studyProgram) { _ in
+                            .onChange(of: studyProgram) {
                                 trackInteractionOnce()
                             }
                     }
@@ -361,7 +361,7 @@ struct EditProfileView: View {
                             Text("PhD").tag("PhD")
                         }
                         .pickerStyle(MenuPickerStyle())
-                        .onChange(of: academicYear) { _ in
+                        .onChange(of: academicYear) {
                             trackInteractionOnce()
                         }
                     }
@@ -382,9 +382,7 @@ struct EditProfileView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
-                        Task {
-                            await saveProfile()
-                        }
+                        saveProfile()
                     }
                     .disabled(isLoading)
                 }
@@ -399,9 +397,7 @@ struct EditProfileView: View {
         .onDisappear {
             // If user closes without saving, abandon the session
             if hasStartedSession {
-                Task {
-                    await analytics.abandonUpdateSession(type: .personalInfo)
-                }
+                analytics.abandonUpdateSession(type: .personalInfo)
             }
         }
     }
@@ -420,9 +416,8 @@ struct EditProfileView: View {
         academicYear = profileManager.academicYear ?? ""
     }
     
-    private func saveProfile() async {
+    private func saveProfile() {
         isLoading = true
-        defer { isLoading = false }
         
         // Track which fields were updated
         var fieldsUpdated: [String] = []
@@ -431,23 +426,26 @@ struct EditProfileView: View {
         if studyProgram != (profileManager.studyProgram ?? "") { fieldsUpdated.append("studyProgram") }
         if academicYear != (profileManager.academicYear ?? "") { fieldsUpdated.append("academicYear") }
         
-        await profileManager.updateProfile(
-            displayName: displayName.isEmpty ? nil : displayName,
-            university: university.isEmpty ? nil : university,
-            studyProgram: studyProgram.isEmpty ? nil : studyProgram,
-            academicYear: academicYear.isEmpty ? nil : academicYear
-        )
-        
-        // Complete analytics session with tracked fields
-        await analytics.completeUpdateSession(
-            type: .personalInfo,
-            fieldsUpdated: fieldsUpdated
-        )
-        
-        // Mark session as completed so onDisappear doesn't abandon it
-        hasStartedSession = false
-        
-        dismiss()
+        Task {
+            await profileManager.updateProfile(
+                displayName: displayName.isEmpty ? nil : displayName,
+                university: university.isEmpty ? nil : university,
+                studyProgram: studyProgram.isEmpty ? nil : studyProgram,
+                academicYear: academicYear.isEmpty ? nil : academicYear
+            )
+            
+            // Complete analytics session with tracked fields
+            analytics.completeUpdateSession(
+                type: .personalInfo,
+                fieldsUpdated: fieldsUpdated
+            )
+            
+            // Mark session as completed so onDisappear doesn't abandon it
+            hasStartedSession = false
+            isLoading = false
+            
+            dismiss()
+        }
     }
 }
 
@@ -506,9 +504,7 @@ struct ChangePasswordView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Update") {
-                        Task {
-                            await changePassword()
-                        }
+                        changePassword()
                     }
                     .disabled(isLoading || !isValidForm)
                 }
@@ -524,28 +520,31 @@ struct ChangePasswordView: View {
         newPassword.count >= 8
     }
     
-    private func changePassword() async {
+    private func changePassword() {
         isLoading = true
         errorMessage = nil
         successMessage = nil
-        defer { isLoading = false }
         
-        do {
-            // Re-authenticate with current password
-            let user = Auth.auth().currentUser
-            let credential = EmailAuthProvider.credential(withEmail: user?.email ?? "", password: currentPassword)
-            try await user?.reauthenticate(with: credential)
-            
-            // Update password
-            try await user?.updatePassword(to: newPassword)
-            
-            successMessage = "Password updated successfully"
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                dismiss()
+        Task {
+            do {
+                // Re-authenticate with current password
+                let user = Auth.auth().currentUser
+                let credential = EmailAuthProvider.credential(withEmail: user?.email ?? "", password: currentPassword)
+                try await user?.reauthenticate(with: credential)
+                
+                // Update password
+                try await user?.updatePassword(to: newPassword)
+                
+                successMessage = "Password updated successfully"
+                isLoading = false
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    dismiss()
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+                isLoading = false
             }
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
 }

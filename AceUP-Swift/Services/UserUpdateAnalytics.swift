@@ -191,7 +191,7 @@ class UserUpdateAnalytics: ObservableObject {
     func completeUpdateSession(
         sessionId: String,
         fieldsModified: [String] = []
-    ) async {
+    ) {
         guard var session = activeUpdateSessions[sessionId] else {
             print("⚠️ [BQ 5.1] No active session found for ID: \(sessionId)")
             return
@@ -220,20 +220,21 @@ class UserUpdateAnalytics: ObservableObject {
         ])
         
         // Store in Firestore for BigQuery export
-        await storeSession(session)
+        Task { @MainActor in
+            await storeSession(session)
+            // Check if notification is needed
+            await checkNotificationThreshold(for: session)
+        }
         
         // Remove from active sessions
         activeUpdateSessions.removeValue(forKey: sessionId)
         
         print("✅ [BQ 5.1] Completed update session: \(session.updateType.displayName) - Duration: \(session.durationSeconds ?? 0)s")
-        
-        // Check if notification is needed
-        await checkNotificationThreshold(for: session)
     }
     
     /// Abandon an update session (user cancelled or navigated away)
     /// - Parameter sessionId: Active session ID
-    func abandonUpdateSession(sessionId: String) async {
+    func abandonUpdateSession(sessionId: String) {
         guard var session = activeUpdateSessions[sessionId] else {
             print("⚠️ [BQ 5.1] No active session found for ID: \(sessionId)")
             return
@@ -251,16 +252,18 @@ class UserUpdateAnalytics: ObservableObject {
         ])
         
         // Track in custom analytics pipeline
-        await AppAnalytics.shared.track("update_session_abandoned", props: [
-            "session_id": session.sessionId,
-            "update_type": session.updateType.rawValue,
-            "duration_seconds": session.durationSeconds ?? 0,
-            "interaction_count": session.interactionCount,
-            "timestamp": ISO8601DateFormatter().string(from: session.endTimestamp ?? Date())
-        ])
-        
-        // Store in Firestore
-        await storeSession(session)
+        Task { @MainActor in
+            await AppAnalytics.shared.track("update_session_abandoned", props: [
+                "session_id": session.sessionId,
+                "update_type": session.updateType.rawValue,
+                "duration_seconds": session.durationSeconds ?? 0,
+                "interaction_count": session.interactionCount,
+                "timestamp": ISO8601DateFormatter().string(from: session.endTimestamp ?? Date())
+            ])
+            
+            // Store in Firestore
+            await storeSession(session)
+        }
         
         // Remove from active sessions
         activeUpdateSessions.removeValue(forKey: sessionId)
@@ -291,21 +294,21 @@ class UserUpdateAnalytics: ObservableObject {
     }
     
     /// Convenience method: Complete session by update type
-    func completeUpdateSession(type: UpdateType, fieldsUpdated: [String]) async {
+    func completeUpdateSession(type: UpdateType, fieldsUpdated: [String]) {
         guard let session = activeUpdateSessions.values.first(where: { $0.updateType == type }) else {
             print("⚠️ [BQ 5.1] No active session for type: \(type.displayName)")
             return
         }
-        await completeUpdateSession(sessionId: session.sessionId, fieldsUpdated: fieldsUpdated)
+        completeUpdateSession(sessionId: session.sessionId, fieldsUpdated: fieldsUpdated)
     }
     
     /// Convenience method: Abandon session by update type
-    func abandonUpdateSession(type: UpdateType) async {
+    func abandonUpdateSession(type: UpdateType) {
         guard let session = activeUpdateSessions.values.first(where: { $0.updateType == type }) else {
             print("⚠️ [BQ 5.1] No active session for type: \(type.displayName)")
             return
         }
-        await abandonUpdateSession(sessionId: session.sessionId)
+        abandonUpdateSession(sessionId: session.sessionId)
     }
     
     // MARK: - Analytics Queries
