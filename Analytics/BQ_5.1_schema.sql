@@ -4,7 +4,7 @@
 # Table: analytics_update_sessions
 # Description: Tracks individual user update sessions with timing and completion data
 
-CREATE TABLE `aceup_analytics.user_update_sessions` (
+CREATE TABLE IF NOT EXISTS `aceup-app-123.aceup_analytics.user_update_sessions` (
   # Session Identification
   sessionId STRING NOT NULL,
   userId STRING NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE `aceup_analytics.user_update_sessions` (
   appVersion STRING NOT NULL,
   
   # Metadata
-  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+  createdAt TIMESTAMP NOT NULL,
   
   # Derived Fields (computed in views)
   # - date: DATE from startTimestamp
@@ -40,7 +40,7 @@ PARTITION BY DATE(startTimestamp)
 CLUSTER BY userId, updateType, completed;
 
 # View: Average Update Times by Type
-CREATE OR REPLACE VIEW `aceup_analytics.avg_update_times_by_type` AS
+CREATE OR REPLACE VIEW `aceup-app-123.aceup_analytics.avg_update_times_by_type` AS
 SELECT
   updateType,
   COUNT(*) as total_sessions,
@@ -54,12 +54,12 @@ SELECT
   ROUND(AVG(interactionCount), 2) as avg_interactions,
   ROUND(AVG(ARRAY_LENGTH(fieldsModified)), 2) as avg_fields_modified,
   ROUND(COUNT(CASE WHEN abandoned THEN 1 END) * 100.0 / COUNT(*), 2) as abandonment_rate_percent
-FROM `aceup_analytics.user_update_sessions`
+FROM `aceup-app-123.aceup_analytics.user_update_sessions`
 GROUP BY updateType
 ORDER BY avg_duration_seconds DESC;
 
 # View: User Update Patterns Over Time
-CREATE OR REPLACE VIEW `aceup_analytics.update_patterns_over_time` AS
+CREATE OR REPLACE VIEW `aceup-app-123.aceup_analytics.update_patterns_over_time` AS
 SELECT
   DATE(startTimestamp) as date,
   updateType,
@@ -68,12 +68,12 @@ SELECT
   COUNT(*) as session_count,
   ROUND(AVG(CASE WHEN completed THEN durationSeconds END), 2) as avg_duration_seconds,
   ROUND(COUNT(CASE WHEN abandoned THEN 1 END) * 100.0 / COUNT(*), 2) as abandonment_rate_percent
-FROM `aceup_analytics.user_update_sessions`
+FROM `aceup-app-123.aceup_analytics.user_update_sessions`
 GROUP BY date, updateType, hour, day_of_week
 ORDER BY date DESC, hour;
 
 # View: User-Level Update Performance
-CREATE OR REPLACE VIEW `aceup_analytics.user_update_performance` AS
+CREATE OR REPLACE VIEW `aceup-app-123.aceup_analytics.user_update_performance` AS
 SELECT
   userId,
   updateType,
@@ -84,12 +84,12 @@ SELECT
   ROUND(MAX(CASE WHEN completed THEN durationSeconds END), 2) as max_duration_seconds,
   MAX(endTimestamp) as last_update_timestamp,
   DATE_DIFF(CURRENT_DATE(), DATE(MAX(endTimestamp)), DAY) as days_since_last_update
-FROM `aceup_analytics.user_update_sessions`
+FROM `aceup-app-123.aceup_analytics.user_update_sessions`
 WHERE completed = TRUE
 GROUP BY userId, updateType;
 
 # View: Slow Updates (exceeding thresholds)
-CREATE OR REPLACE VIEW `aceup_analytics.slow_updates` AS
+CREATE OR REPLACE VIEW `aceup-app-123.aceup_analytics.slow_updates` AS
 WITH thresholds AS (
   SELECT 'availability' as updateType, 120 as threshold_seconds UNION ALL
   SELECT 'schedule', 180 UNION ALL
@@ -113,14 +113,14 @@ SELECT
   s.startTimestamp,
   s.platform,
   s.appVersion
-FROM `aceup_analytics.user_update_sessions` s
+FROM `aceup-app-123.aceup_analytics.user_update_sessions` s
 JOIN thresholds t ON s.updateType = t.updateType
 WHERE s.completed = TRUE
   AND s.durationSeconds > t.threshold_seconds
 ORDER BY exceeded_by_percent DESC;
 
 # View: Update Frequency Analysis (BQ 5.1 insight for notifications)
-CREATE OR REPLACE VIEW `aceup_analytics.update_frequency_analysis` AS
+CREATE OR REPLACE VIEW `aceup-app-123.aceup_analytics.update_frequency_analysis` AS
 WITH user_updates AS (
   SELECT
     userId,
@@ -128,7 +128,7 @@ WITH user_updates AS (
     DATE(endTimestamp) as update_date,
     ROW_NUMBER() OVER (PARTITION BY userId, updateType ORDER BY endTimestamp DESC) as recency_rank,
     LAG(DATE(endTimestamp)) OVER (PARTITION BY userId, updateType ORDER BY endTimestamp) as previous_update_date
-  FROM `aceup_analytics.user_update_sessions`
+  FROM `aceup-app-123.aceup_analytics.user_update_sessions`
   WHERE completed = TRUE
 )
 SELECT
@@ -151,7 +151,7 @@ WHERE recency_rank = 1
 ORDER BY days_since_last_update DESC;
 
 # View: Platform Comparison (iOS vs Android)
-CREATE OR REPLACE VIEW `aceup_analytics.platform_comparison` AS
+CREATE OR REPLACE VIEW `aceup-app-123.aceup_analytics.platform_comparison` AS
 SELECT
   platform,
   updateType,
@@ -160,12 +160,12 @@ SELECT
   ROUND(AVG(interactionCount), 2) as avg_interactions,
   ROUND(COUNT(CASE WHEN abandoned THEN 1 END) * 100.0 / COUNT(*), 2) as abandonment_rate_percent,
   COUNT(DISTINCT userId) as unique_users
-FROM `aceup_analytics.user_update_sessions`
+FROM `aceup-app-123.aceup_analytics.user_update_sessions`
 GROUP BY platform, updateType
 ORDER BY platform, avg_duration_seconds DESC;
 
 # View: Update Complexity Analysis (interactions vs duration)
-CREATE OR REPLACE VIEW `aceup_analytics.update_complexity_analysis` AS
+CREATE OR REPLACE VIEW `aceup-app-123.aceup_analytics.update_complexity_analysis` AS
 SELECT
   updateType,
   CASE
@@ -177,7 +177,7 @@ SELECT
   ROUND(AVG(durationSeconds), 2) as avg_duration_seconds,
   ROUND(AVG(interactionCount), 2) as avg_interactions,
   ROUND(AVG(ARRAY_LENGTH(fieldsModified)), 2) as avg_fields_modified
-FROM `aceup_analytics.user_update_sessions`
+FROM `aceup-app-123.aceup_analytics.user_update_sessions`
 WHERE completed = TRUE
   AND fieldsModified IS NOT NULL
 GROUP BY updateType, complexity_level
@@ -192,8 +192,8 @@ SELECT
   ROUND(AVG(CASE WHEN completed THEN durationSeconds END), 2) as avg_duration_seconds,
   COUNT(DISTINCT userId) as unique_users,
   ROUND(COUNT(CASE WHEN abandoned THEN 1 END) * 100.0 / COUNT(*), 2) as abandonment_rate_percent
-FROM `aceup_analytics.user_update_sessions`
-WHERE startTimestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 12 WEEK)
+FROM `aceup-app-123.aceup_analytics.user_update_sessions`
+WHERE startTimestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 12*7 DAY)
 GROUP BY week_start, updateType
 ORDER BY week_start DESC, updateType;
 
@@ -205,7 +205,7 @@ SELECT
   days_since_last_update,
   last_update_date,
   update_status
-FROM `aceup_analytics.update_frequency_analysis`
+FROM `aceup-app-123.aceup_analytics.update_frequency_analysis`
 WHERE needs_reminder = TRUE
   AND updateType IN ('availability', 'schedule', 'personal_info')
 ORDER BY days_since_last_update DESC;
@@ -221,7 +221,7 @@ SELECT
   FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', startTimestamp) as started_at,
   platform,
   appVersion
-FROM `aceup_analytics.user_update_sessions`
+FROM `aceup-app-123.aceup_analytics.user_update_sessions`
 WHERE completed = TRUE
   AND durationSeconds IS NOT NULL
 ORDER BY durationSeconds DESC
