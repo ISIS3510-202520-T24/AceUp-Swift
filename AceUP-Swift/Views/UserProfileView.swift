@@ -55,7 +55,13 @@ struct UserProfileView: View {
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(sourceType: .photoLibrary) { image in
                 Task {
+                    // Track profile image update
+                    UserUpdateAnalytics.shared.startUpdateSession(type: .profileImage)
                     await profileManager.updateProfileImage(image)
+                    await UserUpdateAnalytics.shared.completeUpdateSession(
+                        type: .profileImage,
+                        fieldsUpdated: ["profileImage"]
+                    )
                 }
             }
         }
@@ -297,6 +303,7 @@ struct ProfileRow: View {
 
 struct EditProfileView: View {
     @StateObject private var profileManager = UserProfileManager.shared
+    @StateObject private var analytics = UserUpdateAnalytics.shared
     @Environment(\.dismiss) private var dismiss
     
     @State private var displayName: String = ""
@@ -304,6 +311,7 @@ struct EditProfileView: View {
     @State private var studyProgram: String = ""
     @State private var academicYear: String = ""
     @State private var isLoading = false
+    @State private var hasStartedSession = false
     
     var body: some View {
         NavigationView {
@@ -314,6 +322,9 @@ struct EditProfileView: View {
                         Spacer()
                         TextField("Enter name", text: $displayName)
                             .multilineTextAlignment(.trailing)
+                            .onChange(of: displayName) { _ in
+                                trackInteractionOnce()
+                            }
                     }
                     
                     HStack {
@@ -321,6 +332,9 @@ struct EditProfileView: View {
                         Spacer()
                         TextField("Enter university", text: $university)
                             .multilineTextAlignment(.trailing)
+                            .onChange(of: university) { _ in
+                                trackInteractionOnce()
+                            }
                     }
                     
                     HStack {
@@ -328,6 +342,9 @@ struct EditProfileView: View {
                         Spacer()
                         TextField("Enter program", text: $studyProgram)
                             .multilineTextAlignment(.trailing)
+                            .onChange(of: studyProgram) { _ in
+                                trackInteractionOnce()
+                            }
                     }
                     
                     HStack {
@@ -344,6 +361,9 @@ struct EditProfileView: View {
                             Text("PhD").tag("PhD")
                         }
                         .pickerStyle(MenuPickerStyle())
+                        .onChange(of: academicYear) { _ in
+                            trackInteractionOnce()
+                        }
                     }
                 }
                 
@@ -373,7 +393,24 @@ struct EditProfileView: View {
         }
         .onAppear {
             loadCurrentValues()
+            // Start analytics session when user opens edit screen
+            analytics.startUpdateSession(type: .personalInfo)
         }
+        .onDisappear {
+            // If user closes without saving, abandon the session
+            if hasStartedSession {
+                Task {
+                    await analytics.abandonUpdateSession(type: .personalInfo)
+                }
+            }
+        }
+    }
+    
+    private func trackInteractionOnce() {
+        if !hasStartedSession {
+            hasStartedSession = true
+        }
+        analytics.trackInteraction(type: .personalInfo)
     }
     
     private func loadCurrentValues() {
@@ -387,12 +424,28 @@ struct EditProfileView: View {
         isLoading = true
         defer { isLoading = false }
         
+        // Track which fields were updated
+        var fieldsUpdated: [String] = []
+        if displayName != profileManager.displayName { fieldsUpdated.append("displayName") }
+        if university != (profileManager.university ?? "") { fieldsUpdated.append("university") }
+        if studyProgram != (profileManager.studyProgram ?? "") { fieldsUpdated.append("studyProgram") }
+        if academicYear != (profileManager.academicYear ?? "") { fieldsUpdated.append("academicYear") }
+        
         await profileManager.updateProfile(
             displayName: displayName.isEmpty ? nil : displayName,
             university: university.isEmpty ? nil : university,
             studyProgram: studyProgram.isEmpty ? nil : studyProgram,
             academicYear: academicYear.isEmpty ? nil : academicYear
         )
+        
+        // Complete analytics session with tracked fields
+        await analytics.completeUpdateSession(
+            type: .personalInfo,
+            fieldsUpdated: fieldsUpdated
+        )
+        
+        // Mark session as completed so onDisappear doesn't abandon it
+        hasStartedSession = false
         
         dismiss()
     }
