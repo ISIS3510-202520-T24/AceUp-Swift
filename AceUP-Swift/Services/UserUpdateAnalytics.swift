@@ -137,8 +137,8 @@ class UserUpdateAnalytics: ObservableObject {
             "platform": session.platform
         ])
         
-        // Track in custom analytics pipeline
-        Task {
+        // Track in custom analytics pipeline (fire and forget)
+        Task { @MainActor in
             await AppAnalytics.shared.track("update_session_started", props: [
                 "session_id": session.sessionId,
                 "update_type": updateType.rawValue,
