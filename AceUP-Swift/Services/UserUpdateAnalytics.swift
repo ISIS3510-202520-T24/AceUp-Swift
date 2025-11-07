@@ -13,6 +13,7 @@
 import Foundation
 import FirebaseFirestore
 import FirebaseAnalytics
+import FirebaseAuth
 
 /// Tracks user update sessions for BQ 5.1 analytics
 /// Data flows: iOS App → Firestore → BigQuery (via Firebase export)
@@ -266,6 +267,48 @@ class UserUpdateAnalytics: ObservableObject {
         
         print("⚠️ [BQ 5.1] Abandoned update session: \(session.updateType.displayName) - Duration: \(session.durationSeconds ?? 0)s")
     }
+    
+    // MARK: - Convenience Methods (Type-based)
+    
+    /// Convenience method: Start session by update type (auto-fetches userId)
+    @discardableResult
+    func startUpdateSession(type: UpdateType) -> String {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            print("❌ [BQ 5.1] No authenticated user")
+            return ""
+        }
+        return startUpdateSession(updateType: type, userId: userId)
+    }
+    
+    /// Convenience method: Track interaction by update type
+    func trackInteraction(type: UpdateType) {
+        // Find active session for this update type
+        guard let session = activeUpdateSessions.values.first(where: { $0.updateType == type }) else {
+            print("⚠️ [BQ 5.1] No active session for type: \(type.displayName)")
+            return
+        }
+        trackInteraction(sessionId: session.sessionId)
+    }
+    
+    /// Convenience method: Complete session by update type
+    func completeUpdateSession(type: UpdateType, fieldsUpdated: [String]) async {
+        guard let session = activeUpdateSessions.values.first(where: { $0.updateType == type }) else {
+            print("⚠️ [BQ 5.1] No active session for type: \(type.displayName)")
+            return
+        }
+        await completeUpdateSession(sessionId: session.sessionId, fieldsUpdated: fieldsUpdated)
+    }
+    
+    /// Convenience method: Abandon session by update type
+    func abandonUpdateSession(type: UpdateType) async {
+        guard let session = activeUpdateSessions.values.first(where: { $0.updateType == type }) else {
+            print("⚠️ [BQ 5.1] No active session for type: \(type.displayName)")
+            return
+        }
+        await abandonUpdateSession(sessionId: session.sessionId)
+    }
+    
+    // MARK: - Analytics Queries
     
     /// Get average update time for a specific update type
     /// - Parameter updateType: Type of update to analyze
