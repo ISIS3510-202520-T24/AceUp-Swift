@@ -58,7 +58,7 @@ struct UserProfileView: View {
                     // Track profile image update
                     UserUpdateAnalytics.shared.startUpdateSession(type: .profileImage)
                     await profileManager.updateProfileImage(image)
-                    await UserUpdateAnalytics.shared.completeUpdateSession(
+                    UserUpdateAnalytics.shared.completeUpdateSession(
                         type: .profileImage,
                         fieldsUpdated: ["profileImage"]
                     )

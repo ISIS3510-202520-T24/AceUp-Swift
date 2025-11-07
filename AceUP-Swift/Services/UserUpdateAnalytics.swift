@@ -210,14 +210,16 @@ class UserUpdateAnalytics: ObservableObject {
         ])
         
         // Track in custom analytics pipeline
-        await AppAnalytics.shared.track("update_session_completed", props: [
-            "session_id": session.sessionId,
-            "update_type": session.updateType.rawValue,
-            "duration_seconds": session.durationSeconds ?? 0,
-            "interaction_count": session.interactionCount,
-            "fields_modified": fieldsModified,
-            "timestamp": ISO8601DateFormatter().string(from: session.endTimestamp ?? Date())
-        ])
+        Task { @MainActor in
+            await AppAnalytics.shared.track("update_session_completed", props: [
+                "session_id": session.sessionId,
+                "update_type": session.updateType.rawValue,
+                "duration_seconds": session.durationSeconds ?? 0,
+                "interaction_count": session.interactionCount,
+                "fields_modified": fieldsModified,
+                "timestamp": ISO8601DateFormatter().string(from: session.endTimestamp ?? Date())
+            ])
+        }
         
         // Store in Firestore for BigQuery export
         Task { @MainActor in
