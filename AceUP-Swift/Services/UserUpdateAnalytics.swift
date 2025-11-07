@@ -146,6 +146,11 @@ class UserUpdateAnalytics: ObservableObject {
             ])
         }
         
+        // 🆕 Persist to Firestore immediately to avoid data loss
+        Task { @MainActor in
+            await storeSessionInProgress(session)
+        }
+        
         print("📊 [BQ 5.1] Started update session: \(updateType.displayName) - \(session.sessionId)")
         
         return session.sessionId
@@ -159,7 +164,23 @@ class UserUpdateAnalytics: ObservableObject {
         session.incrementInteraction()
         activeUpdateSessions[sessionId] = session
         
+        // 🆕 Update interaction count in Firestore
+        Task { @MainActor in
+            await updateInteractionCount(sessionId: sessionId, count: session.interactionCount)
+        }
+        
         print("📊 [BQ 5.1] Interaction tracked: Session \(sessionId) - Count: \(session.interactionCount)")
+    }
+    
+    /// Update interaction count in Firestore
+    private func updateInteractionCount(sessionId: String, count: Int) async {
+        do {
+            try await db.collection("analytics_update_sessions")
+                .document(sessionId)
+                .updateData(["interactionCount": count])
+        } catch {
+            print("❌ [BQ 5.1] Error updating interaction count: \(error)")
+        }
     }
     
     /// Complete an update session successfully
@@ -360,6 +381,37 @@ class UserUpdateAnalytics: ObservableObject {
     
     // MARK: - Private Methods
     
+    /// Store in-progress session in Firestore immediately (for crash recovery)
+    private func storeSessionInProgress(_ session: UpdateSession) async {
+        do {
+            let data: [String: Any] = [
+                "sessionId": session.sessionId,
+                "userId": session.userId,
+                "updateType": session.updateType.rawValue,
+                "startTimestamp": Timestamp(date: session.startTimestamp),
+                "endTimestamp": NSNull(),
+                "durationSeconds": NSNull(),
+                "completed": false,
+                "abandoned": false,
+                "interactionCount": 0,
+                "fieldsModified": [],
+                "platform": session.platform,
+                "appVersion": session.appVersion,
+                "status": "in_progress",
+                "createdAt": FieldValue.serverTimestamp()
+            ]
+            
+            try await db.collection("analytics_update_sessions")
+                .document(session.sessionId)
+                .setData(data)
+            
+            print("💾 [BQ 5.1] Persisted in-progress session to Firestore: \(session.sessionId)")
+            
+        } catch {
+            print("❌ [BQ 5.1] Error storing in-progress session: \(error)")
+        }
+    }
+    
     /// Store update session in Firestore for BigQuery export
     /// Firebase automatically exports Firestore to BigQuery when configured
     private func storeSession(_ session: UpdateSession) async {
@@ -377,21 +429,25 @@ class UserUpdateAnalytics: ObservableObject {
                 "fieldsModified": session.fieldsModified,
                 "platform": session.platform,
                 "appVersion": session.appVersion,
-                "createdAt": FieldValue.serverTimestamp()
+                "status": session.completed ? "completed" : (session.abandoned ? "abandoned" : "in_progress"),
+                "updatedAt": FieldValue.serverTimestamp()
             ]
             
+            // Use merge to update existing document created at start
             try await db.collection("analytics_update_sessions")
                 .document(session.sessionId)
-                .setData(data)
+                .setData(data, merge: true)
             
             // Update last update date in UserDefaults for notification checks
-            let key = lastUpdatePrefix + session.updateType.rawValue
-            UserDefaults.standard.set(session.endTimestamp ?? Date(), forKey: key)
+            if session.completed, let endTime = session.endTimestamp {
+                let key = lastUpdatePrefix + session.updateType.rawValue
+                UserDefaults.standard.set(endTime, forKey: key)
+            }
             
-            print("📊 [BQ 5.1] Stored session in Firestore (auto-exports to BigQuery): \(session.sessionId)")
+            print("📊 [BQ 5.1] Updated session in Firestore (auto-exports to BigQuery): \(session.sessionId)")
             
         } catch {
-            print("Error storing update session: \(error)")
+            print("❌ [BQ 5.1] Error storing update session: \(error)")
         }
     }
     
