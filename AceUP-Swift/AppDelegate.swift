@@ -17,6 +17,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     func application(_ application: UIApplication,
                        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
 
+
+        StartupMetrics.shared.markStart()
+
         // Configure Firebase using the FirebaseConfig class
         FirebaseConfig.shared.configure()
         

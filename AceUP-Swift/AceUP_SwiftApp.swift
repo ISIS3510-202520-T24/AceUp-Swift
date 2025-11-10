@@ -15,6 +15,7 @@ import FirebaseAnalytics
 struct AceUP_SwiftApp: App {
 
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
     let persistenceController = PersistenceController.shared
 
     // Configuración de Firebase + sincronización de GA4 user_id
@@ -51,6 +52,29 @@ struct AceUP_SwiftApp: App {
                 .environmentObject(UserPreferencesManager.shared)
                 .onOpenURL { url in
                     handleDeepLink(url: url)
+                }
+
+                // Marcar el primer frame mostrado
+                .onAppear{
+                    DispatchQueue.main.async{
+                        StartupMetrics.shared.markFirstFrame(startupType:"cold")
+                    }
+                    if let currentUser = Auth.auth().currentUser{
+                        FirebaseAnalytics.Analytics.setUserID(currentUser.uid)
+                    } else {
+                        FirebaseAnalytics.Analytics.setUserID(nil)
+                    }
+                }
+
+                .onChange(of: scenePhase){ phase in
+                    switch phase {
+                        case .active:
+                        StartupMetrics.shared.markStart()
+                        DispatchQueue.main.async{
+                            StartupMetrics.shared.markFirstFrame(startupType: "warm")
+                        }
+                    default: break
+                    }
                 }
         }
         .handlesExternalEvents(matching: ["aceup"])
