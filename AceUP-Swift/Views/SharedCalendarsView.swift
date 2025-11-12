@@ -12,6 +12,7 @@ struct SharedCalendarsView: View {
     let onGroupSelected: (CalendarGroup) -> Void
     
     @StateObject private var viewModel = SharedCalendarViewModel()
+    @ObservedObject private var offlineManager = OfflineManager.shared
     @State private var showingActionSheet = false
     @State private var showingJoinGroup = false
     @State private var showingGroupQR: CalendarGroup?
@@ -123,6 +124,11 @@ struct SharedCalendarsView: View {
     // MARK: - Main Content
     private func mainContent(geometry: GeometryProxy) -> some View {
         VStack(spacing: 0) {
+            // Offline Banner
+            if !offlineManager.isOnline {
+                offlineBanner
+            }
+            
             // Stats Section
             statsSection(geometry: geometry)
             
@@ -133,29 +139,54 @@ struct SharedCalendarsView: View {
         }
         .background(UI.neutralLight)
         .overlay(
-            // Floating Action Button
+            // Floating Action Button (disabled when offline)
             VStack {
                 Spacer()
                 HStack {
                     Spacer()
                     Button(action: {
-                        showingActionSheet = true
+                        if offlineManager.isOnline {
+                            showingActionSheet = true
+                        }
                     }) {
-                        Image(systemName: "plus")
+                        Image(systemName: offlineManager.isOnline ? "plus" : "wifi.slash")
                             .font(.title2)
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
                             .frame(width: geometry.size.width > geometry.size.height ? 48 : 56, 
                                    height: geometry.size.width > geometry.size.height ? 48 : 56) // Smaller in landscape
-                            .background(UI.primary)
+                            .background(offlineManager.isOnline ? UI.primary : Color.gray)
                             .clipShape(Circle())
-                            .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                            .shadow(color: (offlineManager.isOnline ? UI.primary : Color.gray).opacity(0.3), radius: 8, x: 0, y: 4)
                     }
+                    .disabled(!offlineManager.isOnline)
                     .padding(.trailing, geometry.size.width > geometry.size.height ? 15 : 20)
                     .padding(.bottom, geometry.size.width > geometry.size.height ? 15 : 30)
                 }
             }
         )
+    }
+    
+    // MARK: - Offline Banner
+    private var offlineBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "wifi.slash")
+                .font(.title3)
+                .foregroundColor(.white)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Offline Mode")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                Text("Shared calendars require internet connection")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.9))
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .background(Color.orange)
     }
     
     // MARK: - Stats Section
