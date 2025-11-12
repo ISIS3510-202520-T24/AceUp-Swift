@@ -17,9 +17,11 @@ import CoreData
 class OfflineManager: ObservableObject {
     
     // MARK: - Singleton
+    
     static let shared = OfflineManager()
     
     // MARK: - Published Properties
+    
     @Published var isOnline = true
     @Published var connectionType: NWInterface.InterfaceType?
     @Published var hasOfflineData = false
@@ -33,6 +35,7 @@ class OfflineManager: ObservableObject {
     @Published var connectionRestoredRecently = false
     
     // MARK: - Private Properties
+    
     private let networkMonitor = NWPathMonitor()
     private let networkQueue = DispatchQueue(label: "OfflineManagerNetwork")
     private let persistenceController: PersistenceController
@@ -46,6 +49,7 @@ class OfflineManager: ObservableObject {
     private let offlineDataKey = "OfflineManager.offlineData"
     
     // MARK: - Initialization
+    
     private init() {
         self.persistenceController = PersistenceController.shared
         setupNetworkMonitoring()
@@ -59,32 +63,40 @@ class OfflineManager: ObservableObject {
     }
     
     // MARK: - Network Monitoring
+    
     private func setupNetworkMonitoring() {
-        print("Setting up network monitoring...")
+        print("🌐 Setting up network monitoring...")
         
         networkMonitor.pathUpdateHandler = { [weak self] (path: NWPath) in
-            print("Network path changed: \(path.status)")
-            print("   - WiFi: \(path.usesInterfaceType(.wifi))")
-            print("   - Cellular: \(path.usesInterfaceType(.cellular))")
-            print("   - Ethernet: \(path.usesInterfaceType(.wiredEthernet))")
+            print("🌐 Network path changed: \(path.status)")
+            print("   - WiFi: \(path.usesInterfaceType(NWInterface.InterfaceType.wifi))")
+            print("   - Cellular: \(path.usesInterfaceType(NWInterface.InterfaceType.cellular))")
+            print("   - Ethernet: \(path.usesInterfaceType(NWInterface.InterfaceType.wiredEthernet))")
             print("   - Is expensive: \(path.isExpensive)")
             
             guard let self = self else { return }
             
+            // Handle network changes with appropriate debouncing
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 
-                let needsImmediateUpdate = (path.status == .satisfied && !self.isOnline) ||
-                                           (path.status != .satisfied && self.isOnline)
+                // If going from unsatisfied to satisfied, update immediately
+                // If going from satisfied to unsatisfied, also update immediately
+                // Only debounce for satisfied->satisfied transitions
+                let needsImmediateUpdate = (path.status == .satisfied && !self.isOnline) || 
+                                          (path.status != .satisfied && self.isOnline)
                 
                 if !needsImmediateUpdate {
-                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s debounce
+                    // Wait to debounce rapid changes for non-critical updates
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
                 }
                 
                 self.updateConnectionStatus(path)
                 
+                // When path becomes satisfied, test actual internet connectivity
                 if path.status == .satisfied {
                     Task {
+                        // For immediate updates, test connectivity sooner
                         let delay: UInt64 = needsImmediateUpdate ? 500_000_000 : 1_000_000_000
                         try? await Task.sleep(nanoseconds: delay)
                         await self.testInternetConnectivity()
@@ -96,14 +108,18 @@ class OfflineManager: ObservableObject {
         let queue = DispatchQueue(label: "NetworkMonitor", qos: .utility)
         networkMonitor.start(queue: queue)
         
-        // Initial state
+        // Get initial state synchronously
         let currentPath = networkMonitor.currentPath
         print("🌐 Initial network state: \(currentPath.status)")
         
         DispatchQueue.main.async {
             self.updateConnectionStatus(currentPath)
+            
+            // Test initial connectivity if path is satisfied
             if currentPath.status == .satisfied {
-                Task { await self.testInternetConnectivity() }
+                Task {
+                    await self.testInternetConnectivity()
+                }
             }
         }
     }
@@ -122,63 +138,81 @@ class OfflineManager: ObservableObject {
         
         guard networkMonitor.currentPath.status == .satisfied else {
             print("🌐 Path not satisfied, no connectivity")
-            self.isOnline = false
             return false
         }
         
-        // Use a lightweight endpoint
-        let testURL = URL(string: "https://www.google.com/generate_204")!
-        var req = URLRequest(url: testURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 5)
-        req.httpMethod = "GET"
+        // Test with a simple request to a reliable endpoint
+        let testURL = URL(string: "https://www.google.com")!
         
         do {
-            let (_, response) = try await URLSession.shared.data(for: req)
-            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            let isConnected = (200...299).contains(code)
-            print("🌐 Internet connectivity test: \(isConnected ? "SUCCESS" : "FAILED") (status: \(code))")
-            
-            let wasOnline = self.isOnline
-            self.isOnline = isConnected
-            
-            if isConnected && !wasOnline {
-                self.connectionRestoredRecently = true
-                Task {
-                    try? await Task.sleep(nanoseconds: 3_000_000_000)
-                    await MainActor.run { self.connectionRestoredRecently = false }
+            let (_, response) = try await URLSession.shared.data(from: testURL)
+            if let httpResponse = response as? HTTPURLResponse {
+                let isConnected = httpResponse.statusCode == 200
+                print("🌐 Internet connectivity test: \(isConnected ? "SUCCESS" : "FAILED") (status: \(httpResponse.statusCode))")
+                
+                // Update our connection status based on actual internet test
+                Task { @MainActor in
+                    let wasOnline = self.isOnline
+                    self.isOnline = isConnected
+                    
+                    // Trigger connection restoration logic if we just came online
+                    if isConnected && !wasOnline {
+                        self.connectionRestoredRecently = true
+                        
+                        // Hide after 3 seconds
+                        Task {
+                            try? await Task.sleep(nanoseconds: 3_000_000_000)
+                            await MainActor.run {
+                                self.connectionRestoredRecently = false
+                            }
+                        }
+                    } else if !isConnected && wasOnline {
+                        self.connectionRestoredRecently = false
+                    }
                 }
-            } else if !isConnected && wasOnline {
-                self.connectionRestoredRecently = false
+                
+                return isConnected
             }
-            return isConnected
         } catch {
             print("🌐 Internet connectivity test failed: \(error.localizedDescription)")
-            self.isOnline = false
-            return false
         }
+        
+        return false
     }
     
     /// Temporarily force the app into offline state (e.g., after a timeout) and re-check later.
+    /// This is useful when network calls fail due to connectivity issues.
     func markOfflineFor(seconds: Int) async {
-        // Force offline immediately
-        self.isOnline = false
-        self.connectionType = nil
-        self.connectionRestoredRecently = false
+        print("🌐 Forcing offline state for \(seconds) seconds...")
         
-        // Re-check connectivity after a short cooldown
+        // Force offline immediately on main actor
+        await MainActor.run {
+            self.isOnline = false
+            self.connectionType = nil
+            self.connectionRestoredRecently = false
+        }
+        
+        // Re-check connectivity after the cooldown period
         Task {
             try? await Task.sleep(nanoseconds: UInt64(seconds) * 1_000_000_000)
-            _ = await self.testInternetConnectivity()
+            print("🌐 Cooldown period ended, testing connectivity...")
+            await self.testInternetConnectivity()
         }
     }
     
     private func updateConnectionStatus(_ path: NWPath) {
         let wasOnline = isOnline
         
-        let hasWifi = path.usesInterfaceType(.wifi)
-        let hasCellular = path.usesInterfaceType(.cellular)
-        let hasEthernet = path.usesInterfaceType(.wiredEthernet)
+        // More accurate connection detection
+        // Path must be satisfied AND have a usable interface
+        let hasWifi = path.usesInterfaceType(NWInterface.InterfaceType.wifi)
+        let hasCellular = path.usesInterfaceType(NWInterface.InterfaceType.cellular)
+        let hasEthernet = path.usesInterfaceType(NWInterface.InterfaceType.wiredEthernet)
+        
         let hasUsableInterface = hasWifi || hasCellular || hasEthernet
         
+        // If path is satisfied, consider it online even if interface checks are delayed
+        // The interface type checks can lag behind the path status during transitions
         let newOnlineStatus = path.status == .satisfied
         
         print("🌐 updateConnectionStatus called:")
@@ -191,50 +225,67 @@ class OfflineManager: ObservableObject {
         print("   - Is expensive: \(path.isExpensive)")
         print("   - Final online status: \(newOnlineStatus)")
         
+        // Only update if there's an actual change to prevent flickering
         guard newOnlineStatus != wasOnline else {
             print("🌐 No status change, skipping update")
             return
         }
         
-        self.isOnline = newOnlineStatus
-        
-        if hasWifi {
-            self.connectionType = .wifi
-        } else if hasCellular {
-            self.connectionType = .cellular
-        } else if hasEthernet {
-            self.connectionType = .wiredEthernet
-        } else if newOnlineStatus {
-            self.connectionType = nil
-            print("🌐 Online but interface type not yet determined - will update on next path change")
-        } else {
-            self.connectionType = nil
-        }
-        
-        self.validateOfflineCapability()
-        
-        if newOnlineStatus && !wasOnline {
-            print("🌐 Connection restored! Banner will disappear...")
-            self.connectionRestoredRecently = true
+        // Update connection status immediately on main thread
+        Task { @MainActor in
+            self.isOnline = newOnlineStatus
             
-            if self.pendingSyncOperations > 0 {
-                Task { await self.performPendingSyncOperations() }
+            // Determine connection type based on available interfaces
+            // Check in order of preference: WiFi -> Cellular -> Ethernet
+            if hasWifi {
+                self.connectionType = .wifi
+            } else if hasCellular {
+                self.connectionType = .cellular
+            } else if hasEthernet {
+                self.connectionType = .wiredEthernet
+            } else if newOnlineStatus {
+                // Path is satisfied but we couldn't determine the interface type yet
+                // This can happen during network transitions - default to nil and it will update
+                self.connectionType = nil
+                print("🌐 Online but interface type not yet determined - will update on next path change")
+            } else {
+                self.connectionType = nil
             }
             
-            Task {
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
-                await MainActor.run {
-                    print("🌐 Hiding green connected banner...")
-                    self.connectionRestoredRecently = false
+            self.validateOfflineCapability()
+            
+            // Handle connection restoration - trigger immediately when going from offline to online
+            if newOnlineStatus && !wasOnline {
+                print("🌐 Connection restored! Banner will disappear...")
+                
+                // Show connection restored banner briefly
+                self.connectionRestoredRecently = true
+                
+                // Auto-sync when connection is restored
+                if self.pendingSyncOperations > 0 {
+                    Task {
+                        await self.performPendingSyncOperations()
+                    }
                 }
+                
+                // Hide the green "Connected" banner after 3 seconds
+                Task {
+                    try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
+                    await MainActor.run {
+                        print("🌐 Hiding green connected banner...")
+                        self.connectionRestoredRecently = false
+                    }
+                }
+            } else if !newOnlineStatus && wasOnline {
+                // Connection lost - ensure offline banner shows immediately
+                print("🚫 Connection lost! Showing red offline banner...")
+                self.connectionRestoredRecently = false
             }
-        } else if !newOnlineStatus && wasOnline {
-            print("🚫 Connection lost! Showing red offline banner...")
-            self.connectionRestoredRecently = false
         }
     }
     
     // MARK: - Cache Management
+    
     private func loadCachedData() {
         lastSyncDate = userDefaults.object(forKey: lastSyncKey) as? Date
         pendingSyncOperations = userDefaults.integer(forKey: pendingSyncKey)
@@ -246,46 +297,74 @@ class OfflineManager: ObservableObject {
     }
     
     // MARK: - Public Methods
+    
+    /// Check if the app can function properly offline
     func canFunctionOffline() -> Bool {
         return hasOfflineData && offlineDataAge < 604800 // 7 days
     }
     
+    /// Get offline data status
     func getOfflineStatus() -> OfflineStatus {
-        if !hasOfflineData { return .noData }
-        if offlineDataAge > 604800 { return .stale }
+        if !hasOfflineData {
+            return .noData
+        }
+        
+        if offlineDataAge > 604800 { // 7 days
+            return .stale
+        }
+        
         return .available
     }
     
+    /// Prepare the app for offline mode by caching essential data
     func prepareForOffline() async {
         isRefreshingCache = true
         defer { isRefreshingCache = false }
+        
+        // Cache data here - this would interact with your data services
+        // For now, we'll just update the cache status
         await refreshCacheData()
     }
     
+    /// Handle network restoration by syncing pending operations
     func handleNetworkRestoration() async {
         guard isOnline else { return }
         await performPendingSyncOperations()
     }
     
+    /// Get user-friendly offline message
     func getOfflineMessage() -> String {
         switch getOfflineStatus() {
-        case .available: return "Working offline with cached data"
-        case .stale:     return "Offline data is outdated. Connect to refresh."
-        case .noData:    return "No offline data available. Connect to internet."
+        case .available:
+            return "Working offline with cached data"
+        case .stale:
+            return "Offline data is outdated. Connect to refresh."
+        case .noData:
+            return "No offline data available. Connect to internet."
         }
     }
     
-    // MARK: - Private Helpers
+    // MARK: - Private Helper Methods
+    
     private func checkOfflineDataAvailability() {
         let context = persistenceController.viewContext
         
-        let assignmentCount = (try? context.count(for: AssignmentEntity.fetchRequest())) ?? 0
-        let holidayCount = (try? context.count(for: HolidayEntity.fetchRequest())) ?? 0
-        let courseCount = (try? context.count(for: CourseEntity.fetchRequest())) ?? 0
+        // Check if we have assignments cached
+        let assignmentRequest = AssignmentEntity.fetchRequest()
+        let assignmentCount = (try? context.count(for: assignmentRequest)) ?? 0
+        
+        // Check if we have holidays cached
+        let holidayRequest = HolidayEntity.fetchRequest()
+        let holidayCount = (try? context.count(for: holidayRequest)) ?? 0
+        
+        // Check if we have courses cached
+        let courseRequest = CourseEntity.fetchRequest()
+        let courseCount = (try? context.count(for: courseRequest)) ?? 0
         
         hasOfflineData = assignmentCount > 0 || holidayCount > 0 || courseCount > 0
         userDefaults.set(hasOfflineData, forKey: offlineDataKey)
         
+        // Calculate data age (simplified - could be more sophisticated)
         if let lastSync = lastSyncDate {
             offlineDataAge = Date().timeIntervalSince(lastSync)
         } else {
@@ -294,15 +373,17 @@ class OfflineManager: ObservableObject {
     }
     
     private func validateOfflineCapability() {
+        // Handle infinite or very large values safely
         let daysSinceSync: Int
-        if offlineDataAge == .infinity || offlineDataAge.isInfinite {
+        if offlineDataAge == TimeInterval.infinity || offlineDataAge.isInfinite {
             daysSinceSync = Int.max
         } else {
-            daysSinceSync = Int(offlineDataAge / 86400)
+            daysSinceSync = Int(offlineDataAge / 86400) // Convert to days
         }
         
         canWorkOffline = hasOfflineData && daysSinceSync <= maxOfflineDays
         
+        // Update offline capability status
         if canWorkOffline && daysSinceSync <= 3 {
             offlineCapabilityStatus = .ready
         } else if canWorkOffline && daysSinceSync <= maxOfflineDays {
@@ -323,24 +404,38 @@ class OfflineManager: ObservableObject {
     
     private func getCacheSize() async -> Int {
         let context = persistenceController.persistentContainer.newBackgroundContext()
+        
         return await context.perform {
             var totalSize = 0
-            if let assignments = try? context.fetch(AssignmentEntity.fetchRequest()) {
-                totalSize += assignments.count * 1024
+            
+            // Calculate assignments size
+            let assignmentRequest = AssignmentEntity.fetchRequest()
+            if let assignments = try? context.fetch(assignmentRequest) {
+                totalSize += assignments.count * 1024 // Rough estimate
             }
-            if let holidays = try? context.fetch(HolidayEntity.fetchRequest()) {
-                totalSize += holidays.count * 512
+            
+            // Calculate holidays size
+            let holidayRequest = HolidayEntity.fetchRequest()
+            if let holidays = try? context.fetch(holidayRequest) {
+                totalSize += holidays.count * 512 // Rough estimate
             }
-            if let courses = try? context.fetch(CourseEntity.fetchRequest()) {
-                totalSize += courses.count * 256
+            
+            // Calculate courses size
+            let courseRequest = CourseEntity.fetchRequest()
+            if let courses = try? context.fetch(courseRequest) {
+                totalSize += courses.count * 256 // Rough estimate
             }
+            
             return totalSize
         }
     }
     
     private func refreshCacheData() async {
+        // This would typically refresh data from your services
+        // For now, just update the sync date and recalculate
         lastSyncDate = Date()
         userDefaults.set(lastSyncDate, forKey: lastSyncKey)
+        
         checkOfflineDataAvailability()
         calculateCachedDataSize()
     }
@@ -349,81 +444,137 @@ class OfflineManager: ObservableObject {
     func performPendingSyncOperations() async {
         guard pendingSyncOperations > 0 else { return }
         
+        // Simulate sync operations
         for _ in 0..<pendingSyncOperations {
-            try? await Task.sleep(nanoseconds: 100_000_000) // simulate 0.1s per op
-            self.pendingSyncOperations = max(0, self.pendingSyncOperations - 1)
-            userDefaults.set(self.pendingSyncOperations, forKey: pendingSyncKey)
+            // Perform sync operation here
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second delay
+            
+            // Update UI on main thread
+            await MainActor.run {
+                self.pendingSyncOperations = max(0, self.pendingSyncOperations - 1)
+                userDefaults.set(self.pendingSyncOperations, forKey: pendingSyncKey)
+            }
         }
         
+        // Refresh cache after sync
         await refreshCacheData()
     }
     
     // MARK: - Cache Management Functions
+    
     func clearCache() async {
         let context = persistenceController.persistentContainer.newBackgroundContext()
+        
         await context.perform {
-            _ = try? context.execute(NSBatchDeleteRequest(fetchRequest: NSFetchRequest(entityName: "AssignmentEntity")))
-            _ = try? context.execute(NSBatchDeleteRequest(fetchRequest: NSFetchRequest(entityName: "HolidayEntity")))
-            _ = try? context.execute(NSBatchDeleteRequest(fetchRequest: NSFetchRequest(entityName: "CourseEntity")))
+            // Clear assignments
+            let assignmentRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "AssignmentEntity")
+            let assignmentDeleteRequest = NSBatchDeleteRequest(fetchRequest: assignmentRequest)
+            _ = try? context.execute(assignmentDeleteRequest)
+            
+            // Clear holidays
+            let holidayRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "HolidayEntity")
+            let holidayDeleteRequest = NSBatchDeleteRequest(fetchRequest: holidayRequest)
+            _ = try? context.execute(holidayDeleteRequest)
+            
+            // Clear courses
+            let courseRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "CourseEntity")
+            let courseDeleteRequest = NSBatchDeleteRequest(fetchRequest: courseRequest)
+            _ = try? context.execute(courseDeleteRequest)
+            
             try? context.save()
         }
         
-        hasOfflineData = false
-        cachedDataSize = "0 MB"
-        offlineCapabilityStatus = .unavailable
-        canWorkOffline = false
-        userDefaults.removeObject(forKey: lastSyncKey)
-        userDefaults.removeObject(forKey: offlineDataKey)
-        lastSyncDate = nil
+        // Update UI
+        await MainActor.run {
+            hasOfflineData = false
+            cachedDataSize = "0 MB"
+            offlineCapabilityStatus = .unavailable
+            canWorkOffline = false
+            
+            // Clear UserDefaults
+            userDefaults.removeObject(forKey: lastSyncKey)
+            userDefaults.removeObject(forKey: offlineDataKey)
+            lastSyncDate = nil
+        }
     }
     
     func forceSyncData() async {
-        pendingSyncOperations = 5
+        pendingSyncOperations = 5 // Simulate 5 pending operations
         userDefaults.set(pendingSyncOperations, forKey: pendingSyncKey)
-        if isOnline { await performPendingSyncOperations() }
+        
+        if isOnline {
+            await performPendingSyncOperations()
+        }
     }
     
-    func getOfflineDataSize() -> String { cachedDataSize }
-    func clearOfflineData() async { await clearCache() }
+    /// Get the size of offline data as a formatted string
+    func getOfflineDataSize() -> String {
+        return cachedDataSize
+    }
     
+    /// Clear all offline data (alias for clearCache)
+    func clearOfflineData() async {
+        await clearCache()
+    }
+    
+    /// Get connection status color as hex string
     var connectionStatusColor: String {
-        isOnline ? "#10B981" : "#F59E0B"
+        if isOnline {
+            return "#10B981" // Green
+        } else {
+            return "#F59E0B" // Orange
+        }
     }
     
+    /// Get connection status text
     var connectionStatusText: String {
         if isOnline {
-            if let type = connectionType { return "Connected via \(type.displayName)" }
-            return "Connected"
+            if let type = connectionType {
+                return "Connected via \(type.displayName)"
+            } else {
+                return "Connected"
+            }
         } else {
             return "Offline"
         }
     }
     
-    func refreshCache() async { await prepareForOffline() }
+    /// Refresh cache data (alias for prepareForOffline)
+    func refreshCache() async {
+        await prepareForOffline()
+    }
     
+    /// Get the number of days until cached data becomes stale
     func getDaysUntilStale() -> Int {
-        if offlineDataAge == .infinity || offlineDataAge.isInfinite { return 0 }
+        // Handle infinite or very large values safely
+        if offlineDataAge == TimeInterval.infinity || offlineDataAge.isInfinite {
+            return 0 // No data means 0 days left
+        }
+        
         let daysSinceSync = Int(offlineDataAge / 86400)
         return max(0, maxOfflineDays - daysSinceSync)
     }
     
+    /// Get offline data age as a formatted string
     func getOfflineDataAge() -> String {
         if let lastSync = lastSyncDate {
-            let f = RelativeDateTimeFormatter()
-            f.unitsStyle = .full
-            return f.localizedString(for: lastSync, relativeTo: Date())
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .full
+            return formatter.localizedString(for: lastSync, relativeTo: Date())
         } else {
             return "Never synced"
         }
     }
     
+    /// Manually check and update connection status (useful for testing)
     func checkConnectionStatus() {
         let currentPath = networkMonitor.currentPath
         updateConnectionStatus(currentPath)
         print("🌐 Manual connection check: \(isOnline ? "Online" : "Offline")")
     }
     
-    // MARK: - Diagnostic
+    // MARK: - Diagnostic Functions
+    
     func getSyncDiagnostics() -> SyncDiagnostics {
         return SyncDiagnostics(
             isOnline: isOnline,
@@ -448,13 +599,20 @@ enum OfflineStatus {
     
     var description: String {
         switch self {
-        case .available: return "Data available offline"
-        case .stale:     return "Offline data is outdated"
-        case .noData:    return "No offline data"
+        case .available:
+            return "Data available offline"
+        case .stale:
+            return "Offline data is outdated"
+        case .noData:
+            return "No offline data"
         }
     }
     
-    var formattedDataAge: String { "Less than 1 day" }
+    var formattedDataAge: String {
+        // This would typically be calculated based on actual data age
+        // For now, return a placeholder
+        return "Less than 1 day"
+    }
 }
 
 enum OfflineCapabilityStatus {
@@ -464,25 +622,34 @@ enum OfflineCapabilityStatus {
     
     var description: String {
         switch self {
-        case .ready:       return "Ready for offline use"
-        case .stale:       return "Offline data needs refresh"
-        case .unavailable: return "Offline mode unavailable"
+        case .ready:
+            return "Ready for offline use"
+        case .stale:
+            return "Offline data needs refresh"
+        case .unavailable:
+            return "Offline mode unavailable"
         }
     }
     
     var color: String {
         switch self {
-        case .ready:       return "#10B981"
-        case .stale:       return "#F59E0B"
-        case .unavailable: return "#EF4444"
+        case .ready:
+            return "#10B981" // Green
+        case .stale:
+            return "#F59E0B" // Orange
+        case .unavailable:
+            return "#EF4444" // Red
         }
     }
     
     var icon: String {
         switch self {
-        case .ready:       return "checkmark.circle.fill"
-        case .stale:       return "exclamationmark.triangle.fill"
-        case .unavailable: return "xmark.circle.fill"
+        case .ready:
+            return "checkmark.circle.fill"
+        case .stale:
+            return "exclamationmark.triangle.fill"
+        case .unavailable:
+            return "xmark.circle.fill"
         }
     }
 }
@@ -502,12 +669,18 @@ struct SyncDiagnostics {
 extension NWInterface.InterfaceType {
     var displayName: String {
         switch self {
-        case .wifi:           return "Wi-Fi"
-        case .cellular:       return "Cellular"
-        case .wiredEthernet:  return "Ethernet"
-        case .loopback:       return "Loopback"
-        case .other:          return "Other"
-        @unknown default:     return "Unknown"
+        case .wifi:
+            return "Wi-Fi"
+        case .cellular:
+            return "Cellular"
+        case .wiredEthernet:
+            return "Ethernet"
+        case .loopback:
+            return "Loopback"
+        case .other:
+            return "Other"
+        @unknown default:
+            return "Unknown"
         }
     }
 }
