@@ -9,6 +9,7 @@ import SwiftUI
 
 struct LoginView: View {
     @StateObject private var vm = LoginViewModel()
+    @ObservedObject private var offline = OfflineManager.shared
     let onLoginSuccess: () -> Void
 
     init(onLoginSuccess: @escaping () -> Void = {}) {
@@ -42,8 +43,6 @@ struct LoginView: View {
                             VStack(spacing: 14) {
                                 StyledTextField("Email Address", text: $vm.email, keyboard: .emailAddress)
                                 StyledSecureField("Password", text: $vm.password)
-                                
-                                
 
                                 HStack {
                                     Spacer()
@@ -59,7 +58,7 @@ struct LoginView: View {
                         .frame(maxWidth: 480)
                         .padding(.top, 8)
 
-                        // ---- BOTÓN LOGIN (funcional, MVVM) ----
+                        // ---- LOGIN (funcional, MVVM) ----
                         Button(action: { Task { await vm.login() } }) {
                             Text(vm.isLoading ? "Signing in..." : "Login")
                                 .font(.headline)
@@ -71,7 +70,7 @@ struct LoginView: View {
                         .frame(maxWidth: 480)
                         .disabled(vm.isLoading || vm.email.isEmpty || vm.password.isEmpty)
 
-                        // ---- BOTÓN BIOMÉTRICO (debajo, igual estilo) ----
+                        // ---- BIOMÉTRICO (manual) ----
                         Button(action: { Task { await vm.biometricLogin() } }) {
                             Text(vm.isBioLoading ? "Authenticating..." : "Login with biometrics")
                                 .font(.headline)
@@ -82,6 +81,16 @@ struct LoginView: View {
                         .buttonStyle(PrimaryButtonStyle())
                         .frame(maxWidth: 480)
                         .disabled(vm.isBioLoading)
+
+                        // ---- BANNER OFFLINE (auto-unlock sin botón) ----
+                        if !offline.isOnline {
+                            Text(offline.getOfflineMessage())
+                                .font(.footnote)
+                                .multilineTextAlignment(.center)
+                                .foregroundStyle(.orange)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.top, 8)
+                        }
 
                         HStack(spacing: 6) {
                             Text("New to AceUp?")
@@ -108,11 +117,21 @@ struct LoginView: View {
                 Button("OK", role: .cancel) {}
             }
 
-            
-            .onChange(of: vm.didLogin) { _, newValue in   // <- valor, NO binding
+            // Intento automático de desbloqueo offline con biometría (sin botones)
+            .onAppear {
+                vm.autoOfflineUnlockIfPossible()
+            }
+            .onChange(of: offline.isOnline) { _, isOnline in
+                if !isOnline {
+                    vm.autoOfflineUnlockIfPossible()
+                }
+            }
+
+            // Navegación al éxito
+            .onChange(of: vm.didLogin) { _, newValue in
                 if newValue {
                     onLoginSuccess()
-                    vm.didLogin = false   // reset
+                    vm.didLogin = false // reset
                 }
             }
         }

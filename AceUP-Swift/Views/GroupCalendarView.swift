@@ -14,6 +14,7 @@ struct GroupCalendarView: View {
     let group: CalendarGroup?
     
     @StateObject private var viewModel = GroupCalendarViewModel()
+    @ObservedObject private var offlineManager = OfflineManager.shared
     @State private var showingDatePicker = false
     @State private var showingMemberList = false
     
@@ -30,6 +31,11 @@ struct GroupCalendarView: View {
             VStack(spacing: 0) {
                 // Header
                 headerView
+                
+                // Offline Banner
+                if !offlineManager.isOnline {
+                    offlineBanner
+                }
                 
                 // Date Navigation
                 dateNavigationView
@@ -110,6 +116,28 @@ struct GroupCalendarView: View {
         }
         .frame(height: 60)
         .background(Color(hex: "#B8C8DB"))
+    }
+    
+    // MARK: - Offline Banner
+    private var offlineBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "wifi.slash")
+                .font(.title3)
+                .foregroundColor(.white)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Offline Mode")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                Text("Group calendar requires internet connection")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.9))
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .background(Color.orange)
     }
     
     // MARK: - Date Navigation

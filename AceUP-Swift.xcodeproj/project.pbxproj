@@ -36,9 +36,22 @@
 		0F270C3D2E7E123B0003B649 /* AceUP-SwiftUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AceUP-SwiftUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		0FA7C5C02EAEA4D400E6A370 /* Exceptions for "AceUP-Swift" folder in "AceUP-Swift" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 0F270C242E7E123A0003B649 /* AceUP-Swift */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0F270C272E7E123A0003B649 /* AceUP-Swift */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0FA7C5C02EAEA4D400E6A370 /* Exceptions for "AceUP-Swift" folder in "AceUP-Swift" target */,
+			);
 			path = "AceUP-Swift";
 			sourceTree = "<group>";
 		};
@@ -411,10 +424,11 @@
 				CODE_SIGN_ENTITLEMENTS = "AceUP-Swift/AceUP_Swift.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = LGHC9ND2H8;
+				DEVELOPMENT_TEAM = F5Y34X2R85;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "AceUP-Swift/Info.plist";
 				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = \"AceUP Group Invitation\";\n    CFBundleURLSchemes =     (\n        aceup\n    );\n}";
 				INFOPLIST_KEY_NSCameraUsageDescription = "AceUP needs camera access to scan QR codes for joining groups";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "AceUp needs Face ID fotr authentication ";
@@ -454,10 +468,11 @@
 				CODE_SIGN_ENTITLEMENTS = "AceUP-Swift/AceUP_Swift.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = LGHC9ND2H8;
+				DEVELOPMENT_TEAM = F5Y34X2R85;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "AceUP-Swift/Info.plist";
 				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = \"AceUP Group Invitation\";\n    CFBundleURLSchemes =     (\n        aceup\n    );\n}";
 				INFOPLIST_KEY_NSCameraUsageDescription = "AceUP needs camera access to scan QR codes for joining groups";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "AceUp needs Face ID fotr authentication ";

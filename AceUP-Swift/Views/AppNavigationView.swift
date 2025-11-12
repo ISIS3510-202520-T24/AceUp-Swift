@@ -7,7 +7,6 @@
 
 import SwiftUI
 
-
 struct AppNavigationView: View {
     @State private var selectedView: AppView = .today
     @State private var isSidebarPresented = false
@@ -23,134 +22,155 @@ struct AppNavigationView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-            // Main content
-            Group {
-                switch selectedView {
-                case .login:
-                    LoginView(onLoginSuccess: {
-                        withAnimation(.easeInOut(duration: 0.5)) {
-                            selectedView = .today
-                        }
-                    })
-                case .today:
-                    TodayView(onMenuTapped: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isSidebarPresented.toggle()
-                        }
-                    })
-                case .weekView:
-                    WeekViewPlaceholder(onMenuTapped: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isSidebarPresented.toggle()
-                        }
-                    })
-                case .calendar:
-                    CalendarPlaceholder(onMenuTapped: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isSidebarPresented.toggle()
-                        }
-                    })
-                case .sharedCalendars:
-                    SharedCalendarsView(
-                        onMenuTapped: {
+                // Main content
+                Group {
+                    switch selectedView {
+                    case .login:
+                        LoginView(onLoginSuccess: {
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                selectedView = .today
+                            }
+                        })
+                        
+                    case .today:
+                        TodayView(onMenuTapped: {
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 isSidebarPresented.toggle()
                             }
-                        },
-                        onGroupSelected: { group in
-                            selectedGroup = group
-                            selectedView = .groupCalendar
-                        }
-                    )
-                case .groupCalendar:
-                    GroupCalendarView(
-                        onMenuTapped: {
+                        })
+                        
+                    case .weekView:
+                        WeekViewPlaceholder(onMenuTapped: {
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 isSidebarPresented.toggle()
                             }
-                        },
-                        onBackTapped: {
-                            selectedView = .sharedCalendars
-                            selectedGroup = nil
-                        },
-                        group: selectedGroup
-                    )
-                case .planner:
-                    PlannerPlaceholder(onMenuTapped: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isSidebarPresented.toggle()
-                        }
-                    })
-                case .assignments:
-                    AssignmentsListView(onMenuTapped: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isSidebarPresented.toggle()
-                        }
-                    })
-                case .teachers:
-                    TeachersPlaceholder(onMenuTapped: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isSidebarPresented.toggle()
-                        }
-                    })
-                case .holidays:
-                    HolidaysView(onMenuTapped: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isSidebarPresented.toggle()
-                        }
-                    })
-                case .profile:
-                    ProfileView(onMenuTapped: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isSidebarPresented.toggle()
-                        }
-                    })
-                case .settings:
-                    SettingsView(onMenuTapped: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isSidebarPresented.toggle()
-                        }
-                    }, onLogout: onLogout)
-                }
-            }
-            .disabled(isSidebarPresented) // Disable interaction when sidebar is open 
-            
-            if isSidebarPresented {
-                Color.black.opacity(0.3)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isSidebarPresented = false
-                        }
+                        })
+                        
+                    case .calendar:
+                        CalendarView(onMenuTapped: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                isSidebarPresented.toggle()
+                            }
+                        })
+                        
+                    case .sharedCalendars:
+                        SharedCalendarsView(
+                            onMenuTapped: {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    isSidebarPresented.toggle()
+                                }
+                            },
+                            onGroupSelected: { group in
+                                selectedGroup = group
+                                selectedView = .groupCalendar
+                            }
+                        )
+                        
+                    case .groupCalendar:
+                        GroupCalendarView(
+                            onMenuTapped: {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    isSidebarPresented.toggle()
+                                }
+                            },
+                            onBackTapped: {
+                                selectedView = .sharedCalendars
+                                selectedGroup = nil
+                            },
+                            group: selectedGroup
+                        )
+                        
+                    case .planner:
+                        PlannerPlaceholder(onMenuTapped: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                isSidebarPresented.toggle()
+                            }
+                        })
+                        
+                    case .assignments:
+                        AssignmentsListView(onMenuTapped: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                isSidebarPresented.toggle()
+                            }
+                        })
+                        
+                    case .teachers:
+                        TeachersPlaceholder(onMenuTapped: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                isSidebarPresented.toggle()
+                            }
+                        })
+                        
+                    case .holidays:
+                        HolidaysView(onMenuTapped: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                isSidebarPresented.toggle()
+                            }
+                        })
+                        
+                    case .profile:
+                        ProfileView(onMenuTapped: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                isSidebarPresented.toggle()
+                            }
+                        })
+                        
+                    case .settings:
+                        SettingsView(onMenuTapped: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                isSidebarPresented.toggle()
+                            }
+                        }, onLogout: onLogout)
+
+                    case .scheduleOCR:
+                        ScheduleView(onMenuTapped: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                isSidebarPresented.toggle()
+                            }
+                        })
                     }
+                }
+                .disabled(isSidebarPresented) // Disable interaction when sidebar is open 
                 
-                HStack {
-                    SidebarView(
-                        selectedView: $selectedView,
-                        isPresented: $isSidebarPresented
-                    )
-                    .frame(width: geometry.size.width * 0.75) // 75% of screen width
-                    .transition(.move(edge: .leading))
+                if isSidebarPresented {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                isSidebarPresented = false
+                            }
+                        }
                     
-                    Spacer()
+                    HStack {
+                        SidebarView(
+                            selectedView: $selectedView,
+                            isPresented: $isSidebarPresented
+                        )
+                        .frame(width: geometry.size.width * 0.75) // 75% of screen width
+                        .transition(.move(edge: .leading))
+                        
+                        Spacer()
+                    }
                 }
             }
-        }
-        .sheet(isPresented: $showJoinGroupView) {
-            JoinGroupView(initialInviteCode: pendingInviteCode, onGroupJoined: {
-                showJoinGroupView = false
-                pendingInviteCode = nil
-                selectedView = .sharedCalendars
-            })
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("HandleGroupInviteCode"))) { notification in
-            if let inviteCode = notification.object as? String {
-                print("🔗 AppNavigationView received deep link invite code: \(inviteCode)")
-                pendingInviteCode = inviteCode
-                selectedView = .sharedCalendars
-                showJoinGroupView = true
+            .sheet(isPresented: $showJoinGroupView) {
+                JoinGroupView(
+                    initialInviteCode: pendingInviteCode,
+                    onGroupJoined: {
+                        showJoinGroupView = false
+                        pendingInviteCode = nil
+                        selectedView = .sharedCalendars
+                    }
+                )
             }
-        }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("HandleGroupInviteCode"))) { notification in
+                if let inviteCode = notification.object as? String {
+                    print("🔗 AppNavigationView received deep link invite code: \(inviteCode)")
+                    pendingInviteCode = inviteCode
+                    selectedView = .sharedCalendars
+                    showJoinGroupView = true
+                }
+            }
         }
     }
 }

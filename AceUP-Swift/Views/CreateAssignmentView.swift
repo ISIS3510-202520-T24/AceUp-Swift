@@ -11,6 +11,7 @@ struct CreateAssignmentView: View {
     @ObservedObject var viewModel: AssignmentViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showingAdvancedOptions = false
+    @State private var hasStartedSession = false
     
     var body: some View {
         NavigationView {
@@ -39,6 +40,10 @@ struct CreateAssignmentView: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
                         viewModel.clearForm()
+                        // Abandon analytics session if user cancels
+                        if hasStartedSession {
+                            UserUpdateAnalytics.shared.abandonUpdateSession(type: .assignment)
+                        }
                         dismiss()
                     }
                 }
@@ -48,6 +53,12 @@ struct CreateAssignmentView: View {
                         Task {
                             await viewModel.createAssignment()
                             if !viewModel.showingCreateAssignment {
+                                // Complete analytics session on successful save
+                                UserUpdateAnalytics.shared.completeUpdateSession(
+                                    type: .assignment,
+                                    fieldsUpdated: ["title", "course", "dueDate", "priority"]
+                                )
+                                hasStartedSession = false
                                 dismiss()
                             }
                         }
@@ -55,6 +66,11 @@ struct CreateAssignmentView: View {
                     .disabled(!isFormValid)
                     .fontWeight(.semibold)
                 }
+            }
+            .onAppear {
+                // Start analytics session when view appears
+                UserUpdateAnalytics.shared.startUpdateSession(type: .assignment)
+                hasStartedSession = true
             }
         }
     }
@@ -65,9 +81,15 @@ struct CreateAssignmentView: View {
         Section("Assignment Details") {
             TextField("Assignment Title", text: $viewModel.newAssignmentTitle)
                 .textInputAutocapitalization(.words)
+                .onChange(of: viewModel.newAssignmentTitle) {
+                    UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
+                }
             
             TextField("Course Name", text: $viewModel.newAssignmentCourse)
                 .textInputAutocapitalization(.words)
+                .onChange(of: viewModel.newAssignmentCourse) {
+                    UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
+                }
             
             DatePicker(
                 "Due Date",
@@ -75,6 +97,9 @@ struct CreateAssignmentView: View {
                 in: Date()...,
                 displayedComponents: [.date, .hourAndMinute]
             )
+            .onChange(of: viewModel.newAssignmentDueDate) {
+                UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
+            }
             
             HStack {
                 Text("Weight")
@@ -88,6 +113,9 @@ struct CreateAssignmentView: View {
                 in: 0.01...1.0,
                 step: 0.01
             )
+            .onChange(of: viewModel.newAssignmentWeight) {
+                UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
+            }
             
             Picker("Priority", selection: $viewModel.newAssignmentPriority) {
                 ForEach(Priority.allCases, id: \.self) { priority in
@@ -99,6 +127,9 @@ struct CreateAssignmentView: View {
                     }
                     .tag(priority)
                 }
+            }
+            .onChange(of: viewModel.newAssignmentPriority) {
+                UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
             }
         }
     }

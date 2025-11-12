@@ -91,7 +91,9 @@ class CoreDataAssignmentDataProvider: AssignmentDataProviderProtocol {
         // tomar valores antes
         let oldStatusRaw = entity.status ?? "" // si status es String en Core Data
         let oldStatus = AssignmentStatus(rawValue: oldStatusRaw) ?? .pending
-        let oldGrade: Double? = entity.value(forKey:"grade") as? Double
+        // Get old grade from the assignment model we're updating (if it exists)
+        let oldAssignment = entity.toAssignment()
+        let oldGrade = oldAssignment.grade
 
         //actualizar el entity
         entity.updateFromAssignment(assignment)
@@ -124,7 +126,8 @@ class CoreDataAssignmentDataProvider: AssignmentDataProviderProtocol {
                 )
             }
 
-            let newGrade: Double? = nil
+            // Check if grade changed
+            let newGrade = assignment.grade
             let gradeChanged: Bool = !optionalsEqual(oldGrade, newGrade)
             if gradeChanged {
                 AnalyticsHooks.onGradeUpdated(

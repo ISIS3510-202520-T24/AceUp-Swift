@@ -18,8 +18,11 @@ class GroupCalendarViewModel: ObservableObject {
     @Published var showingEventCreation = false
     @Published var commonFreeSlots: [CommonFreeSlot] = []
     @Published var conflictingSlots: [ConflictingSlot] = []
+    @Published var isOfflineMode = false
+    @Published var errorMessage: String?
     
     private let sharedCalendarService = SharedCalendarService()
+    private let offlineManager = OfflineManager.shared
     private var cancellables = Set<AnyCancellable>()
     
     var currentWeek: [Date] {
@@ -39,6 +42,8 @@ class GroupCalendarViewModel: ObservableObject {
     nonisolated init() {
         Task { @MainActor in
             setupBindings()
+            // Monitor offline status
+            isOfflineMode = !offlineManager.isOnline
         }
     }
     
@@ -48,6 +53,18 @@ class GroupCalendarViewModel: ObservableObject {
             .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
             .sink { [weak self] date, group in
                 self?.updateSchedule()
+            }
+            .store(in: &cancellables)
+        
+        // Monitor connectivity changes
+        offlineManager.$isOnline
+            .sink { [weak self] isOnline in
+                self?.isOfflineMode = !isOnline
+                if !isOnline {
+                    self?.errorMessage = "Shared calendars require internet connection"
+                    self?.commonFreeSlots = []
+                    self?.conflictingSlots = []
+                }
             }
             .store(in: &cancellables)
     }
@@ -78,9 +95,18 @@ class GroupCalendarViewModel: ObservableObject {
     }
     
     private func updateSchedule() {
+        // Don't update if offline
+        guard offlineManager.isOnline else {
+            errorMessage = "Shared calendars require internet connection"
+            commonFreeSlots = []
+            conflictingSlots = []
+            return
+        }
+        
         guard let group = selectedGroup else { return }
         
         isLoading = true
+        errorMessage = nil
         
         Task { @MainActor in
             do {

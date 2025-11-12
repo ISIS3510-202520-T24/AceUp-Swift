@@ -19,6 +19,14 @@ extension AssignmentEntity {
         let attachments = (self.attachments?.allObjects as? [AttachmentEntity])?.compactMap { $0.toAttachment() } ?? []
         let subtasks = (self.subtasks?.allObjects as? [SubtaskEntity])?.compactMap { $0.toSubtask() } ?? []
         
+        // Handle grade - check if entity has a grade attribute
+        let grade: Double?
+        if self.responds(to: Selector(("grade"))) {
+            grade = self.value(forKey: "grade") as? Double
+        } else {
+            grade = nil
+        }
+        
         return Assignment(
             id: self.id ?? UUID().uuidString,
             title: self.title ?? "",
@@ -36,7 +44,8 @@ extension AssignmentEntity {
             attachments: attachments,
             subtasks: subtasks,
             createdAt: self.createdAt ?? Date(),
-            updatedAt: self.updatedAt ?? Date()
+            updatedAt: self.updatedAt ?? Date(),
+            grade: grade
         )
     }
     
@@ -58,6 +67,11 @@ extension AssignmentEntity {
         self.createdAt = assignment.createdAt
         self.updatedAt = assignment.updatedAt
         self.userId = Auth.auth().currentUser?.uid
+        
+        // Handle grade if entity supports it
+        if self.responds(to: Selector(("setGrade:"))) {
+            self.setValue(assignment.grade, forKey: "grade")
+        }
     }
     
     /// Create AssignmentEntity from Assignment model
