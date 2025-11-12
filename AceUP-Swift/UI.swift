@@ -91,11 +91,15 @@ struct StyledTextField: View {
     let placeholder: String
     @Binding var text: String
     var keyboard: UIKeyboardType = .default
+    var limit: Int = InputValidation.CharacterLimit.general
+    var enableValidation: Bool = true
 
-    init(_ placeholder: String, text: Binding<String>, keyboard: UIKeyboardType = .default) {
+    init(_ placeholder: String, text: Binding<String>, keyboard: UIKeyboardType = .default, limit: Int = InputValidation.CharacterLimit.general, enableValidation: Bool = true) {
         self.placeholder = placeholder
         self._text = text
         self.keyboard = keyboard
+        self.limit = limit
+        self.enableValidation = enableValidation
     }
 
     var body: some View {
@@ -113,6 +117,18 @@ struct StyledTextField: View {
                             .fill(.white)
                     )
             )
+            .if(enableValidation) { view in
+                view.validatedInput($text, limit: limit)
+            }
+    }
+    
+    @ViewBuilder
+    private func `if`<Transform: View>(_ condition: Bool, transform: (Self) -> Transform) -> some View {
+        if condition {
+            transform(self)
+        } else {
+            self
+        }
     }
 }
 
@@ -122,10 +138,12 @@ struct StyledSecureField: View {
     @Binding var text: String
     @State private var isSecured: Bool = true
     @State private var maskedText: String = ""
+    var limit: Int = InputValidation.CharacterLimit.password
 
-    init(_ placeholder: String, text: Binding<String>) {
+    init(_ placeholder: String, text: Binding<String>, limit: Int = InputValidation.CharacterLimit.password) {
         self.placeholder = placeholder
         self._text = text
+        self.limit = limit
     }
 
     var body: some View {
@@ -157,8 +175,13 @@ struct StyledSecureField: View {
                     }
                 }
                 .onChange(of: text) { oldValue, newValue in
+                    // Enforce character limit
+                    if newValue.count > limit {
+                        text = String(newValue.prefix(limit))
+                    }
+                    
                     if isSecured {
-                        maskedText = String(repeating: "●", count: newValue.count)
+                        maskedText = String(repeating: "●", count: text.count)
                     }
                 }
                 .onAppear {

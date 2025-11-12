@@ -113,6 +113,10 @@ final class LoginViewModel: ObservableObject {
             errorMessage = "Please enter email and password."
             return
         }
+        
+        // Sanitize email input
+        let sanitizedEmail = InputValidation.sanitizeEmail(email)
+        email = sanitizedEmail
 
         isLoading = true
         defer { isLoading = false }

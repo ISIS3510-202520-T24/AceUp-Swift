@@ -68,8 +68,7 @@ final class CredentialsKeychain {
             kSecAttrAccount as String: KCKeys.account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecUseAuthenticationContext as String: ctx,
-            kSecUseOperationPrompt as String: prompt
+            kSecUseAuthenticationContext as String: ctx
         ]
 
         var item: CFTypeRef?

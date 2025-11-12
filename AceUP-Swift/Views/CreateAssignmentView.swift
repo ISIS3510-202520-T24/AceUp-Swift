@@ -81,12 +81,14 @@ struct CreateAssignmentView: View {
         Section("Assignment Details") {
             TextField("Assignment Title", text: $viewModel.newAssignmentTitle)
                 .textInputAutocapitalization(.words)
+                .titleInput($viewModel.newAssignmentTitle)
                 .onChange(of: viewModel.newAssignmentTitle) {
                     UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
                 }
             
             TextField("Course Name", text: $viewModel.newAssignmentCourse)
                 .textInputAutocapitalization(.words)
+                .courseNameInput($viewModel.newAssignmentCourse)
                 .onChange(of: viewModel.newAssignmentCourse) {
                     UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
                 }
@@ -209,6 +211,7 @@ struct TagInputView: View {
             HStack {
                 TextField("Add tag", text: $newTag)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .tagInput($newTag)
                     .onSubmit {
                         addTag()
                     }
