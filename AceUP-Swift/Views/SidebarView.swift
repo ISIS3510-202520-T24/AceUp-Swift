@@ -19,6 +19,9 @@ struct SidebarView: View {
 
     // Fuerza reconstrucción del label del Menu (sin NotificationCenter)
     @State private var avatarVersion = UUID()
+    
+    // Offline manager for connectivity status
+    @ObservedObject private var offlineManager = OfflineManager.shared
 
     var isLandscape: Bool { vClass == .compact } // en iPhone landscape suele ser .compact
 
@@ -94,9 +97,25 @@ struct SidebarView: View {
                                 selectedView = .calendar; isPresented = false
                             }
 
-                            MenuItemView(icon: nil, title: "Shared",
-                                         isSelected: selectedView == .sharedCalendars) {
-                                selectedView = .sharedCalendars; isPresented = false
+                            // Shared calendars - disabled when offline
+                            MenuItemView(
+                                icon: offlineManager.isOnline ? nil : "wifi.slash",
+                                title: "Shared",
+                                isSelected: selectedView == .sharedCalendars,
+                                isDisabled: !offlineManager.isOnline
+                            ) {
+                                if offlineManager.isOnline {
+                                    selectedView = .sharedCalendars; isPresented = false
+                                }
+                            }
+                            
+                            // Show offline message for shared calendars
+                            if !offlineManager.isOnline {
+                                Text("Requires internet connection")
+                                    .font(.caption2)
+                                    .foregroundColor(.orange)
+                                    .padding(.leading, 48)
+                                    .padding(.top, -6)
                             }
                         }
 
@@ -192,6 +211,7 @@ struct MenuItemView: View {
     let icon: String?
     let title: String
     let isSelected: Bool
+    var isDisabled: Bool = false
     let action: () -> Void
     
     var body: some View {
@@ -201,18 +221,18 @@ struct MenuItemView: View {
                 if let iconName = icon {
                     Image(systemName: iconName)
                         .font(.body)
-                        .foregroundColor(UI.muted)
+                        .foregroundColor(isDisabled ? .gray : UI.muted)
                         .frame(width: 20, height: 20)
                 } else {
                     Circle()
-                        .fill(UI.primary)
+                        .fill(isDisabled ? Color.gray : UI.primary)
                         .frame(width: 12, height: 12)
                 }
                 
                 Text(title)
                     .font(.body)
                     .fontWeight(isSelected ? .semibold : .regular)
-                    .foregroundColor(UI.navy)
+                    .foregroundColor(isDisabled ? .gray : UI.navy)
                 
                 Spacer()
             }
@@ -223,6 +243,8 @@ struct MenuItemView: View {
             )
         }
         .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.6 : 1.0)
     }
 }
 
