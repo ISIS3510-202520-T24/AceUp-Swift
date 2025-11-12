@@ -261,10 +261,11 @@ class OfflineManager: ObservableObject {
                 // Show connection restored banner briefly
                 self.connectionRestoredRecently = true
                 
-                // Auto-sync when connection is restored
+                // Auto-sync when connection is restored (including pending assignment operations)
                 if self.pendingSyncOperations > 0 {
+                    print("🔄 Syncing \(self.pendingSyncOperations) pending operations...")
                     Task {
-                        await self.performPendingSyncOperations()
+                        await DataSynchronizationManager.shared.triggerFullSync()
                     }
                 }
                 

@@ -68,16 +68,29 @@ final class DataSynchronizationManager: ObservableObject {
     }
 
     func triggerLightSync() async {
-        guard isOnline else { return }
+        guard isOnline else { 
+            print("⚠️ Cannot sync: offline")
+            return 
+        }
         isSyncing = true
         syncStatus = "Syncing"
+        syncProgress = 0.0
 
         do {
+            // Sync pending operations first
+            syncProgress = 0.3
+            await assignmentProvider.syncPendingOperations()
+            
+            // Then perform full sync
+            syncProgress = 0.6
             try await assignmentProvider.performFullSync()
+            
+            syncProgress = 1.0
             syncStatus = "Completed"
+            print("✅ Light sync completed")
         } catch {
             // No rompas la UI; registra el error
-            print("Light sync error: \(error)")
+            print("❌ Light sync error: \(error)")
             syncStatus = "Error"
         }
 
@@ -87,17 +100,36 @@ final class DataSynchronizationManager: ObservableObject {
     }
 
     func triggerFullSync() async {
-        guard isOnline else { return }
+        guard isOnline else { 
+            print("⚠️ Cannot sync: offline")
+            return 
+        }
         isSyncing = true
         syncStatus = "Syncing"
+        syncProgress = 0.0
 
         do {
+            // 1. Sync pending assignment operations
+            syncProgress = 0.2
+            await assignmentProvider.syncPendingOperations()
+            
+            // 2. Full assignment sync
+            syncProgress = 0.4
             try await assignmentProvider.performFullSync()
+            
+            // 3. Sync holidays
+            syncProgress = 0.6
             _ = try await holidayProvider.fetchAllHolidays()
+            
+            // 4. Sync courses
+            syncProgress = 0.8
             _ = try await courseProvider.fetchCourses()
+            
+            syncProgress = 1.0
             syncStatus = "Completed"
+            print("✅ Full sync completed")
         } catch {
-            print("Full sync error: \(error)")
+            print("❌ Full sync error: \(error)")
             syncStatus = "Error"
         }
 
@@ -109,7 +141,8 @@ final class DataSynchronizationManager: ObservableObject {
         NotificationService.scheduleStaleUpdateReminderIfNeeded(thresholdDays: 3)
 
         Analytics.logEvent("background_full_sync", parameters: [
-            "source": "ios_app"
+            "source": "ios_app",
+            "sync_status": syncStatus
         ])
     }
 
@@ -122,7 +155,18 @@ final class DataSynchronizationManager: ObservableObject {
     func getCourseProvider() -> HybridCourseDataProvider { courseProvider }
 
     func getAssignmentPendingSyncCount() -> Int {
-        readPendingSyncItems().count
+        assignmentProvider.getPendingOperationsCount()
+    }
+    
+    /// Refresh pending count and update OfflineManager
+    private func refreshPendingCount() {
+        let count = assignmentProvider.getPendingOperationsCount()
+        pendingSyncCount = count
+        
+        // Also update OfflineManager
+        Task { @MainActor in
+            OfflineManager.shared.pendingSyncOperations = count
+        }
     }
 
     // MARK: - Diagnóstico para SettingsView
@@ -150,10 +194,6 @@ final class DataSynchronizationManager: ObservableObject {
     }
 
     // MARK: - Utilidades
-    private func refreshPendingCount() {
-        pendingSyncCount = readPendingSyncItems().count
-    }
-
     // Modelo de item para cola de sync (simple y Codable)
     struct SyncItem: Codable, Equatable {
         let id: String
