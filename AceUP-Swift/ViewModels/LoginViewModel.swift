@@ -9,6 +9,24 @@ import Foundation
 import LocalAuthentication
 import Security
 
+// --- Detecta errores típicos de conectividad para hacer fallback offline ---
+private extension Error {
+    var isConnectivityError: Bool {
+        let ns = self as NSError
+        if ns.domain == NSURLErrorDomain {
+            return [
+                NSURLErrorNotConnectedToInternet,
+                NSURLErrorTimedOut,
+                NSURLErrorCannotConnectToHost,
+                NSURLErrorNetworkConnectionLost,
+                NSURLErrorCannotFindHost
+            ].contains(ns.code)
+        }
+        let msg = ns.localizedDescription.lowercased()
+        return msg.contains("network error") || msg.contains("timeout") || msg.contains("unreachable")
+    }
+}
+
 @MainActor
 final class LoginViewModel: ObservableObject {
     // UI Fields
@@ -25,7 +43,47 @@ final class LoginViewModel: ObservableObject {
     private let auth = AuthService()
     private let keychain = BiometricKeychain()
 
-    // MARK: - Normal login
+    // Offline / flags
+    private var autoTriedOfflineUnlock = false                  // evita pedir biometría múltiples veces
+    private var loginStore = LoginLocalStore.shared             // ← var (no let) para poder escribir flags
+
+    // MARK: - Auto-unlock offline (sin botón)
+    func autoOfflineUnlockIfPossible() {
+        // Evita repetir en el mismo ciclo de vida de la vista
+        guard !autoTriedOfflineUnlock else { return }
+        autoTriedOfflineUnlock = true
+
+        // Si el monitor cree que hay red pero está rota, igual permitimos el intento
+        // Requiere que el usuario haya permitido biometría (guardado tras un login exitoso)
+        guard loginStore.enableBiometric else { return }
+
+        // NO exigimos hasOfflineData: si hay credenciales + biometría, se entra a sesión limitada
+        Task { [weak self] in
+            await self?.performBiometricOfflineUnlock()
+        }
+    }
+
+    // MARK: - Biometría sin internet (NO hace SignIn de red)
+    private func performBiometricOfflineUnlock() async {
+        do {
+            let ctx = LAContext()
+            var authError: NSError?
+            guard ctx.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &authError) else {
+                self.errorMessage = "Biometría no disponible en este dispositivo."
+                return
+            }
+
+            // Dispara FaceID/TouchID y verifica que existan credenciales guardadas
+            _ = try keychain.loadCredentials(context: ctx)
+
+            // Entramos a la app en modo limitado (read-only + banner offline)
+            self.didLogin = true
+        } catch {
+            self.errorMessage = "No se pudo desbloquear con biometría."
+        }
+    }
+
+    // MARK: - Login normal (con red)
     func login() async {
         errorMessage = nil
         guard !email.isEmpty, !password.isEmpty else {
@@ -39,6 +97,7 @@ final class LoginViewModel: ObservableObject {
         do {
             _ = try await auth.SignIn(email: email, password: password)
 
+            // Guardar credenciales seguras (Keychain)
             do {
                 try keychain.saveCredentials(.init(email: email, password: password))
                 keychain.debugCountItems()
@@ -51,13 +110,25 @@ final class LoginViewModel: ObservableObject {
                 print("Keychain save error:", error)
             }
 
+            // Habilita biometría para futuros desbloqueos offline
+            loginStore.enableBiometric = true
+            loginStore.lastEmail = email
+
             didLogin = true
         } catch {
+            // ⚠️ Si la falla es de conectividad, forzamos estado offline temporal y auto-desbloqueo
+            if error.isConnectivityError {
+                await OfflineManager.shared.markOfflineFor(seconds: 20)
+                self.autoTriedOfflineUnlock = false
+                self.errorMessage = nil
+                self.autoOfflineUnlockIfPossible()
+                return
+            }
             errorMessage = error.localizedDescription
         }
     }
 
-    // MARK: - Biometric login
+    // MARK: - Login con biometría (con red)
     func biometricLogin() async {
         errorMessage = nil
         isBioLoading = true
@@ -80,17 +151,25 @@ final class LoginViewModel: ObservableObject {
                 }
             }
 
-            // 1) Intento seguro
+            // 1) Intento seguro (con contexto)
             if let creds = try keychain.loadCredentials(context: ctx) {
                 _ = try await auth.SignIn(email: creds.email, password: creds.password)
+
+                loginStore.enableBiometric = true
+                loginStore.lastEmail = creds.email
+
                 didLogin = true
                 return
             }
 
-            // 2) Intento plain
+            // 2) Fallback (sin contexto)
             if let fallback = try keychain.loadCredentials(context: nil) {
                 print("KC alt read (plain or secure without ctx):", fallback.email)
                 _ = try await auth.SignIn(email: fallback.email, password: fallback.password)
+
+                loginStore.enableBiometric = true
+                loginStore.lastEmail = fallback.email
+
                 didLogin = true
                 return
             }
@@ -102,9 +181,20 @@ final class LoginViewModel: ObservableObject {
             }
             try keychain.saveCredentials(.init(email: email, password: password))
             _ = try await auth.SignIn(email: email, password: password)
+
+            loginStore.enableBiometric = true
+            loginStore.lastEmail = email
+
             didLogin = true
 
         } catch {
+            if error.isConnectivityError {
+                await OfflineManager.shared.markOfflineFor(seconds: 20)
+                self.autoTriedOfflineUnlock = false
+                self.errorMessage = nil
+                self.autoOfflineUnlockIfPossible()
+                return
+            }
             errorMessage = error.localizedDescription
         }
     }
