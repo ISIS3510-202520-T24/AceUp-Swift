@@ -19,11 +19,13 @@ struct AnalyticsDebugView: View {
                     TextField("Assignment ID", text: $assignmentId)
                         .textInputAutocapitalization(.never)
                         .disableAutocorrection(true)
+                        .validatedInput($assignmentId, limit: InputValidation.CharacterLimit.general)
 
                     TextField("Grade (opcional, ej: 4.5)", text: $gradeText)
                         .keyboardType(.decimalPad)
                         .textInputAutocapitalization(.never)
                         .disableAutocorrection(true)
+                        .characterLimit($gradeText, limit: 10, sanitize: false)
                 }
 
                 Section(header: Text("Acciones")) {

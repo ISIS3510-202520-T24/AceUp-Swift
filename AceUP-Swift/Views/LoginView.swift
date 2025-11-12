@@ -41,7 +41,7 @@ struct LoginView: View {
                                 .foregroundColor(UI.navy)
 
                             VStack(spacing: 14) {
-                                StyledTextField("Email Address", text: $vm.email, keyboard: .emailAddress)
+                                StyledTextField("Email Address", text: $vm.email, keyboard: .emailAddress, limit: InputValidation.CharacterLimit.email, enableValidation: false)
                                 StyledSecureField("Password", text: $vm.password)
 
                                 HStack {

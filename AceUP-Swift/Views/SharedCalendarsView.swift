@@ -668,7 +668,7 @@ struct CreateGroupView: View {
                             .fontWeight(.medium)
                             .foregroundColor(UI.navy)
                         
-                        StyledTextField("Enter group name", text: $viewModel.newGroupName)
+                        StyledTextField("Enter group name", text: $viewModel.newGroupName, limit: InputValidation.CharacterLimit.groupName)
                     }
                     
                     VStack(alignment: .leading, spacing: 8) {
@@ -677,7 +677,7 @@ struct CreateGroupView: View {
                             .fontWeight(.medium)
                             .foregroundColor(UI.navy)
                         
-                        StyledTextField("Describe your group's purpose", text: $viewModel.newGroupDescription)
+                        StyledTextField("Describe your group's purpose", text: $viewModel.newGroupDescription, limit: InputValidation.CharacterLimit.description)
                     }
                 }
                 

@@ -655,6 +655,7 @@ struct CreateEventView: View {
                         
                         TextField("Enter event title", text: $eventTitle)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .titleInput($eventTitle)
                     }
                     
                     VStack(alignment: .leading, spacing: 8) {
@@ -665,6 +666,7 @@ struct CreateEventView: View {
                         
                         TextField("Event description (optional)", text: $eventDescription)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .descriptionInput($eventDescription)
                     }
                     
                     VStack(alignment: .leading, spacing: 8) {

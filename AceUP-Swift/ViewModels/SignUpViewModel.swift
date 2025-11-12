@@ -107,7 +107,17 @@ final class SignUpViewModel: ObservableObject {
         errorMessage = nil
         didComplete = false
         
-        // 1) Validación local
+        // 1) Sanitize inputs before validation
+        let sanitizedNick = InputValidation.sanitizeNickname(nick)
+        let sanitizedEmail = InputValidation.sanitizeEmail(email)
+        let sanitizedEmailConfirm = InputValidation.sanitizeEmail(emailConfirm)
+        
+        // Update the form fields with sanitized values
+        nick = sanitizedNick
+        email = sanitizedEmail
+        emailConfirm = sanitizedEmailConfirm
+        
+        // 2) Validación local
         let errors = validateForm()
         if !errors.isEmpty {
             let msg = "Please fix:\n• " + errors.joined(separator: "\n• ")
@@ -115,26 +125,26 @@ final class SignUpViewModel: ObservableObject {
             return
         }
         
-        // 2) Loading
+        // 3) Loading
         isLoading = true
         defer { isLoading = false }
         
         do {
-            // 3) Limpiar sesión previa si aplica
+            // 4) Limpiar sesión previa si aplica
             if authService.isLoggedIn {
                 try authService.signOut()
                 try await Task.sleep(nanoseconds: 500_000_000) // 0.5s
             }
             
-            // 4) Signup con timeout
+            // 5) Signup con timeout using sanitized values
             let signupTask = Task {
-                try await authService.signUp(email: email, password: password, nick: nick)
+                try await authService.signUp(email: sanitizedEmail, password: password, nick: sanitizedNick)
             }
             _ = try await withTimeout(seconds: 30) {
                 try await signupTask.value
             }
             
-            // 5) Éxito → popup verde
+            // 6) Éxito → popup verde
             didComplete = true
             errorMessage = nil
             showSuccess("User created successfully")

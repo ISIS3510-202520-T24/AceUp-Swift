@@ -132,8 +132,7 @@ final class BiometricKeychain {
         ]
         if let ctx = context {
             q[kSecUseAuthenticationContext as String] = ctx
-        } else {
-            q[kSecUseOperationPrompt as String] = "Autentícate para usar tus credenciales"
+            ctx.localizedReason = "Autentícate para usar tus credenciales"
         }
         var item: CFTypeRef?
         let status = SecItemCopyMatching(q as CFDictionary, &item)

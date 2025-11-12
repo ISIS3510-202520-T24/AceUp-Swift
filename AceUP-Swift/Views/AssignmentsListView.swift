@@ -93,6 +93,7 @@ struct AssignmentsListView: View {
                 
                 TextField("Search assignments...", text: $searchText)
                     .textFieldStyle(PlainTextFieldStyle())
+                    .searchQueryInput($searchText)
                 
                 if !searchText.isEmpty {
                     Button(action: { searchText = "" }) {

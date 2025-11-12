@@ -322,6 +322,7 @@ struct EditProfileView: View {
                         Spacer()
                         TextField("Enter name", text: $displayName)
                             .multilineTextAlignment(.trailing)
+                            .nameInput($displayName)
                             .onChange(of: displayName) {
                                 trackInteractionOnce()
                             }
@@ -332,6 +333,7 @@ struct EditProfileView: View {
                         Spacer()
                         TextField("Enter university", text: $university)
                             .multilineTextAlignment(.trailing)
+                            .universityInput($university)
                             .onChange(of: university) {
                                 trackInteractionOnce()
                             }
@@ -342,6 +344,7 @@ struct EditProfileView: View {
                         Spacer()
                         TextField("Enter program", text: $studyProgram)
                             .multilineTextAlignment(.trailing)
+                            .studyProgramInput($studyProgram)
                             .onChange(of: studyProgram) {
                                 trackInteractionOnce()
                             }
@@ -466,11 +469,14 @@ struct ChangePasswordView: View {
             Form {
                 Section("Current Password") {
                     SecureField("Enter current password", text: $currentPassword)
+                        .passwordInput($currentPassword)
                 }
                 
                 Section("New Password") {
                     SecureField("Enter new password", text: $newPassword)
+                        .passwordInput($newPassword)
                     SecureField("Confirm new password", text: $confirmPassword)
+                        .passwordInput($confirmPassword)
                 }
                 
                 if let errorMessage = errorMessage {

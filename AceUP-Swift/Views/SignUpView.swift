@@ -27,11 +27,11 @@ struct SignUpView: View {
 
                     Group {
                         sectionHeader("Choose Your Nick")
-                        StyledTextField("Luc", text: $vm.nick)
+                        StyledTextField("Luc", text: $vm.nick, limit: InputValidation.CharacterLimit.nickname)
 
                         sectionHeader("Email Address")
-                        StyledTextField("name@email.com", text: $vm.email, keyboard: .emailAddress)
-                        StyledTextField("Confirm email", text: $vm.emailConfirm, keyboard: .emailAddress)
+                        StyledTextField("name@email.com", text: $vm.email, keyboard: .emailAddress, limit: InputValidation.CharacterLimit.email, enableValidation: false)
+                        StyledTextField("Confirm email", text: $vm.emailConfirm, keyboard: .emailAddress, limit: InputValidation.CharacterLimit.email, enableValidation: false)
 
                         sectionHeader("Password")
                         StyledSecureField("Create a password", text: $vm.password)

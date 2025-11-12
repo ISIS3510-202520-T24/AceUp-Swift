@@ -99,10 +99,14 @@ class SharedCalendarViewModel: ObservableObject {
             return
         }
         
+        // Sanitize inputs
+        let sanitizedName = InputValidation.sanitizeGroupName(newGroupName)
+        let sanitizedDescription = InputValidation.sanitizeDescription(newGroupDescription)
+        
         Task {
             await sharedCalendarService.createGroup(
-                name: newGroupName,
-                description: newGroupDescription
+                name: sanitizedName,
+                description: sanitizedDescription
             )
             
             // Reset form

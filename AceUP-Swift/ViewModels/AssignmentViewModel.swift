@@ -105,16 +105,22 @@ final class AssignmentViewModel: ObservableObject {
             return
         }
         
+        // Sanitize inputs before creating assignment
+        let sanitizedTitle = InputValidation.sanitizeTitle(newAssignmentTitle)
+        let sanitizedCourse = InputValidation.sanitizeCourseName(newAssignmentCourse)
+        let sanitizedDescription = newAssignmentDescription.isEmpty ? nil : InputValidation.sanitizeDescription(newAssignmentDescription)
+        let sanitizedTags = newAssignmentTags.map { InputValidation.sanitizeTag($0) }
+        
         let assignment = Assignment(
-            title: newAssignmentTitle,
-            description: newAssignmentDescription.isEmpty ? nil : newAssignmentDescription,
-            courseId: newAssignmentCourse.lowercased().replacingOccurrences(of: " ", with: "_"),
-            courseName: newAssignmentCourse,
+            title: sanitizedTitle,
+            description: sanitizedDescription,
+            courseId: sanitizedCourse.lowercased().replacingOccurrences(of: " ", with: "_"),
+            courseName: sanitizedCourse,
             dueDate: newAssignmentDueDate,
             weight: newAssignmentWeight,
             estimatedHours: newAssignmentEstimatedHours,
             priority: newAssignmentPriority,
-            tags: newAssignmentTags
+            tags: sanitizedTags
         )
         
         do {
