@@ -227,3 +227,18 @@ final class AuthService: ObservableObject {
         }
     }
 }
+
+// MARK: - Session Validation (Cache-then-Network)
+extension AuthService {
+    /// Valida y refresca el token de la sesión actual.
+    /// Útil para "Cache-then-Network": si hay usuario, refresca y retorna AppUser.
+    func validateSession() async throws -> AppUser {
+        guard let u = Auth.auth().currentUser else {
+            throw NSError(domain: "AuthService", code: 404,
+                          userInfo: [NSLocalizedDescriptionKey: "No active session"])
+        }
+        // Fuerza refresh para converger a estado fresco
+        _ = try await u.getIDTokenResult(forcingRefresh: true)
+        return AppUser(uid: u.uid, email: u.email ?? "", nick: u.displayName ?? "")
+    }
+}

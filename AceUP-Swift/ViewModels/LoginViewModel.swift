@@ -45,7 +45,30 @@ final class LoginViewModel: ObservableObject {
 
     // Offline / flags
     private var autoTriedOfflineUnlock = false                  // evita pedir biometría múltiples veces
-    private var loginStore = LoginLocalStore.shared             // ← var (no let) para poder escribir flags
+    private var loginStore = LoginLocalStore.shared             // var para poder escribir flags
+
+    // MARK: - Cache-then-Network al abrir login
+    /// Lee hints locales y, si hay internet, valida sesión para entrar sin fricción.
+    func loadHintsAndValidateIfPossible() {
+        // 1) Pintar inmediatamente el hint local
+        email = loginStore.lastEmail
+
+        // 2) Si hay red, validar token en background (sin timeout)
+        Task { [weak self] in
+            guard let self = self else { return }
+            if OfflineManager.shared.isOnline {
+                do {
+                    _ = try await auth.validateSession()
+                    // 3) Warm-up de datos para que todo cargue rápido
+                    Task { await DataSynchronizationManager.shared.performIncrementalSync() }
+                    self.didLogin = true
+                } catch {
+                    // Silencioso: el usuario puede iniciar sesión manualmente
+                    print("validateSession skipped:", error.localizedDescription)
+                }
+            }
+        }
+    }
 
     // MARK: - Auto-unlock offline (sin botón)
     func autoOfflineUnlockIfPossible() {
@@ -114,9 +137,12 @@ final class LoginViewModel: ObservableObject {
             loginStore.enableBiometric = true
             loginStore.lastEmail = email
 
+            // Warm-up de datos tras éxito
+            Task { await DataSynchronizationManager.shared.performIncrementalSync() }
+
             didLogin = true
         } catch {
-            // ⚠️ Si la falla es de conectividad, forzamos estado offline temporal y auto-desbloqueo
+            // ⚠ Si la falla es de conectividad, forzamos estado offline temporal y auto-desbloqueo
             if error.isConnectivityError {
                 await OfflineManager.shared.markOfflineFor(seconds: 20)
                 self.autoTriedOfflineUnlock = false
@@ -158,6 +184,9 @@ final class LoginViewModel: ObservableObject {
                 loginStore.enableBiometric = true
                 loginStore.lastEmail = creds.email
 
+                // Warm-up de datos tras éxito
+                Task { await DataSynchronizationManager.shared.performIncrementalSync() }
+
                 didLogin = true
                 return
             }
@@ -169,6 +198,9 @@ final class LoginViewModel: ObservableObject {
 
                 loginStore.enableBiometric = true
                 loginStore.lastEmail = fallback.email
+
+                // Warm-up de datos tras éxito
+                Task { await DataSynchronizationManager.shared.performIncrementalSync() }
 
                 didLogin = true
                 return
@@ -184,6 +216,9 @@ final class LoginViewModel: ObservableObject {
 
             loginStore.enableBiometric = true
             loginStore.lastEmail = email
+
+            // Warm-up de datos tras éxito
+            Task { await DataSynchronizationManager.shared.performIncrementalSync() }
 
             didLogin = true
 
