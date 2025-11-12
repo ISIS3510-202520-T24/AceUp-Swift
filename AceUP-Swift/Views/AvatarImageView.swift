@@ -29,7 +29,7 @@ struct AvatarImageView: View {
             }
         }
         .onAppear(perform: load)
-        .onChange(of: email) { _ in load() } // si cambia el email, recarga
+        .onChange(of: email) { load() } // si cambia el email, recarga
     }
 
     private func load() {

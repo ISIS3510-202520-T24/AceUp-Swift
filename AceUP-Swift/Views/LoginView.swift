@@ -121,14 +121,14 @@ struct LoginView: View {
             .onAppear {
                 vm.autoOfflineUnlockIfPossible()
             }
-            .onChange(of: offline.isOnline) { isOnline in
+            .onChange(of: offline.isOnline) { _, isOnline in
                 if !isOnline {
                     vm.autoOfflineUnlockIfPossible()
                 }
             }
 
             // Navegación al éxito
-            .onChange(of: vm.didLogin) { newValue in
+            .onChange(of: vm.didLogin) { _, newValue in
                 if newValue {
                     onLoginSuccess()
                     vm.didLogin = false // reset

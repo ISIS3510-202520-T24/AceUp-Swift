@@ -66,7 +66,7 @@ struct AceUP_SwiftApp: App {
                     }
                 }
 
-                .onChange(of: scenePhase){ phase in
+                .onChange(of: scenePhase) { _, phase in
                     switch phase {
                         case .active:
                         StartupMetrics.shared.markStart()

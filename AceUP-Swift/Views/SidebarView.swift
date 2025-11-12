@@ -171,7 +171,7 @@ struct SidebarView: View {
                 }
             )
             .onAppear { loadSnapshot() }
-            .onChange(of: showAvatarSheet) { presented in
+            .onChange(of: showAvatarSheet) { _, presented in
                 // Al cerrarse la hoja, recargamos snapshot y forzamos reconstrucción del label del Menu
                 if !presented {
                     loadSnapshot()
