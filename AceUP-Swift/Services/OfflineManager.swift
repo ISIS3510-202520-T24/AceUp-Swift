@@ -180,6 +180,26 @@ class OfflineManager: ObservableObject {
         return false
     }
     
+    /// Temporarily force the app into offline state (e.g., after a timeout) and re-check later.
+    /// This is useful when network calls fail due to connectivity issues.
+    func markOfflineFor(seconds: Int) async {
+        print("🌐 Forcing offline state for \(seconds) seconds...")
+        
+        // Force offline immediately on main actor
+        await MainActor.run {
+            self.isOnline = false
+            self.connectionType = nil
+            self.connectionRestoredRecently = false
+        }
+        
+        // Re-check connectivity after the cooldown period
+        Task {
+            try? await Task.sleep(nanoseconds: UInt64(seconds) * 1_000_000_000)
+            print("🌐 Cooldown period ended, testing connectivity...")
+            await self.testInternetConnectivity()
+        }
+    }
+    
     private func updateConnectionStatus(_ path: NWPath) {
         let wasOnline = isOnline
         
@@ -241,10 +261,11 @@ class OfflineManager: ObservableObject {
                 // Show connection restored banner briefly
                 self.connectionRestoredRecently = true
                 
-                // Auto-sync when connection is restored
+                // Auto-sync when connection is restored (including pending assignment operations)
                 if self.pendingSyncOperations > 0 {
+                    print("🔄 Syncing \(self.pendingSyncOperations) pending operations...")
                     Task {
-                        await self.performPendingSyncOperations()
+                        await DataSynchronizationManager.shared.triggerFullSync()
                     }
                 }
                 
