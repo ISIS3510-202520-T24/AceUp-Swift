@@ -3,33 +3,48 @@ import UIKit
 
 struct ScheduleView: View {
     let onMenuTapped: () -> Void
+    let onDone: () -> Void       // Para volver al Calendar luego de guardar
 
     @StateObject private var viewModel: ScheduleViewModel
+    @ObservedObject private var offlineManager = OfflineManager.shared
+
     @State private var showCamera = false
     @State private var showLibrary = false
+    @State private var showEditor = false
 
-    init(onMenuTapped: @escaping () -> Void) {
+    // Lista fija de días para crear / completar el horario
+    private let allWeekdays: [Weekday] = [
+        .monday, .tuesday, .wednesday, .thursday,
+        .friday, .saturday, .sunday
+    ]
+
+    init(onMenuTapped: @escaping () -> Void,
+         onDone: @escaping () -> Void) {
         self.onMenuTapped = onMenuTapped
+        self.onDone = onDone
 
         _viewModel = StateObject(
             wrappedValue: ScheduleViewModel(
-                service: ScheduleOCRService()
+                service: ScheduleOCRService(),
+                localStore: ScheduleLocalStore.shared
             )
         )
     }
 
+    // MARK: - Body
+
     var body: some View {
         VStack(spacing: 0) {
 
-            // Header estilo app
             topBar
 
-            // Contenido scrollable
             ScrollView {
                 VStack(spacing: 24) {
                     previewHeader
-                    mainContent
-                    actionRow
+                    stateMessage
+                    manualScheduleSection
+                    actionButtons
+                    saveButton
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 40)
@@ -47,10 +62,19 @@ struct ScheduleView: View {
                 viewModel.didCapture(image: img)
             }
         }
+        .sheet(isPresented: $showEditor) {
+            ScheduleEditView(
+                schedule: $viewModel.schedule,
+                onSave: { edited in
+                    viewModel.applyManualChanges(edited)
+                }
+            )
+        }
         .navigationBarHidden(true)
     }
 
     // MARK: - Header
+
     private var topBar: some View {
         HStack {
             Button(action: onMenuTapped) {
@@ -68,7 +92,7 @@ struct ScheduleView: View {
 
             Spacer()
 
-            // Para balancear el HStack visualmente
+            // Espaciador visual
             Color.clear
                 .frame(width: 24)
         }
@@ -78,7 +102,8 @@ struct ScheduleView: View {
         .background(Color(hex: "#B8C8DB"))
     }
 
-    // MARK: - Imagen capturada o placeholder
+    // MARK: - Preview imagen
+
     private var previewHeader: some View {
         Group {
             if let image = viewModel.capturedImage {
@@ -111,159 +136,152 @@ struct ScheduleView: View {
         }
     }
 
-    // MARK: - Estado dinámico
-    @ViewBuilder
-    private var mainContent: some View {
-        switch viewModel.state {
-        case .idle, .capturing:
-            Text("Ready to capture. Use the camera or pick from Photos.")
-                .font(.body)
-                .foregroundColor(UI.muted)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 20)
+    // MARK: - Mensaje según estado
 
-        case .sending:
-            VStack(spacing: 12) {
-                ProgressView("Parsing schedule with AI…")
-                Text("We're extracting your classes, times and days.")
-                    .font(.footnote)
-                    .foregroundColor(UI.muted)
-            }
-
-        case .parsed:
-            if viewModel.schedule.days.isEmpty {
-                Text("No classes detected.")
+    private var stateMessage: some View {
+        Group {
+            switch viewModel.state {
+            case .idle, .capturing:
+                Text("Use the camera, pick a photo or enter your schedule manually.")
                     .font(.body)
-                    .foregroundColor(UI.muted)
-            } else {
-                scheduleListView()
-            }
-
-        case .error(let msg):
-            VStack(spacing: 8) {
-                Text("Couldn't parse schedule")
-                    .font(.headline)
-                    .foregroundColor(UI.navy)
-
-                Text(msg)
-                    .font(.footnote)
                     .foregroundColor(UI.muted)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 20)
 
-                Button("Try Again") {
-                    viewModel.reset()
+            case .sending:
+                VStack(spacing: 12) {
+                    ProgressView("Parsing schedule with AI…")
+                    Text("We're extracting your classes, times and days.")
+                        .font(.footnote)
+                        .foregroundColor(UI.muted)
                 }
-                .buttonStyle(.borderedProminent)
+
+            case .parsed:
+                Text("Your schedule is ready. You can adjust it manually if needed, then save it to see it in the calendar.")
+                    .font(.body)
+                    .foregroundColor(UI.muted)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+
+            case .error(let msg):
+                VStack(spacing: 8) {
+                    Text("Couldn't parse schedule")
+                        .font(.headline)
+                        .foregroundColor(UI.navy)
+
+                    Text(msg)
+                        .font(.footnote)
+                        .foregroundColor(UI.muted)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 20)
+                }
             }
         }
     }
 
-    // MARK: - Botones cámara / galería / reset
-    private var actionRow: some View {
-        HStack(spacing: 12) {
-            Button {
-                showCamera = true
-            } label: {
-                Label("Use Camera", systemImage: "camera")
-            }
-            .buttonStyle(.borderedProminent)
+    // MARK: - Botón para horario manual (crear o COMPLETAR y editar)
+
+    private var manualScheduleSection: some View {
+        VStack(spacing: 8) {
+            Text("If you prefer, you can enter your schedule manually. This works even when you're offline.")
+                .font(.footnote)
+                .foregroundColor(UI.muted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
 
             Button {
-                showLibrary = true
+                handleManualButtonTapped()
             } label: {
-                Label("From Photos", systemImage: "photo")
+                Label("Enter schedule manually", systemImage: "square.and.pencil")
             }
-            .buttonStyle(.bordered)
+        }
+    }
 
-            if case .parsed = viewModel.state {
+    /// Si ya hay horario (de la IA o previo), se COMPLETA con los días faltantes (L–D) y se edita todo.
+    /// Si no hay nada, se crea estructura vacía L–D y se edita.
+    private func handleManualButtonTapped() {
+        var current = viewModel.schedule
+
+        // 1. Si no hay días aún, creamos todos
+        if current.days.isEmpty {
+            current.days = allWeekdays.map { weekday in
+                ScheduleDay(weekday: weekday, sessions: [])
+            }
+        } else {
+            // 2. Si solo vino miércoles/viernes (por ejemplo),
+            //    añadimos los días faltantes vacíos
+            let existingWeekdays = Set(current.days.map { $0.weekday })
+            for wd in allWeekdays where !existingWeekdays.contains(wd) {
+                current.days.append(
+                    ScheduleDay(weekday: wd, sessions: [])
+                )
+            }
+        }
+
+        // 3. Ordenar siempre Lunes -> Domingo
+        current.days.sort { a, b in
+            guard let ia = allWeekdays.firstIndex(of: a.weekday),
+                  let ib = allWeekdays.firstIndex(of: b.weekday) else {
+                return false
+            }
+            return ia < ib
+        }
+
+        // 4. Guardar en el viewModel y abrir el editor
+        viewModel.applyManualChanges(current)
+        showEditor = true
+    }
+
+    // MARK: - Botones de acción (camera / photos / reset)
+
+    private var actionButtons: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Button {
+                    showCamera = true
+                } label: {
+                    Label("Use Camera", systemImage: "camera")
+                        .foregroundColor(offlineManager.isOnline ? UI.navy : UI.muted)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!offlineManager.isOnline)
+
+                Button {
+                    showLibrary = true
+                } label: {
+                    Label("From Photos", systemImage: "photo")
+                        .foregroundColor(offlineManager.isOnline ? UI.navy : UI.muted)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!offlineManager.isOnline)
+
                 Button("Reset") {
                     viewModel.reset()
                 }
                 .buttonStyle(.bordered)
             }
-        }
-    }
 
-    private func orderIndex(for weekday: Weekday) -> Int {
-    switch weekday {
-    case .monday: return 0
-    case .tuesday: return 1
-    case .wednesday: return 2
-    case .thursday: return 3
-    case .friday: return 4
-    case .saturday: return 5
-    case .sunday: return 6
-    }
-}
-
-    @ViewBuilder
-private func scheduleListView() -> some View {
-    VStack(alignment: .leading, spacing: 24) {
-
-        // Ordenar por el orden que tú quieras.
-        // El JSON de la IA actualmente viene en este orden:
-        // sunday, monday, tuesday, wednesday, thursday, friday, saturday
-        // Podemos mantenerlo así, o reordenar a Lunes..Sábado..Domingo.
-        //
-        // Te lo voy a dejar ya ordenado Lunes->Domingo, que es más normal pa' la U.
-
-        let orderedDays: [ScheduleDay] = viewModel.schedule.days.sorted {
-            orderIndex(for: $0.weekday) < orderIndex(for: $1.weekday)
-        }
-
-        ForEach(orderedDays, id: \.weekday) { day in
-            VStack(alignment: .leading, spacing: 12) {
-
-                Text(day.weekday.display)
-                    .font(.headline)
-                    .foregroundColor(UI.navy)
-
-                if day.sessions.isEmpty {
-                    Text("No classes")
-                        .font(.caption)
-                        .foregroundColor(UI.muted)
-                } else {
-
-                    ForEach(day.sessions, id: \.self) { session in
-                        HStack(alignment: .firstTextBaseline) {
-
-                            // horario
-                            Text("\(session.start ?? "—")–\(session.end ?? "—")")
-                                .font(.caption)
-                                .monospacedDigit()
-                                .frame(width: 96, alignment: .leading)
-                                .foregroundColor(UI.navy)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                // nombre materia
-                                Text(session.course)
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(UI.navy)
-
-                                if let loc = session.location, !loc.isEmpty {
-                                    Text(loc)
-                                        .font(.caption)
-                                        .foregroundColor(UI.muted)
-                                }
-
-                                if let n = session.notes, !n.isEmpty {
-                                    Text(n)
-                                        .font(.caption2)
-                                        .foregroundColor(UI.muted)
-                                }
-                            }
-
-                            Spacer()
-                        }
-                        .padding(10)
-                        .background(Color(.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                }
+            if !offlineManager.isOnline {
+                Text("You are offline. You can edit your schedule manually but capturing from camera is disabled.")
+                    .font(.footnote)
+                    .foregroundColor(UI.muted)
+                    .padding(.horizontal, 4)
             }
         }
     }
-}
+
+    // MARK: - Botón Save
+
+    private var saveButton: some View {
+        Button {
+            viewModel.saveCurrentSchedule()
+            onDone()   // volver al calendario (AppNavigationView hace selectedView = .calendar)
+        } label: {
+            Text("Save and go to calendar")
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .padding(.top, 16)
+    }
 }

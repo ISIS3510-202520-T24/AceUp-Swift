@@ -47,11 +47,21 @@ struct AppNavigationView: View {
                         })
                         
                     case .calendar:
-                        CalendarView(onMenuTapped: {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                isSidebarPresented.toggle()
+                        CalendarView(
+                            onMenuTapped: {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    isSidebarPresented.toggle()
+                                }
+                            },
+                            onOpenSchedule: {
+                                // Cuando se toca la cámara en Calendar,
+                                // navegamos a la vista de Schedule (OCR + edición)
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    selectedView = .scheduleOCR
+                                    isSidebarPresented = false
+                                }
                             }
-                        })
+                        )
                         
                     case .sharedCalendars:
                         SharedCalendarsView(
@@ -116,21 +126,33 @@ struct AppNavigationView: View {
                         })
                         
                     case .settings:
-                        SettingsView(onMenuTapped: {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                isSidebarPresented.toggle()
-                            }
-                        }, onLogout: onLogout)
-
+                        SettingsView(
+                            onMenuTapped: {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    isSidebarPresented.toggle()
+                                }
+                            },
+                            onLogout: onLogout
+                        )
+                        
                     case .scheduleOCR:
-                        ScheduleView(onMenuTapped: {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                isSidebarPresented.toggle()
+                        ScheduleView(
+                            onMenuTapped: {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    isSidebarPresented.toggle()
+                                }
+                            },
+                            onDone: {
+                                // Guardas y regresas al calendario desde ScheduleView (ya hacemos el save allí)
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    selectedView = .calendar
+                                    isSidebarPresented = false
+                                }
                             }
-                        })
+                        )
                     }
                 }
-                .disabled(isSidebarPresented) // Disable interaction when sidebar is open 
+                .disabled(isSidebarPresented) // Disable interaction when sidebar is open
                 
                 if isSidebarPresented {
                     Color.black.opacity(0.3)
@@ -163,7 +185,11 @@ struct AppNavigationView: View {
                     }
                 )
             }
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("HandleGroupInviteCode"))) { notification in
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: NSNotification.Name("HandleGroupInviteCode")
+                )
+            ) { notification in
                 if let inviteCode = notification.object as? String {
                     print("🔗 AppNavigationView received deep link invite code: \(inviteCode)")
                     pendingInviteCode = inviteCode
@@ -174,6 +200,8 @@ struct AppNavigationView: View {
         }
     }
 }
+
+// MARK: - Profile
 
 struct ProfileView: View {
     let onMenuTapped: () -> Void
@@ -207,7 +235,6 @@ struct ProfileView: View {
             .background(Color(hex: "#B8C8DB"))
             
             VStack(spacing: 30) {
-                
                 Spacer().frame(height: 40)
                 
                 Image(systemName: "person.circle.fill")
@@ -241,13 +268,15 @@ struct ProfileView: View {
     })
 }
 
+// MARK: - Placeholder Views
+
 struct WeekViewPlaceholder: View {
     let onMenuTapped: () -> Void
     
     var body: some View {
         PlaceholderView(
-            title: "Week View", 
-            icon: "calendar.day.timeline.left", 
+            title: "Week View",
+            icon: "calendar.day.timeline.left",
             message: "Weekly calendar view will be implemented here",
             onMenuTapped: onMenuTapped
         )
@@ -259,8 +288,8 @@ struct CalendarPlaceholder: View {
     
     var body: some View {
         PlaceholderView(
-            title: "Calendar", 
-            icon: "calendar", 
+            title: "Calendar",
+            icon: "calendar",
             message: "Monthly calendar view will be implemented here",
             onMenuTapped: onMenuTapped
         )
@@ -272,8 +301,8 @@ struct PlannerPlaceholder: View {
     
     var body: some View {
         PlaceholderView(
-            title: "Planner", 
-            icon: "book.fill", 
+            title: "Planner",
+            icon: "book.fill",
             message: "Academic planner and schedule management",
             onMenuTapped: onMenuTapped
         )
@@ -285,8 +314,8 @@ struct AssignmentsPlaceholder: View {
     
     var body: some View {
         PlaceholderView(
-            title: "Assignments", 
-            icon: "doc.text.fill", 
+            title: "Assignments",
+            icon: "doc.text.fill",
             message: "Assignment tracking and management",
             onMenuTapped: onMenuTapped
         )
@@ -298,8 +327,8 @@ struct TeachersPlaceholder: View {
     
     var body: some View {
         PlaceholderView(
-            title: "Teachers", 
-            icon: "person.2.fill", 
+            title: "Teachers",
+            icon: "person.2.fill",
             message: "Teacher contacts and information",
             onMenuTapped: onMenuTapped
         )

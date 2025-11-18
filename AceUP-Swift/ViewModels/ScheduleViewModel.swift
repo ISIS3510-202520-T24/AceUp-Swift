@@ -18,9 +18,25 @@ final class ScheduleViewModel: ObservableObject {
     @Published var schedule: Schedule = .empty
 
     private let service: ScheduleOCRServiceProtocol
+    // Local store para calendario
+    private let localStore: ScheduleLocalStore
 
-    init(service: ScheduleOCRServiceProtocol) {
+    init(service: ScheduleOCRServiceProtocol,
+         localStore: ScheduleLocalStore = .shared) {
+
         self.service = service
+        self.localStore = localStore
+
+        // Intentar cargar el horario guardado previamente
+        if let saved = try? localStore.load() {
+            self.schedule = saved
+            if !saved.days.isEmpty {
+                self.state = .parsed
+            }
+            print("Init saved schedule with \(saved.days.count) days")
+        } else {
+            print("Init no saved schedule found")
+        }
     }
 
     func didCapture(image: UIImage) {
@@ -32,21 +48,64 @@ final class ScheduleViewModel: ObservableObject {
     func analyze() async {
         guard let img = capturedImage,
               let data = img.jpegData(compressionQuality: 0.8) else {
-            print("❌ ScheduleViewModel.analyze -> no image data")
+            print("ScheduleViewModel.analyze -> no image data")
             return
         }
 
         state = .sending
-        print("🚀 ScheduleViewModel.analyze -> sending to OCR/AI")
+        print("ScheduleViewModel.analyze -> sending to OCR/AI")
 
         do {
             let parsed = try await service.parseSchedule(imageData: data)
+
+            // Guardar en local
+            do {
+                try localStore.save(parsed)
+                print("Analyze -> schedule saved locally")
+            } catch {
+                print("Failed to save schedule locally: \(error)")
+            }
+
             self.schedule = parsed
             self.state = .parsed
-            print("✅ ScheduleViewModel.analyze -> parsed OK. days=\(parsed.days.count)")
+            print("ScheduleViewModel.analyze -> parsed OK. days=\(parsed.days.count)")
         } catch {
-            print("❌ ScheduleViewModel.analyze -> error:", error.localizedDescription)
+            print("ScheduleViewModel.analyze -> error:", error.localizedDescription)
             self.state = .error(error.localizedDescription)
+        }
+    }
+
+    // Aplica un horario manualmente y lo persiste
+    func applyManualChanges(_ newSchedule: Schedule) {
+        self.schedule = newSchedule
+
+        do {
+            try localStore.save(newSchedule)
+            print("Apply manual changes -> saved")
+        } catch {
+            print("Failed to save manual schedule: \(error)")
+        }
+
+        if newSchedule.days.isEmpty {
+            state = .idle
+        } else {
+            state = .parsed
+        }
+    }
+
+    /// Guardar explícitamente lo que esté en `schedule` (para el botón Save)
+    func saveCurrentSchedule() {
+        do {
+            try localStore.save(schedule)
+            print("saveCurrentSchedule -> saved schedule with \(schedule.days.count) days")
+        } catch {
+            print("saveCurrentSchedule -> failed: \(error)")
+        }
+
+        if schedule.days.isEmpty {
+            state = .idle
+        } else {
+            state = .parsed
         }
     }
 
@@ -55,5 +114,13 @@ final class ScheduleViewModel: ObservableObject {
         state = .idle
         capturedImage = nil
         schedule = .empty
+
+        // Guardar horario vacío para que Calendar también quede limpio
+        do {
+            try localStore.save(.empty)
+            print("Reset -> saved empty schedule")
+        } catch {
+            print("Reset -> failed to save empty schedule: \(error)")
+        }
     }
 }
