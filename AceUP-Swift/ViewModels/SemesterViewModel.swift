@@ -28,15 +28,15 @@ class SemesterViewModel: ObservableObject {
     private let repository: SemesterRepository
     private var cancellables = Set<AnyCancellable>()
     
+    @MainActor
     init(repository: SemesterRepository? = nil) {
         if let repository = repository {
             self.repository = repository
         } else {
-            let persistentContainer = PersistenceController.shared.container
+            let persistentContainer = PersistenceController.shared.persistentContainer
             let provider = CoreDataSemesterProvider(persistentContainer: persistentContainer)
             self.repository = SemesterRepository(provider: provider)
         }
-        
         setupDefaultDates()
     }
     
