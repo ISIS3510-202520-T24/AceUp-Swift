@@ -42,6 +42,7 @@
         <attribute name="userId" optional="YES" attributeType="String"/>
         <attribute name="year" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="gradeWeights" optional="YES" maxCount="1" deletionRule="Cascade" destinationEntity="GradeWeightEntity" inverseName="course" inverseEntity="GradeWeightEntity"/>
+        <relationship name="semesterRel" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="SemesterEntity" inverseName="courses" inverseEntity="SemesterEntity"/>
     </entity>
     <entity name="GradeWeightEntity" representedClassName="GradeWeightEntity" syncable="YES" codeGenerationType="class">
         <attribute name="assignments" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
@@ -68,6 +69,24 @@
         <attribute name="isNational" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="name" optional="YES" attributeType="String"/>
         <attribute name="type" optional="YES" attributeType="String"/>
+    </entity>
+    <entity name="SemesterEntity" representedClassName="SemesterEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="actualGPA" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="colorHex" optional="YES" attributeType="String"/>
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="credits" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="endDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" optional="YES" attributeType="String"/>
+        <attribute name="isActive" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="name" optional="YES" attributeType="String"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="startDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="status" optional="YES" attributeType="String"/>
+        <attribute name="targetGPA" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="type" optional="YES" attributeType="String"/>
+        <attribute name="userId" optional="YES" attributeType="String"/>
+        <attribute name="year" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="courses" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CourseEntity" inverseName="semesterRel" inverseEntity="CourseEntity"/>
     </entity>
     <entity name="SharedCalendarEntity" representedClassName="SharedCalendarEntity" syncable="YES" codeGenerationType="class">
         <attribute name="color" optional="YES" attributeType="String"/>

@@ -360,3 +360,55 @@ private func generateMockAvailabilitySlots() -> [AvailabilitySlot] {
 // MARK: - Import Firebase Auth for user ID
 
 import FirebaseAuth
+
+// MARK: - Semester Core Data Extensions
+
+extension SemesterEntity {
+    
+    /// Convert Core Data entity to Semester model
+    func toSemester() -> Semester {
+        return Semester(
+            id: UUID(uuidString: self.id ?? "") ?? UUID(),
+            name: self.name ?? "",
+            year: Int(self.year),
+            type: SemesterType(rawValue: self.type ?? "Fall") ?? .fall,
+            startDate: self.startDate ?? Date(),
+            endDate: self.endDate ?? Date(),
+            targetGPA: self.targetGPA == 0 ? nil : self.targetGPA,
+            actualGPA: self.actualGPA == 0 ? nil : self.actualGPA,
+            credits: Int(self.credits),
+            status: SemesterStatus(rawValue: self.status ?? "Upcoming") ?? .upcoming,
+            notes: self.notes ?? "",
+            colorHex: self.colorHex ?? "#4ECDC4",
+            isActive: self.isActive,
+            userId: self.userId,
+            createdAt: self.createdAt ?? Date()
+        )
+    }
+    
+    /// Update Core Data entity from Semester model
+    func updateFromSemester(_ semester: Semester) {
+        self.id = semester.id.uuidString
+        self.name = semester.name
+        self.year = Int32(semester.year)
+        self.type = semester.type.rawValue
+        self.startDate = semester.startDate
+        self.endDate = semester.endDate
+        self.targetGPA = semester.targetGPA ?? 0
+        self.actualGPA = semester.actualGPA ?? 0
+        self.credits = Int32(semester.credits)
+        self.status = semester.status.rawValue
+        self.notes = semester.notes
+        self.colorHex = semester.colorHex
+        self.isActive = semester.isActive
+        self.userId = Auth.auth().currentUser?.uid ?? semester.userId
+        self.createdAt = semester.createdAt
+    }
+    
+    /// Create SemesterEntity from Semester model
+    static func fromSemester(_ semester: Semester, in context: NSManagedObjectContext) -> SemesterEntity {
+        let entity = SemesterEntity(context: context)
+        entity.updateFromSemester(semester)
+        return entity
+    }
+}

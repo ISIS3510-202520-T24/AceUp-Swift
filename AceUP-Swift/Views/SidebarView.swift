@@ -128,9 +128,9 @@ struct SidebarView: View {
                                 .padding(.top, isLandscape ? 12 : 20)
                                 .padding(.bottom, 10)
 
-                            MenuItemView(icon: nil, title: "Planner",
-                                         isSelected: selectedView == .planner) {
-                                selectedView = .planner; isPresented = false
+                            MenuItemView(icon: nil, title: "Semesters",
+                                         isSelected: selectedView == .semesters) {
+                                selectedView = .semesters; isPresented = false
                             }
 
                             MenuItemView(icon: nil, title: "Assignments",
@@ -256,6 +256,7 @@ enum AppView {
     case sharedCalendars
     case groupCalendar
     case planner
+    case semesters
     case assignments
     case teachers
     case holidays

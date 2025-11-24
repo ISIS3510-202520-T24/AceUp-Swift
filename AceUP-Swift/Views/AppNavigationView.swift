@@ -97,6 +97,23 @@ struct AppNavigationView: View {
                             }
                         })
                         
+                    case .semesters:
+                        NavigationView {
+                            SemesterListView()
+                                .overlay(alignment: .topLeading) {
+                                    Button(action: {
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            isSidebarPresented.toggle()
+                                        }
+                                    }) {
+                                        Image(systemName: "line.3.horizontal")
+                                            .foregroundColor(Color(hex: "#122C4A") ?? Color.blue)
+                                            .font(.title2)
+                                            .padding()
+                                    }
+                                }
+                        }
+                        
                     case .assignments:
                         AssignmentsListView(onMenuTapped: {
                             withAnimation(.easeInOut(duration: 0.3)) {
