@@ -77,23 +77,26 @@ struct SemesterListView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 ForEach(viewModel.semesters) { semester in
-                    SemesterCard(
-                        semester: semester,
-                        isActive: semester.id == viewModel.activeSemester?.id,
-                        onEdit: {
-                            viewModel.prepareForEdit(semester)
-                            showEditSheet = true
-                        },
-                        onDelete: {
-                            semesterToDelete = semester
-                            showDeleteAlert = true
-                        },
-                        onSetActive: {
-                            Task {
-                                await viewModel.setActiveSemester(semester)
+                    NavigationLink(destination: SubjectListView(semesterId: semester.id.uuidString, semesterName: semester.name)) {
+                        SemesterCard(
+                            semester: semester,
+                            isActive: semester.id == viewModel.activeSemester?.id,
+                            onEdit: {
+                                viewModel.prepareForEdit(semester)
+                                showEditSheet = true
+                            },
+                            onDelete: {
+                                semesterToDelete = semester
+                                showDeleteAlert = true
+                            },
+                            onSetActive: {
+                                Task {
+                                    await viewModel.setActiveSemester(semester)
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
             .padding()
