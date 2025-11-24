@@ -14,6 +14,9 @@ struct AssignmentsListView: View {
     @State private var selectedFilter: AssignmentFilter = .all
     @State private var searchText = ""
     @State private var showingWorkloadAnalysis = false
+    @State private var showGradeInput = false
+    @State private var gradeInputText = ""
+    @State private var assignmentToComplete: Assignment?
     
     init(onMenuTapped: @escaping () -> Void = {}) {
         self.onMenuTapped = onMenuTapped
@@ -43,6 +46,27 @@ struct AssignmentsListView: View {
             }
             .sheet(isPresented: $showingWorkloadAnalysis) {
                 WorkloadAnalysisView(analysis: viewModel.workloadAnalysis)
+            }
+            .alert("Enter Grade", isPresented: $showGradeInput) {
+                TextField("Grade (0.0 - 5.0)", text: $gradeInputText)
+                    .keyboardType(.decimalPad)
+                Button("Cancel", role: .cancel) {
+                    assignmentToComplete = nil
+                    gradeInputText = ""
+                }
+                Button("Complete") {
+                    if let assignment = assignmentToComplete,
+                       let grade = Double(gradeInputText),
+                       grade >= 0 && grade <= 5.0 {
+                        Task {
+                            await viewModel.markAsCompleted(assignment.id, finalGrade: grade)
+                        }
+                    }
+                    assignmentToComplete = nil
+                    gradeInputText = ""
+                }
+            } message: {
+                Text("Enter the final grade for this assignment (scale 0.0 to 5.0)")
             }
             .task {
                 await viewModel.loadAssignments()
@@ -170,9 +194,8 @@ struct AssignmentsListView: View {
                     AssignmentCard(
                         assignment: assignment,
                         onToggleComplete: {
-                            Task {
-                                await viewModel.markAsCompleted(assignment.id)
-                            }
+                            assignmentToComplete = assignment
+                            showGradeInput = true
                         },
                         onEdit: {
                             viewModel.selectedAssignment = assignment

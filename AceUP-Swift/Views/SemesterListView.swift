@@ -77,7 +77,7 @@ struct SemesterListView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 ForEach(viewModel.semesters) { semester in
-                    NavigationLink(destination: SubjectListView(semesterId: semester.id.uuidString, semesterName: semester.name)) {
+                    NavigationLink(destination: SubjectListView(semester: semester)) {
                         SemesterCard(
                             semester: semester,
                             isActive: semester.id == viewModel.activeSemester?.id,

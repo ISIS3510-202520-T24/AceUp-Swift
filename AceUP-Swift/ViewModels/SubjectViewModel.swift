@@ -16,6 +16,10 @@ class SubjectViewModel: ObservableObject {
     @Published var formCredits = ""
     @Published var formInstructor = ""
     @Published var formColor = "#007AFF"
+    @Published var formClassDays: Set<DayOfWeek> = []
+    @Published var formStartTime = "09:00"
+    @Published var formEndTime = "10:30"
+    @Published var formLocation = ""
     @Published var editingSubject: Subject?
     
     private let repository: SubjectRepository
@@ -56,6 +60,10 @@ class SubjectViewModel: ObservableObject {
         
         do {
             let instructorValue = formInstructor.isEmpty ? nil : formInstructor
+            let classDaysValue = formClassDays.isEmpty ? nil : Array(formClassDays)
+            let startTimeValue = formStartTime.isEmpty ? nil : formStartTime
+            let endTimeValue = formEndTime.isEmpty ? nil : formEndTime
+            let locationValue = formLocation.isEmpty ? nil : formLocation
             
             _ = try await repository.createSubject(
                 name: formName,
@@ -63,7 +71,11 @@ class SubjectViewModel: ObservableObject {
                 credits: Double(creditsValue),
                 instructor: instructorValue,
                 color: formColor,
-                semesterId: semesterId
+                semesterId: semesterId,
+                classDays: classDaysValue,
+                startTime: startTimeValue,
+                endTime: endTimeValue,
+                location: locationValue
             )
             
             await loadSubjects()
@@ -87,6 +99,10 @@ class SubjectViewModel: ObservableObject {
         
         do {
             let instructorValue = formInstructor.isEmpty ? nil : formInstructor
+            let classDaysValue = formClassDays.isEmpty ? nil : Array(formClassDays)
+            let startTimeValue = formStartTime.isEmpty ? nil : formStartTime
+            let endTimeValue = formEndTime.isEmpty ? nil : formEndTime
+            let locationValue = formLocation.isEmpty ? nil : formLocation
             
             let updated = Subject(
                 id: subject.id,
@@ -97,6 +113,10 @@ class SubjectViewModel: ObservableObject {
                 color: formColor,
                 currentGrade: subject.currentGrade,
                 targetGrade: subject.targetGrade,
+                classDays: classDaysValue,
+                startTime: startTimeValue,
+                endTime: endTimeValue,
+                location: locationValue,
                 createdAt: subject.createdAt,
                 updatedAt: Date()
             )
@@ -130,6 +150,10 @@ class SubjectViewModel: ObservableObject {
         formCredits = String(Int(subject.credits))
         formInstructor = subject.instructor ?? ""
         formColor = subject.color
+        formClassDays = Set(subject.classDays ?? [])
+        formStartTime = subject.startTime ?? "09:00"
+        formEndTime = subject.endTime ?? "10:30"
+        formLocation = subject.location ?? ""
     }
     
     func resetForm() {
@@ -138,6 +162,10 @@ class SubjectViewModel: ObservableObject {
         formCredits = ""
         formInstructor = ""
         formColor = "#007AFF"
+        formClassDays = []
+        formStartTime = "09:00"
+        formEndTime = "10:30"
+        formLocation = ""
         editingSubject = nil
     }
     

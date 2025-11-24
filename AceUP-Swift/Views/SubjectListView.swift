@@ -8,11 +8,11 @@ struct SubjectListView: View {
     @State private var subjectToDelete: Subject?
     @State private var showDeleteAlert = false
     
-    let semesterName: String
+    let semester: Semester
     
-    init(semesterId: String, semesterName: String) {
-        self.semesterName = semesterName
-        _viewModel = StateObject(wrappedValue: SubjectViewModel(semesterId: semesterId))
+    init(semester: Semester) {
+        self.semester = semester
+        _viewModel = StateObject(wrappedValue: SubjectViewModel(semesterId: semester.id.uuidString))
     }
     
     var body: some View {
@@ -33,7 +33,7 @@ struct SubjectListView: View {
                 }
             }
         }
-        .navigationTitle(semesterName)
+        .navigationTitle(semester.name)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -107,17 +107,24 @@ struct SubjectListView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 ForEach(viewModel.subjects) { subject in
-                    SubjectCard(
+                    NavigationLink(destination: SubjectDetailView(
                         subject: subject,
-                        onEdit: {
-                            viewModel.prepareForEdit(subject)
-                            showEditSheet = true
-                        },
-                        onDelete: {
-                            subjectToDelete = subject
-                            showDeleteAlert = true
-                        }
-                    )
+                        semesterStartDate: semester.startDate,
+                        semesterEndDate: semester.endDate
+                    )) {
+                        SubjectCard(
+                            subject: subject,
+                            onEdit: {
+                                viewModel.prepareForEdit(subject)
+                                showEditSheet = true
+                            },
+                            onDelete: {
+                                subjectToDelete = subject
+                                showDeleteAlert = true
+                            }
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
             .padding()
@@ -318,6 +325,43 @@ struct CreateSubjectView: View {
                     TextField("Instructor Name (Optional)", text: $viewModel.formInstructor)
                 }
                 
+                Section("Class Schedule") {
+                    // Days of the week
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Class Days")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        ForEach(DayOfWeek.allCases, id: \.self) { day in
+                            Toggle(isOn: Binding(
+                                get: { viewModel.formClassDays.contains(day) },
+                                set: { isOn in
+                                    if isOn {
+                                        viewModel.formClassDays.insert(day)
+                                    } else {
+                                        viewModel.formClassDays.remove(day)
+                                    }
+                                }
+                            )) {
+                                Text(day.rawValue)
+                            }
+                        }
+                    }
+                    
+                    // Time pickers
+                    DatePicker("Start Time", selection: Binding(
+                        get: { timeFromString(viewModel.formStartTime) },
+                        set: { viewModel.formStartTime = stringFromTime($0) }
+                    ), displayedComponents: .hourAndMinute)
+                    
+                    DatePicker("End Time", selection: Binding(
+                        get: { timeFromString(viewModel.formEndTime) },
+                        set: { viewModel.formEndTime = stringFromTime($0) }
+                    ), displayedComponents: .hourAndMinute)
+                    
+                    TextField("Location (Optional)", text: $viewModel.formLocation)
+                }
+                
                 Section("Color") {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 12) {
                         ForEach(availableColors, id: \.self) { color in
@@ -356,6 +400,26 @@ struct CreateSubjectView: View {
             }
         }
     }
+    
+    private func timeFromString(_ timeString: String) -> Date {
+        let components = timeString.split(separator: ":")
+        guard components.count == 2,
+              let hour = Int(components[0]),
+              let minute = Int(components[1]) else {
+            return Date()
+        }
+        
+        var dateComponents = DateComponents()
+        dateComponents.hour = hour
+        dateComponents.minute = minute
+        return Calendar.current.date(from: dateComponents) ?? Date()
+    }
+    
+    private func stringFromTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
 }
 
 // MARK: - Edit Subject View
@@ -377,6 +441,43 @@ struct EditSubjectView: View {
                 
                 Section("Instructor") {
                     TextField("Instructor Name (Optional)", text: $viewModel.formInstructor)
+                }
+                
+                Section("Class Schedule") {
+                    // Days of the week
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Class Days")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        ForEach(DayOfWeek.allCases, id: \.self) { day in
+                            Toggle(isOn: Binding(
+                                get: { viewModel.formClassDays.contains(day) },
+                                set: { isOn in
+                                    if isOn {
+                                        viewModel.formClassDays.insert(day)
+                                    } else {
+                                        viewModel.formClassDays.remove(day)
+                                    }
+                                }
+                            )) {
+                                Text(day.rawValue)
+                            }
+                        }
+                    }
+                    
+                    // Time pickers
+                    DatePicker("Start Time", selection: Binding(
+                        get: { timeFromString(viewModel.formStartTime) },
+                        set: { viewModel.formStartTime = stringFromTime($0) }
+                    ), displayedComponents: .hourAndMinute)
+                    
+                    DatePicker("End Time", selection: Binding(
+                        get: { timeFromString(viewModel.formEndTime) },
+                        set: { viewModel.formEndTime = stringFromTime($0) }
+                    ), displayedComponents: .hourAndMinute)
+                    
+                    TextField("Location (Optional)", text: $viewModel.formLocation)
                 }
                 
                 Section("Color") {
@@ -416,5 +517,25 @@ struct EditSubjectView: View {
                 }
             }
         }
+    }
+    
+    private func timeFromString(_ timeString: String) -> Date {
+        let components = timeString.split(separator: ":")
+        guard components.count == 2,
+              let hour = Int(components[0]),
+              let minute = Int(components[1]) else {
+            return Date()
+        }
+        
+        var dateComponents = DateComponents()
+        dateComponents.hour = hour
+        dateComponents.minute = minute
+        return Calendar.current.date(from: dateComponents) ?? Date()
+    }
+    
+    private func stringFromTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
     }
 }

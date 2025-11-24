@@ -11,7 +11,8 @@ class SubjectRepository: ObservableObject {
     }
     
     func createSubject(name: String, code: String, credits: Double,
-                      instructor: String?, color: String, semesterId: String?) async throws -> Subject {
+                      instructor: String?, color: String, semesterId: String?,
+                      classDays: [DayOfWeek]?, startTime: String?, endTime: String?, location: String?) async throws -> Subject {
         let subject = Subject(
             id: UUID().uuidString,
             name: name,
@@ -21,6 +22,10 @@ class SubjectRepository: ObservableObject {
             color: color,
             currentGrade: nil,
             targetGrade: nil,
+            classDays: classDays,
+            startTime: startTime,
+            endTime: endTime,
+            location: location,
             createdAt: Date(),
             updatedAt: Date()
         )

@@ -10,12 +10,16 @@ struct Subject: Codable, Identifiable, Hashable {
     let color: String
     let currentGrade: Double?
     let targetGrade: Double?
+    let classDays: [DayOfWeek]?
+    let startTime: String?  // "09:00"
+    let endTime: String?    // "10:30"
+    let location: String?
     let createdAt: Date
-    var updatedAt: Date  // var para poder modificarlo
+    var updatedAt: Date
     
     // Computed properties
     var isActive: Bool {
-        true // Simple implementation
+        true
     }
     
     var gradeStatus: GradeStatus {
@@ -23,6 +27,41 @@ struct Subject: Codable, Identifiable, Hashable {
         if grade >= 4.0 { return .excellent }
         if grade >= 3.0 { return .passing }
         return .failing
+    }
+}
+
+// MARK: - Day of Week
+enum DayOfWeek: String, Codable, CaseIterable {
+    case monday = "Monday"
+    case tuesday = "Tuesday"
+    case wednesday = "Wednesday"
+    case thursday = "Thursday"
+    case friday = "Friday"
+    case saturday = "Saturday"
+    case sunday = "Sunday"
+    
+    var shortName: String {
+        switch self {
+        case .monday: return "Mon"
+        case .tuesday: return "Tue"
+        case .wednesday: return "Wed"
+        case .thursday: return "Thu"
+        case .friday: return "Fri"
+        case .saturday: return "Sat"
+        case .sunday: return "Sun"
+        }
+    }
+    
+    var weekdayIndex: Int {
+        switch self {
+        case .sunday: return 1
+        case .monday: return 2
+        case .tuesday: return 3
+        case .wednesday: return 4
+        case .thursday: return 5
+        case .friday: return 6
+        case .saturday: return 7
+        }
     }
 }
 
