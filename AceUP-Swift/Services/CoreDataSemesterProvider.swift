@@ -20,12 +20,17 @@ class CoreDataSemesterProvider {
     // MARK: - Create Operation (I/O Optimized)
     func create(_ semester: Semester) async throws -> Semester {
         return try await withCheckedThrowingContinuation { continuation in
+            //CAMBIA A BACKGROUND THREAD
             backgroundContext.perform {
                 do {
+                    // OUTPUT: Escribir a disco (BACKGROUND)
                     let entity = SemesterEntity.fromSemester(semester, in: self.backgroundContext)
                     try self.backgroundContext.save()
                     
+                    // INPUT: Leer desde disco (BACKGROUND)
                     let createdSemester = entity.toSemester()
+
+                    // Retorna al MAIN THREAD
                     continuation.resume(returning: createdSemester)
                 } catch {
                     continuation.resume(throwing: error)

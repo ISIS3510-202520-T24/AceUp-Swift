@@ -3,6 +3,7 @@ import Combine
 import FirebaseAuth
 
 // MARK: - Semester ViewModel
+// DISPATCHER: Main Thread (UI)
 @MainActor
 class SemesterViewModel: ObservableObject {
     
@@ -67,20 +68,24 @@ class SemesterViewModel: ObservableObject {
     }
     
     // MARK: - CRUD Operations
+    // Esta función se ejecuta en MAIN THREAD
     func loadSemesters() async {
         isLoading = true
+        // Actualiza UI en MAIN THREAD
+        
         errorMessage = nil
         
         do {
             let userId = Auth.auth().currentUser?.uid
+            // Llama a Repository (que usa BACKGROUND THREAD)
             semesters = try await repository.loadAllSemesters(userId: userId)
             activeSemester = try await repository.loadActiveSemester(userId: userId)
         } catch {
             errorMessage = "Failed to load semesters: \(error.localizedDescription)"
             showError = true
         }
-        
-        isLoading = false
+        // Actualiza UI en MAIN THREAD
+        isLoading = false 
     }
     
     func createSemester() async {

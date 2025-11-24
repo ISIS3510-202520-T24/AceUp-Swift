@@ -7,6 +7,19 @@ enum SemesterType: String, Codable, CaseIterable {
     case summer = "Summer"
     case winter = "Winter"
     
+    var icon: String {
+        switch self {
+        case .fall: return "leaf.fill"
+        case .spring: return "sun.max.fill"
+        case .summer: return "sun.max.circle.fill"
+        case .winter: return "snowflake"
+        }
+    }
+    
+    var displayName: String {
+        return self.rawValue
+    }
+    
     var defaultStartMonth: Int {
         switch self {
         case .fall: return 8      // August
@@ -32,6 +45,19 @@ enum SemesterStatus: String, Codable, CaseIterable {
     case active = "Active"
     case completed = "Completed"
     case archived = "Archived"
+    
+    var icon: String {
+        switch self {
+        case .upcoming: return "clock.fill"
+        case .active: return "play.circle.fill"
+        case .completed: return "checkmark.circle.fill"
+        case .archived: return "archivebox.fill"
+        }
+    }
+    
+    var displayName: String {
+        return self.rawValue
+    }
     
     var color: String {
         switch self {
