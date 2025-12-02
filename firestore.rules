@@ -50,6 +50,24 @@ service cloud.firestore {
       allow write: if false; // Only allow through admin SDK
     }
     
+    // Teachers - users can only access their own teacher records
+    match /teachers/{teacherId} {
+      allow read: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      
+      // Allow creating new teachers
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.userId;
+      
+      // Allow updating own teachers
+      allow update: if request.auth != null &&
+        request.auth.uid == resource.data.userId;
+      
+      // Allow deleting own teachers
+      allow delete: if request.auth != null &&
+        request.auth.uid == resource.data.userId;
+    }
+    
     // Analytics - update sessions (BQ 5.1)
     match /analytics_update_sessions/{sessionId} {
       allow create: if request.auth != null && 
