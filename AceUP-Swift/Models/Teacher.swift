@@ -11,6 +11,7 @@ import Foundation
 /// Represents a teacher/professor in the system
 struct Teacher: Codable, Identifiable, Hashable, Equatable {
     let id: String
+    let userId: String // Owner of this teacher record
     let name: String
     let email: String?
     let phoneNumber: String?
@@ -24,6 +25,7 @@ struct Teacher: Codable, Identifiable, Hashable, Equatable {
     
     init(
         id: String = UUID().uuidString,
+        userId: String = "default-user", // In real app, get from AuthService
         name: String,
         email: String? = nil,
         phoneNumber: String? = nil,
@@ -36,6 +38,7 @@ struct Teacher: Codable, Identifiable, Hashable, Equatable {
         updatedAt: Date = Date()
     ) {
         self.id = id
+        self.userId = userId
         self.name = name
         self.email = email
         self.phoneNumber = phoneNumber
@@ -51,6 +54,7 @@ struct Teacher: Codable, Identifiable, Hashable, Equatable {
     // MARK: - Codable Keys
     enum CodingKeys: String, CodingKey {
         case id
+        case userId
         case name
         case email
         case phoneNumber
@@ -66,6 +70,7 @@ struct Teacher: Codable, Identifiable, Hashable, Equatable {
     // MARK: - Copying
     /// Creates a copy of the teacher with optional property updates
     func copying(
+        userId: String? = nil,
         name: String? = nil,
         email: String?? = nil,
         phoneNumber: String?? = nil,
@@ -78,6 +83,7 @@ struct Teacher: Codable, Identifiable, Hashable, Equatable {
     ) -> Teacher {
         Teacher(
             id: self.id,
+            userId: userId ?? self.userId,
             name: name ?? self.name,
             email: email ?? self.email,
             phoneNumber: phoneNumber ?? self.phoneNumber,
@@ -96,6 +102,7 @@ struct Teacher: Codable, Identifiable, Hashable, Equatable {
     func toFirestoreData() -> [String: Any] {
         var data: [String: Any] = [
             "id": id,
+            "userId": userId,
             "name": name,
             "linkedCourseIds": linkedCourseIds,
             "createdAt": createdAt,
@@ -114,7 +121,8 @@ struct Teacher: Codable, Identifiable, Hashable, Equatable {
     
     /// Creates a teacher from Firestore data
     static func fromFirestoreData(_ data: [String: Any], id: String) -> Teacher? {
-        guard let name = data["name"] as? String else { return nil }
+        guard let name = data["name"] as? String,
+              let userId = data["userId"] as? String else { return nil }
         
         let linkedCourseIds = data["linkedCourseIds"] as? [String] ?? []
         
@@ -134,6 +142,7 @@ struct Teacher: Codable, Identifiable, Hashable, Equatable {
         
         return Teacher(
             id: id,
+            userId: userId,
             name: name,
             email: data["email"] as? String,
             phoneNumber: data["phoneNumber"] as? String,
@@ -152,6 +161,7 @@ struct Teacher: Codable, Identifiable, Hashable, Equatable {
 extension Teacher {
     static let sampleTeachers: [Teacher] = [
         Teacher(
+            userId: "sample-user",
             name: "Dr. María González",
             email: "maria.gonzalez@university.edu",
             phoneNumber: "+57 300 123 4567",
@@ -162,6 +172,7 @@ extension Teacher {
             notes: "Very approachable, prefers email communication"
         ),
         Teacher(
+            userId: "sample-user",
             name: "Prof. Carlos Ramírez",
             email: "carlos.ramirez@university.edu",
             officeLocation: "SD-302",

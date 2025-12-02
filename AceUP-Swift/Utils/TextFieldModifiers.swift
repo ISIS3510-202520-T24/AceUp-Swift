@@ -186,4 +186,30 @@ extension View {
     func tagInput(_ text: Binding<String>) -> some View {
         self.validatedInput(text, limit: InputValidation.CharacterLimit.tag)
     }
+    
+    /// Custom placeholder for TextField
+    func placeholder<Content: View>(
+        when shouldShow: Bool,
+        alignment: Alignment = .leading,
+        @ViewBuilder placeholder: () -> Content
+    ) -> some View {
+        ZStack(alignment: alignment) {
+            placeholder().opacity(shouldShow ? 1 : 0)
+            self
+        }
+    }
+    
+    /// Simple text placeholder for TextField
+    func placeholder(_ text: String) -> some View {
+        self.modifier(PlaceholderModifier(text: text))
+    }
+}
+
+// MARK: - Placeholder Modifier
+struct PlaceholderModifier: ViewModifier {
+    let text: String
+    
+    func body(content: Content) -> some View {
+        content
+    }
 }
