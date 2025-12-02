@@ -9,7 +9,7 @@ struct StoredSchedule: Codable {
 /// DataStore local
 @MainActor
 final class ScheduleLocalStore {
-    static let shared = ScheduleLocalStore()
+    nonisolated(unsafe) static let shared = ScheduleLocalStore()
 
     private let fileURL: URL
     private let encoder = JSONEncoder()
