@@ -105,7 +105,7 @@ struct AppNavigationView: View {
                         })
                         
                     case .teachers:
-                        TeachersPlaceholder(onMenuTapped: {
+                        TeachersListView(onMenuTapped: {
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 isSidebarPresented.toggle()
                             }
