@@ -140,7 +140,7 @@ final class TeacherRepository: ObservableObject, TeacherRepositoryProtocol {
         teachers = try await unifiedProvider.getCachedTeachers()
         if teachers.isEmpty {
             do {
-                try await getAllTeachers()
+                _ = try await getAllTeachers()
             } catch {
                 print("❌ [TeacherRepository] Failed to fetch: \(error)")
             }
@@ -256,6 +256,6 @@ final class TeacherRepository: ObservableObject, TeacherRepositoryProtocol {
             print("⚠️ [TeacherRepository] Cannot refresh - offline")
             return
         }
-        try await getAllTeachers()
+        _ = try await getAllTeachers()
     }
 }

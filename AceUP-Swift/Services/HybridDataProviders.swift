@@ -1196,16 +1196,33 @@ final class HybridSharedCalendarDataProvider {
                           let createdBy = data["createdBy"] as? String,
                           let members = data["members"] as? [String] else { continue }
                     
-                    let groupMembers = members.map { memberId in
-                        GroupMember(
-                            id: memberId,
-                            name: memberId, // Would fetch from users collection
-                            email: "\(memberId)@example.com",
-                            avatar: nil,
-                            isAdmin: memberId == createdBy,
-                            joinedAt: Date(),
-                            availability: []
-                        )
+                    // Fetch user data for each member
+                    var groupMembers: [GroupMember] = []
+                    for memberId in members {
+                        if let userData = await loadUserData(userId: memberId) {
+                            let groupMember = GroupMember(
+                                id: memberId,
+                                name: userData.displayName,
+                                email: userData.email,
+                                avatar: userData.avatar,
+                                isAdmin: memberId == createdBy,
+                                joinedAt: Date(),
+                                availability: []
+                            )
+                            groupMembers.append(groupMember)
+                        } else {
+                            // Fallback if user data can't be loaded
+                            let groupMember = GroupMember(
+                                id: memberId,
+                                name: memberId,
+                                email: "\(memberId)@example.com",
+                                avatar: nil,
+                                isAdmin: memberId == createdBy,
+                                joinedAt: Date(),
+                                availability: []
+                            )
+                            groupMembers.append(groupMember)
+                        }
                     }
                     
                     let group = CalendarGroup(
@@ -1321,6 +1338,43 @@ final class HybridSharedCalendarDataProvider {
         guard let data = UserDefaults.standard.data(forKey: pendingOpsKey),
               let ops = try? JSONDecoder().decode([CalendarPendingOp].self, from: data) else { return }
         pendingOperations = ops
+    }
+    
+    /// Load user data from Firestore to get proper display name (nick)
+    private func loadUserData(userId: String) async -> UserFirestoreData? {
+        do {
+            let userDoc = try await db.collection("users").document(userId).getDocument()
+            
+            if userDoc.exists, let data = userDoc.data() {
+                let email = data["email"] as? String ?? "user@example.com"
+                let nick = data["nick"] as? String
+                let uid = data["uid"] as? String
+                let avatar = data["avatar"] as? String
+                
+                return UserFirestoreData(
+                    email: email,
+                    nick: nick,
+                    uid: uid,
+                    avatar: avatar
+                )
+            }
+            return nil
+        } catch {
+            print("⚠️ Error loading user data for \(userId): \(error)")
+            return nil
+        }
+    }
+}
+
+/// Helper struct for user data from Firestore
+private struct UserFirestoreData {
+    let email: String
+    let nick: String?
+    let uid: String?
+    let avatar: String?
+    
+    var displayName: String {
+        return nick ?? email.components(separatedBy: "@").first ?? "User"
     }
 }
 
