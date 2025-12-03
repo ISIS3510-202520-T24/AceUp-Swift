@@ -7,7 +7,7 @@
 
 import Foundation
 import SwiftUI
-import EventKit
+@preconcurrency import EventKit
 
 protocol UniandesEventsServiceProtocol {
     func fetchEvents(forceRefresh: Bool) async throws -> [UniandesEvent]
@@ -19,7 +19,7 @@ protocol UniandesEventsServiceProtocol {
 }
 
 @MainActor
-class UniandesEventsService: ObservableObject, UniandesEventsServiceProtocol {
+class UniandesEventsService: ObservableObject, @MainActor UniandesEventsServiceProtocol {
     
     @Published var isLoading = false
     @Published var error: Error?

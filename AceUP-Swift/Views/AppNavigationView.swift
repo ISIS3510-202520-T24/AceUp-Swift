@@ -89,13 +89,16 @@ struct AppNavigationView: View {
                             },
                             group: selectedGroup
                         )
-                        
-                    case .planner:
-                        PlannerPlaceholder(onMenuTapped: {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                isSidebarPresented.toggle()
-                            }
-                        })
+                    
+                    case .semesters:
+                        NavigationView {
+                            SemesterListView(onMenuTapped: {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    isSidebarPresented.toggle()
+                                }
+                            })
+                        }
+                        .navigationViewStyle(.stack)
                         
                     case .assignments:
                         AssignmentsListView(onMenuTapped: {
@@ -298,19 +301,6 @@ struct CalendarPlaceholder: View {
             title: "Calendar",
             icon: "calendar",
             message: "Monthly calendar view will be implemented here",
-            onMenuTapped: onMenuTapped
-        )
-    }
-}
-
-struct PlannerPlaceholder: View {
-    let onMenuTapped: () -> Void
-    
-    var body: some View {
-        PlaceholderView(
-            title: "Planner",
-            icon: "book.fill",
-            message: "Academic planner and schedule management",
             onMenuTapped: onMenuTapped
         )
     }
