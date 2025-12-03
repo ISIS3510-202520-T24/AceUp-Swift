@@ -23,6 +23,7 @@ class SharedCalendarService: ObservableObject {
     
     // MARK: - Private Properties
     private let db = Firestore.firestore()
+    private let unifiedProvider = UnifiedHybridDataProviders.shared
     private var cancellables = Set<AnyCancellable>()
     private var currentUserId: String {
         return Auth.auth().currentUser?.uid ?? "anonymous_user"
@@ -31,9 +32,16 @@ class SharedCalendarService: ObservableObject {
     // MARK: - Initialization
     init() {
         Task {
+            await loadGroupsFromCache()
             await loadGroupsFromFirebase()
             await generateSmartSuggestions()
         }
+    }
+    
+    // MARK: - Data Loading
+    
+    private func loadGroupsFromCache() async {
+        groups = unifiedProvider.getCachedSharedCalendars()
     }
     
     // MARK: - Firebase Data Loading
@@ -49,25 +57,9 @@ class SharedCalendarService: ObservableObject {
         }
         
         do {
-            let groupsSnapshot = try await db.collection("groups")
-                .whereField("members", arrayContains: currentUserId)
-                .getDocuments()
+            groups = try await unifiedProvider.sharedCalendars.fetchAll()
             
-            var loadedGroups: [CalendarGroup] = []
-            
-            for document in groupsSnapshot.documents {
-                if let group = try? document.data(as: CalendarGroupFirestore.self) {
-                    
-                    let calendarGroup = await convertFirestoreGroupToCalendarGroup(group, documentId: document.documentID)
-                    loadedGroups.append(calendarGroup)
-                }
-            }
-            
-            await MainActor.run {
-                self.groups = loadedGroups
-            }
-            
-            if loadedGroups.isEmpty {
+            if groups.isEmpty {
                 await createSampleGroupsInFirebase()
             }
             
@@ -97,22 +89,30 @@ class SharedCalendarService: ObservableObject {
         
         do {
             let groupId = UUID().uuidString
-            
-            
             let groupCode = generateGroupCode()
-            let groupData: [String: Any] = [
-                "name": name,
-                "ownerId": currentUserId,
-                "members": [currentUserId], 
-                "createdAt": Timestamp(date: Date()),
-                "description": description,
-                "color": generateRandomColor(),
-                "inviteCode": groupCode 
-            ]
             
-            try await db.collection("groups").document(groupId).setData(groupData)
+            let groupMember = GroupMember(
+                id: currentUserId,
+                name: currentUserId,
+                email: "\(currentUserId)@example.com",
+                isAdmin: true,
+                avatar: nil
+            )
             
-           
+            let newGroup = CalendarGroup(
+                id: groupId,
+                name: name,
+                ownerId: currentUserId,
+                members: [groupMember],
+                createdAt: Date(),
+                color: generateRandomColor(),
+                inviteCode: groupCode
+            )
+            
+            try await unifiedProvider.sharedCalendars.save(newGroup)
+            groups = unifiedProvider.getCachedSharedCalendars()
+            
+            // Create welcome event
             let welcomeEventData: [String: Any] = [
                 "title": "Grupo creado: \(name)",
                 "createdBy": currentUserId,
@@ -122,9 +122,6 @@ class SharedCalendarService: ObservableObject {
             
             try await db.collection("groups").document(groupId)
                 .collection("events").addDocument(data: welcomeEventData)
-            
-            
-            await loadGroupsFromFirebase()
             
         } catch {
             await MainActor.run {
@@ -219,12 +216,10 @@ class SharedCalendarService: ObservableObject {
         defer { isLoading = false }
         
         do {
+            try await unifiedProvider.sharedCalendars.delete(groupId)
+            groups = unifiedProvider.getCachedSharedCalendars()
             
-            try await db.collection("groups").document(groupId).updateData([
-                "members": FieldValue.arrayRemove([currentUserId])
-            ])
-            
-            
+            // Log event
             let leaveEventData: [String: Any] = [
                 "title": "Miembro dejó el grupo",
                 "createdBy": currentUserId,
@@ -234,9 +229,6 @@ class SharedCalendarService: ObservableObject {
             
             try await db.collection("groups").document(groupId)
                 .collection("events").addDocument(data: leaveEventData)
-            
-            
-            groups.removeAll { $0.id == groupId }
             
             if currentGroup?.id == groupId {
                 currentGroup = nil

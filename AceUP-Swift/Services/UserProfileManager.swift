@@ -11,6 +11,7 @@ import FirebaseAuth
 import FirebaseFirestore
 
 /// Manages user profile data including personal information and profile images
+/// Now integrated with UnifiedHybridDataProviders for optimized caching
 @MainActor
 class UserProfileManager: ObservableObject {
     
@@ -32,6 +33,8 @@ class UserProfileManager: ObservableObject {
     // MARK: - Private Properties
     
     private let db = Firestore.firestore()
+    private let unifiedProvider = UnifiedHybridDataProviders.shared
+    
     private var currentUserId: String? {
         Auth.auth().currentUser?.uid
     }
@@ -45,7 +48,7 @@ class UserProfileManager: ObservableObject {
     
     // MARK: - Public Methods
     
-    /// Load user profile from Firestore
+    /// Load user profile from Firestore with caching
     func loadUserProfile() async {
         guard let userId = currentUserId else { return }
         
@@ -53,6 +56,13 @@ class UserProfileManager: ObservableObject {
         defer { isLoading = false }
         
         do {
+            // Try cache first
+            if let cachedProfile = try await unifiedProvider.loadUserProfile(userId: userId) {
+                await updateLocalProfile(from: cachedProfile)
+                return
+            }
+            
+            // Fallback to direct Firestore fetch
             let document = try await db.collection("users").document(userId).getDocument()
             
             if document.exists, let data = document.data() {
@@ -63,7 +73,7 @@ class UserProfileManager: ObservableObject {
         }
     }
     
-    /// Update user profile information
+    /// Update user profile information with automatic cache sync
     func updateProfile(
         displayName: String? = nil,
         university: String? = nil,
@@ -107,13 +117,25 @@ class UserProfileManager: ObservableObject {
             
             do {
                 try await db.collection("users").document(userId).updateData(updates)
+                
+                // Update unified cache
+                let profileData = UserProfileData(
+                    userId: userId,
+                    displayName: self.displayName,
+                    email: self.email,
+                    university: self.university,
+                    studyProgram: self.studyProgram,
+                    academicYear: self.academicYear,
+                    profileImageData: nil
+                )
+                try await unifiedProvider.updateUserProfile(profileData)
             } catch {
                 print("Error updating profile: \(error)")
             }
         }
     }
     
-    /// Upload and update profile image
+    /// Upload and update profile image with unified caching
     func updateProfileImage(_ image: UIImage) async {
         guard let userId = currentUserId,
               let imageData = image.jpegData(compressionQuality: 0.8) else { return }
@@ -122,8 +144,6 @@ class UserProfileManager: ObservableObject {
         defer { isLoading = false }
         
         do {
-            // For now, we'll save the image data as base64 string in Firestore
-            // In a production app, you'd want to use Firebase Storage or another image hosting service
             let base64String = imageData.base64EncodedString()
             
             // Update Firestore with image data
@@ -132,14 +152,25 @@ class UserProfileManager: ObservableObject {
                 "updatedAt": FieldValue.serverTimestamp()
             ])
             
-            // Update Firebase Auth profile with a placeholder URL
-            // In production, this would be the actual storage URL
+            // Update Firebase Auth profile
             let changeRequest = Auth.auth().currentUser?.createProfileChangeRequest()
             changeRequest?.photoURL = URL(string: "data:image/jpeg;base64,\(base64String)")
             try? await changeRequest?.commitChanges()
             
-            // Update local state - create a data URL for display
+            // Update local state
             self.profileImageURL = URL(string: "data:image/jpeg;base64,\(base64String)")
+            
+            // Update unified cache
+            let profileData = UserProfileData(
+                userId: userId,
+                displayName: self.displayName,
+                email: self.email,
+                university: self.university,
+                studyProgram: self.studyProgram,
+                academicYear: self.academicYear,
+                profileImageData: base64String
+            )
+            try await unifiedProvider.updateUserProfile(profileData)
             
         } catch {
             print("Error updating profile image: \(error)")
@@ -157,14 +188,12 @@ class UserProfileManager: ObservableObject {
             // Delete user data from Firestore
             try await db.collection("users").document(userId).delete()
             
-            // Note: Profile image data is stored in Firestore, so it's deleted with the document
-            // If using Firebase Storage in the future, you would delete the image here
-            
             // Delete Firebase Auth account
             try await Auth.auth().currentUser?.delete()
             
-            // Clear local data
+            // Clear local data and unified cache
             clearLocalProfile()
+            unifiedProvider.invalidateProfileCache()
             
         } catch {
             print("Error deleting account: \(error)")
@@ -217,20 +246,31 @@ class UserProfileManager: ObservableObject {
             self.academicYear = academicYear
         }
         
-        // Handle profile image - check for both base64 data and URL
+        // Handle profile image
         if let profileImageData = data["profileImageData"] as? String {
-            // Convert base64 string to data URL
             self.profileImageURL = URL(string: "data:image/jpeg;base64,\(profileImageData)")
         } else if let profileImageURLString = data["profileImageURL"] as? String,
                   let url = URL(string: profileImageURLString) {
             self.profileImageURL = url
         }
         
-        // Update member since date from Firestore creation timestamp
+        // Update member since date
         if let createdAt = data["createdAt"] as? Timestamp {
             let formatter = DateFormatter()
             formatter.dateStyle = .medium
             self.memberSince = formatter.string(from: createdAt.dateValue())
+        }
+    }
+    
+    private func updateLocalProfile(from profile: UserProfileData) async {
+        self.displayName = profile.displayName
+        self.email = profile.email
+        self.university = profile.university
+        self.studyProgram = profile.studyProgram
+        self.academicYear = profile.academicYear
+        
+        if let imageData = profile.profileImageData {
+            self.profileImageURL = URL(string: "data:image/jpeg;base64,\(imageData)")
         }
     }
     
