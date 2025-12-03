@@ -77,6 +77,15 @@ service cloud.firestore {
       allow update, delete: if false; // Sessions are immutable
     }
     
+    // Analytics - task creation sessions (BQ 3.4)
+    match /task_creation_sessions/{sessionId} {
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+      allow read: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow update, delete: if false; // Sessions are immutable
+    }
+    
     // Analytics - notifications log
     match /analytics_notifications/{notificationId} {
       allow read: if request.auth != null;
