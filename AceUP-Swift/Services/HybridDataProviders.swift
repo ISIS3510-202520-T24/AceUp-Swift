@@ -41,14 +41,14 @@ import UIKit
 //
 // USAGE:
 //   let unified = UnifiedHybridDataProviders.shared
-//   
+//
 //   // Batched sync
 //   try await unified.performBatchedFullSync()
-//   
+//
 //   // Cached access
 //   let assignments = try await unified.getCachedAssignments()
 //   let profile = try await unified.loadUserProfile(userId: userId)
-//   
+//
 //   // Cache statistics
 //   let stats = unified.getCacheStatistics()
 //   stats.printReport()
@@ -72,6 +72,8 @@ final class UnifiedHybridDataProviders {
     private(set) var holidays: HybridHolidayDataProvider
     private(set) var teachers: HybridTeacherDataProvider
     private(set) var sharedCalendars: HybridSharedCalendarDataProvider
+    // Para el calendario
+    private(set) var scheduleProvider: HybridScheduleDataProvider
     
     // MARK: - Shared In-Memory Cache
     private var cache = HybridDataCache()
@@ -86,6 +88,8 @@ final class UnifiedHybridDataProviders {
         self.holidays = HybridHolidayDataProvider()
         self.teachers = HybridTeacherDataProvider()
         self.sharedCalendars = HybridSharedCalendarDataProvider()
+        //calendario personal
+        self.scheduleProvider = HybridScheduleDataProvider()
         
         print("✅ UnifiedHybridDataProviders initialized with all services")
     }
@@ -1409,5 +1413,198 @@ enum CalendarPendingOp: Codable {
             try container.encode(OpType.delete, forKey: .type)
             try container.encode(id, forKey: .id)
         }
+    }
+}
+
+// MARK: - Hybrid personal calendar
+
+/// Hybrid provider para el horario personal:
+/// - NSCache en memoria (acceso ultra-rápido)
+/// - ScheduleLocalStore en disco (offline/persistencia)
+/// - Firestore como fuente remota compartida
+@MainActor
+final class HybridScheduleDataProvider {
+    
+    // MARK: - Dependencias internas
+    private let localStore: ScheduleLocalStore = .shared
+    private let db = Firestore.firestore()
+    private let offlineManager = OfflineManager.shared
+    
+    // MARK: - NSCache (memoria)
+    private let memoryCache = NSCache<NSString, ScheduleCacheBox>()
+    private let cacheKey: NSString = "currentSchedule"
+    
+    private var isOnline: Bool { offlineManager.isOnline }
+    private var isLoggedIn: Bool { Auth.auth().currentUser != nil }
+    private var userId: String? { Auth.auth().currentUser?.uid }
+    
+    init() {
+        // opcional: solo 1 horario en cache
+        memoryCache.countLimit = 1
+        memoryCache.name = "ScheduleMemoryCache"
+    }
+    
+    // MARK: - API pública
+    
+    /// Carga el horario usando:
+    /// 1. NSCache (si existe)
+    /// 2. LocalStore (disco)
+    /// 3. Firestore (remoto)
+    func loadSchedule() async -> Schedule {
+        // 1) Intentar NSCache
+        if let box = memoryCache.object(forKey: cacheKey) {
+            let cached = box.schedule
+            // Mientras tanto refrescamos en background desde remoto/local
+            Task { await self.refreshFromRemoteIfNeeded(localSchedule: cached) }
+            print("HybridScheduleDataProvider.loadSchedule -> returned from NSCache")
+            return cached
+        }
+        
+        // 2) Intentar desde disco (ScheduleLocalStore)
+        if let saved = try? localStore.load() {
+            memoryCache.setObject(ScheduleCacheBox(saved), forKey: cacheKey)
+            // Refrescar en background desde remoto
+            Task { await self.refreshFromRemoteIfNeeded(localSchedule: saved) }
+            print("HybridScheduleDataProvider.loadSchedule -> returned from localStore")
+            return saved
+        }
+        
+        // 3) Intentar desde Firestore
+        if let remote = await fetchRemoteSchedule() {
+            // guardar en local + NSCache
+            do { try localStore.save(remote) } catch {
+                print("HybridScheduleDataProvider.loadSchedule -> failed to cache remote:", error)
+            }
+            memoryCache.setObject(ScheduleCacheBox(remote), forKey: cacheKey)
+            print("HybridScheduleDataProvider.loadSchedule -> returned from Firestore")
+            return remote
+        }
+        
+        // 4) Nada encontrado
+        print("HybridScheduleDataProvider.loadSchedule -> no schedule found, returning .empty")
+        return .empty
+    }
+    
+    /// Guarda el horario:
+    /// - NSCache
+    /// - LocalStore
+    /// - Firestore (si hay usuario online)
+    func saveSchedule(_ schedule: Schedule) async {
+        // 1) Guardar en NSCache
+        memoryCache.setObject(ScheduleCacheBox(schedule), forKey: cacheKey)
+        print("HybridScheduleDataProvider.saveSchedule -> stored in NSCache")
+        
+        // 2) Guardar en disco
+        do {
+            try localStore.save(schedule)
+            print("HybridScheduleDataProvider.saveSchedule -> saved locally with \(schedule.days.count) days")
+        } catch {
+            print("HybridScheduleDataProvider.saveSchedule -> local save failed:", error)
+        }
+        
+        // 3) Guardar en Firestore si se puede
+        guard isOnline, isLoggedIn, let userId else {
+            print("HybridScheduleDataProvider.saveSchedule -> offline or not logged in, skipping remote sync")
+            return
+        }
+        
+        do {
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(schedule)
+            let jsonString = String(data: data, encoding: .utf8) ?? "{}"
+            
+            try await db.collection("userSchedules")
+                .document(userId)
+                .setData([
+                    "scheduleJson": jsonString,
+                    "updatedAt": Timestamp(date: Date())
+                ], merge: true)
+            
+            print("HybridScheduleDataProvider.saveSchedule -> synced to Firestore")
+        } catch {
+            print("HybridScheduleDataProvider.saveSchedule -> remote sync failed:", error)
+        }
+    }
+    
+    /// Limpia el horario:
+    /// - Borra NSCache
+    /// - Borra LocalStore
+    /// - Limpia el documento en Firestore (si aplica)
+    func clearSchedule() async {
+        // 1) NSCache
+        memoryCache.removeObject(forKey: cacheKey)
+        
+        // 2) LocalStore
+        do {
+            try localStore.delete()
+        } catch {
+            print("HybridScheduleDataProvider.clearSchedule -> local delete failed:", error)
+        }
+        
+        // 3) Firestore
+        guard isOnline, isLoggedIn, let userId else { return }
+        
+        do {
+            try await db.collection("userSchedules")
+                .document(userId)
+                .setData([
+                    "scheduleJson": "",
+                    "updatedAt": Timestamp(date: Date())
+                ], merge: true)
+            print("HybridScheduleDataProvider.clearSchedule -> remote cleared")
+        } catch {
+            print("HybridScheduleDataProvider.clearSchedule -> remote clear failed:", error)
+        }
+    }
+    
+    // MARK: - Helpers privados
+    
+    /// Lee el horario desde Firestore
+    private func fetchRemoteSchedule() async -> Schedule? {
+        guard isOnline, isLoggedIn, let userId else { return nil }
+        
+        do {
+            let doc = try await db.collection("userSchedules")
+                .document(userId)
+                .getDocument()
+            
+            guard doc.exists,
+                  let data = doc.data(),
+                  let json = data["scheduleJson"] as? String,
+                  !json.isEmpty,
+                  let jsonData = json.data(using: .utf8) else {
+                return nil
+            }
+            
+            let decoder = JSONDecoder()
+            let schedule = try decoder.decode(Schedule.self, from: jsonData)
+            print("HybridScheduleDataProvider.fetchRemoteSchedule -> loaded from Firestore")
+            return schedule
+        } catch {
+            print("HybridScheduleDataProvider.fetchRemoteSchedule -> error:", error)
+            return nil
+        }
+    }
+    
+    /// Si el remoto es distinto al local, actualiza cache (NSCache + localStore)
+    private func refreshFromRemoteIfNeeded(localSchedule: Schedule) async {
+        guard let remote = await fetchRemoteSchedule() else { return }
+        guard remote != localSchedule else { return }
+        
+        do {
+            try localStore.save(remote)
+            memoryCache.setObject(ScheduleCacheBox(remote), forKey: cacheKey)
+            print("HybridScheduleDataProvider.refreshFromRemoteIfNeeded -> updated local cache from remote")
+        } catch {
+            print("HybridScheduleDataProvider.refreshFromRemoteIfNeeded -> failed:", error)
+        }
+    }
+}
+
+/// Wrapper para poder meter `Schedule` (struct) dentro de NSCache (que requiere clases)
+final class ScheduleCacheBox: NSObject {
+    let schedule: Schedule
+    init(_ schedule: Schedule) {
+        self.schedule = schedule
     }
 }

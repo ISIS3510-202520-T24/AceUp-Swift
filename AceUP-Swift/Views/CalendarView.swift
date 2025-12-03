@@ -3,16 +3,17 @@ import UIKit
 
 struct CalendarView: View {
     let onMenuTapped: () -> Void
-    let onOpenSchedule: () -> Void   // 👈 nuevo
+    let onOpenSchedule: () -> Void   // Para abrir la pantalla de Schedule
 
-    // Horario cargado desde DataStore
+    // Horario cargado desde el mismo provider híbrido que usa ScheduleViewModel
     @State private var schedule: Schedule = .empty
 
     // Mes actual y día seleccionado
     @State private var currentMonth: Date = Date()
     @State private var selectedDate: Date = Date()
 
-    private let localStore = ScheduleLocalStore.shared
+    // 👉 Usa el provider unificado (cache + remoto) en vez de ScheduleLocalStore
+    private let scheduleProvider = UnifiedHybridDataProviders.shared.scheduleProvider
 
     // MARK: - Body
 
@@ -39,15 +40,13 @@ struct CalendarView: View {
         .navigationBarHidden(true)
     }
 
-    // MARK: - Cargar horario desde DataStore
+    // MARK: - Cargar horario
 
     private func loadSchedule() {
-        if let saved = try? localStore.load() {
-            self.schedule = saved
-            print("📂 CalendarView -> loaded schedule with \(saved.days.count) days")
-        } else {
-            self.schedule = .empty
-            print("📂 CalendarView -> no schedule saved yet")
+        Task { @MainActor in
+            let loaded = await scheduleProvider.loadSchedule()
+            self.schedule = loaded
+            print("📂 CalendarView -> loaded schedule with \(loaded.days.count) days")
         }
     }
 
@@ -61,7 +60,7 @@ struct CalendarView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Header superior
 
     private var topBar: some View {
         HStack {
@@ -80,9 +79,8 @@ struct CalendarView: View {
 
             Spacer()
 
-            // 👇 AHORA: este botón solo le dice al parent "abre Schedule"
             Button(action: onOpenSchedule) {
-                Image(systemName: "camera.viewfinder")
+                Image(systemName: "pencil")
                     .foregroundColor(UI.navy)
                     .font(.title2)
             }
@@ -217,7 +215,7 @@ struct CalendarView: View {
         }
     }
 
-    // MARK: - Detalle día
+    // MARK: - Detalle del día
 
     private var dayDetailSection: some View {
         let formatter = DateFormatter()
@@ -241,15 +239,24 @@ struct CalendarView: View {
                     let s = sessionsToday[idx]
 
                     HStack(alignment: .top, spacing: 8) {
-                        VStack {
-                            Text(s.start ?? "—")
-                            Text(s.end ?? "—")
-                        }
-                        .font(.caption2)
-                        .monospacedDigit()
-                        .foregroundColor(UI.navy)
-                        .frame(width: 60, alignment: .leading)
+                        // 🕒 columna de horas
+                        let timeRange: String = {
+                            if let start = s.start, let end = s.end, !start.isEmpty, !end.isEmpty {
+                                return "\(start) – \(end)"
+                            } else if let start = s.start, !start.isEmpty {
+                                return start
+                            } else {
+                                return "—"
+                            }
+                        }()
 
+                        Text(timeRange)
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundColor(UI.navy)
+                            .frame(width: 70, alignment: .leading)
+
+                        // 📚 info de la clase
                         VStack(alignment: .leading, spacing: 4) {
                             Text(s.course)
                                 .font(.subheadline)
