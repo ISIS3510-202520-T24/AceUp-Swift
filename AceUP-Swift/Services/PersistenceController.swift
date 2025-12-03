@@ -38,7 +38,7 @@ class PersistenceController: ObservableObject {
     
     // MARK: - Initialization
     
-    private init() {}
+    nonisolated private init() {}
     
     // MARK: - Save Context
     

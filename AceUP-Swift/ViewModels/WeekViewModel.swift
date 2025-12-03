@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import Combine
 import FirebaseAuth
+import CoreData
 
 /// Week View ViewModel with multi-threaded data fetching and processing
 @MainActor
@@ -39,9 +40,11 @@ class WeekViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    init(persistenceController: PersistenceController = .shared) {
-        self.persistenceController = persistenceController
-        setupObservers()
+    init(persistenceController: PersistenceController? = nil) {
+        self.persistenceController = persistenceController ?? PersistenceController.shared
+        Task { @MainActor in
+            self.setupObservers()
+        }
     }
     
     // MARK: - Public Methods
@@ -54,30 +57,25 @@ class WeekViewModel: ObservableObject {
         let weekStart = currentWeekStart
         let weekEnd = weekStart.endOfWeek()
         
-        do {
-            // Multi-threaded data fetching using nested task groups
-            let fetchedEvents = await fetchAllEventsParallel(
-                startDate: weekStart,
-                endDate: weekEnd
-            )
-            
-            // Process events on background thread
-            let processedData = await processEventsInBackground(
-                events: fetchedEvents,
-                weekStart: weekStart,
-                weekEnd: weekEnd
-            )
-            
-            // Update UI on main thread
-            self.events = processedData.events
-            self.daySchedules = processedData.daySchedules
-            self.weekSummary = processedData.summary
-            
-            isLoading = false
-        } catch {
-            errorMessage = error.localizedDescription
-            isLoading = false
-        }
+        // Multi-threaded data fetching using nested task groups
+        let fetchedEvents = await fetchAllEventsParallel(
+            startDate: weekStart,
+            endDate: weekEnd
+        )
+        
+        // Process events on background thread
+        let processedData = await processEventsInBackground(
+            events: fetchedEvents,
+            weekStart: weekStart,
+            weekEnd: weekEnd
+        )
+        
+        // Update UI on main thread
+        self.events = processedData.events
+        self.daySchedules = processedData.daySchedules
+        self.weekSummary = processedData.summary
+        
+        isLoading = false
     }
     
     /// Navigate to next week
@@ -135,16 +133,12 @@ class WeekViewModel: ObservableObject {
     
     /// Reschedule event (drag-to-reschedule support)
     func rescheduleEvent(_ event: WeekEvent, to newStartDate: Date) async {
+        // TODO: Implement event rescheduling
         // Calculate new end date based on original duration
-        let duration = event.endDate.timeIntervalSince(event.startDate)
-        let newEndDate = newStartDate.addingTimeInterval(duration)
+        // let duration = event.endDate.timeIntervalSince(event.startDate)
+        // let newEndDate = newStartDate.addingTimeInterval(duration)
         
-        // Create updated event
-        var updatedEvent = event
-        // Note: In a real implementation, you'd need to make WeekEvent mutable
-        // or create a new instance with updated dates
-        
-        // TODO: Persist the change to backend/database
+        // TODO: Create updated event and persist the change to backend/database
         
         // Reload week to reflect changes
         await loadWeek()
@@ -215,7 +209,7 @@ class WeekViewModel: ObservableObject {
     /// Fetch assignments from Core Data
     private func fetchAssignments(startDate: Date, endDate: Date) async -> [WeekEvent] {
         return await persistenceController.performBackgroundTask { context in
-            let request: NSFetchRequest<AssignmentEntity> = AssignmentEntity.fetchRequest()
+            let request = NSFetchRequest<AssignmentEntity>(entityName: "AssignmentEntity")
             request.predicate = NSPredicate(
                 format: "userId == %@ AND dueDate >= %@ AND dueDate <= %@",
                 self.currentUserId, startDate as NSDate, endDate as NSDate
@@ -254,7 +248,13 @@ class WeekViewModel: ObservableObject {
             while currentDate <= endDate {
                 let weekday = calendar.component(.weekday, from: currentDate)
                 
-                if let scheduleWeekday = Weekday(systemWeekday: weekday) {
+                // Map system weekday (1=Sunday) to Weekday enum
+                let weekdayMapping: [Int: Weekday] = [
+                    1: .sunday, 2: .monday, 3: .tuesday, 4: .wednesday,
+                    5: .thursday, 6: .friday, 7: .saturday
+                ]
+                
+                if let scheduleWeekday = weekdayMapping[weekday] {
                     let day = schedule.days.first { $0.weekday == scheduleWeekday }
                     if let sessions = day?.sessions {
                         for session in sessions {
@@ -275,7 +275,7 @@ class WeekViewModel: ObservableObject {
     /// Fetch holiday events
     private func fetchHolidayEvents(startDate: Date, endDate: Date) async -> [WeekEvent] {
         return await persistenceController.performBackgroundTask { context in
-            let request: NSFetchRequest<HolidayEntity> = HolidayEntity.fetchRequest()
+            let request = NSFetchRequest<HolidayEntity>(entityName: "HolidayEntity")
             request.predicate = NSPredicate(
                 format: "date >= %@ AND date <= %@",
                 startDate as NSDate, endDate as NSDate
@@ -283,16 +283,20 @@ class WeekViewModel: ObservableObject {
             
             do {
                 let holidays = try context.fetch(request)
-                return holidays.map { holiday in
-                    WeekEvent.from(holiday: Holiday(
-                        id: holiday.id ?? UUID().uuidString,
-                        name: holiday.name ?? "Holiday",
-                        date: holiday.date ?? Date(),
-                        country: holiday.country ?? "",
-                        description: holiday.descriptionText,
-                        type: HolidayType(rawValue: holiday.type ?? "") ?? .other,
-                        isNational: holiday.isNational
-                    ))
+                return holidays.compactMap { holidayEntity -> WeekEvent? in
+                    guard holidayEntity.date != nil else { return nil }
+                    let holiday = Holiday(
+                        date: holidayEntity.id ?? UUID().uuidString,
+                        localName: holidayEntity.name ?? "Holiday",
+                        name: holidayEntity.name ?? "Holiday",
+                        countryCode: holidayEntity.country ?? "",
+                        fixed: true,
+                        global: holidayEntity.isNational,
+                        counties: nil,
+                        launchYear: nil,
+                        types: [holidayEntity.type ?? ""]
+                    )
+                    return WeekEvent.from(holiday: holiday)
                 }
             } catch {
                 print("❌ Error fetching holidays: \(error)")
@@ -381,7 +385,7 @@ class WeekViewModel: ObservableObject {
     }
     
     /// Detect overlapping events and mark conflicts
-    private func detectConflicts(events: [WeekEvent]) -> [WeekEvent] {
+    nonisolated private func detectConflicts(events: [WeekEvent]) -> [WeekEvent] {
         var processedEvents: [WeekEvent] = []
         
         for event in events {
@@ -422,12 +426,12 @@ class WeekViewModel: ObservableObject {
         return processedEvents
     }
     
-    private func eventsOverlap(_ event1: WeekEvent, _ event2: WeekEvent) -> Bool {
+    nonisolated private func eventsOverlap(_ event1: WeekEvent, _ event2: WeekEvent) -> Bool {
         return event1.startDate < event2.endDate && event2.startDate < event1.endDate
     }
     
     /// Generate day schedules with free/busy slots
-    private func generateDaySchedules(
+    nonisolated private func generateDaySchedules(
         events: [WeekEvent],
         weekStart: Date,
         weekEnd: Date
@@ -462,7 +466,7 @@ class WeekViewModel: ObservableObject {
         return schedules
     }
     
-    private func calculateTimeSlots(for events: [WeekEvent], on date: Date) -> ([TimeSlot], [TimeSlot]) {
+    nonisolated private func calculateTimeSlots(for events: [WeekEvent], on date: Date) -> ([TimeSlot], [TimeSlot]) {
         let calendar = Calendar.current
         let dayStart = calendar.date(bySettingHour: 6, minute: 0, second: 0, of: date)!
         let dayEnd = calendar.date(bySettingHour: 23, minute: 0, second: 0, of: date)!
@@ -510,7 +514,7 @@ class WeekViewModel: ObservableObject {
     }
     
     /// Calculate week summary statistics
-    private func calculateWeekSummary(
+    nonisolated private func calculateWeekSummary(
         events: [WeekEvent],
         weekStart: Date,
         weekEnd: Date

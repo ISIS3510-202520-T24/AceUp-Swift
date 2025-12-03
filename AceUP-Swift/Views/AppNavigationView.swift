@@ -40,7 +40,7 @@ struct AppNavigationView: View {
                         })
                         
                     case .weekView:
-                        WeekViewPlaceholder(onMenuTapped: {
+                        WeekView(onMenuTapped: {
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 isSidebarPresented.toggle()
                             }

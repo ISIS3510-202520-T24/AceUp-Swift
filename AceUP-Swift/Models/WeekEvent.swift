@@ -347,17 +347,18 @@ extension WeekEvent {
         WeekEvent(
             id: "holiday_\(holiday.id)",
             title: holiday.name,
-            description: holiday.description,
-            startDate: holiday.date,
-            endDate: holiday.date.addingTimeInterval(86400), // Full day
+            description: holiday.localName,
+            startDate: holiday.dateValue,
+            endDate: holiday.dateValue.addingTimeInterval(86400), // Full day
             type: .holiday,
             color: "#E67E22",
             isAllDay: true,
             priority: .low,
             status: .active,
             metadata: [
-                "country": holiday.country,
-                "isNational": String(holiday.isNational)
+                "country": holiday.countryCode,
+                "isGlobal": String(holiday.global ?? false),
+                "originalDate": holiday.date
             ]
         )
     }

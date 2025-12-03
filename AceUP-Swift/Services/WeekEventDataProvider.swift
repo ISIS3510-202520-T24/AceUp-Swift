@@ -7,6 +7,7 @@
 
 import Foundation
 import CoreData
+import SwiftUI
 
 // MARK: - Core Data Entity Extension
 
@@ -16,25 +17,23 @@ extension NSManagedObjectContext {
         from startDate: Date,
         to endDate: Date,
         userId: String
-    ) async throws -> [WeekEvent] {
-        return try await perform {
-            var allEvents: [WeekEvent] = []
-            
-            // Fetch assignments due in this week
-            let assignmentRequest: NSFetchRequest<AssignmentEntity> = AssignmentEntity.fetchRequest()
-            assignmentRequest.predicate = NSPredicate(
-                format: "userId == %@ AND dueDate >= %@ AND dueDate <= %@",
-                userId, startDate as NSDate, endDate as NSDate
-            )
-            assignmentRequest.sortDescriptors = [
-                NSSortDescriptor(keyPath: \AssignmentEntity.dueDate, ascending: true)
-            ]
-            
-            let assignments = try self.fetch(assignmentRequest)
-            allEvents.append(contentsOf: assignments.map { WeekEvent.from(assignment: $0.toAssignment()) })
-            
-            return allEvents
-        }
+    ) throws -> [WeekEvent] {
+        var allEvents: [WeekEvent] = []
+        
+        // Fetch assignments due in this week
+        let assignmentRequest: NSFetchRequest<AssignmentEntity> = AssignmentEntity.fetchRequest()
+        assignmentRequest.predicate = NSPredicate(
+            format: "userId == %@ AND dueDate >= %@ AND dueDate <= %@",
+            userId, startDate as NSDate, endDate as NSDate
+        )
+        assignmentRequest.sortDescriptors = [
+            NSSortDescriptor(keyPath: \AssignmentEntity.dueDate, ascending: true)
+        ]
+        
+        let assignments = try self.fetch(assignmentRequest)
+        allEvents.append(contentsOf: assignments.map { WeekEvent.from(assignment: $0.toAssignment()) })
+        
+        return allEvents
     }
     
     /// Fetch events grouped by day for the week
@@ -42,8 +41,8 @@ extension NSManagedObjectContext {
         from startDate: Date,
         to endDate: Date,
         userId: String
-    ) async throws -> [Date: [WeekEvent]] {
-        let events = try await fetchWeekEvents(from: startDate, to: endDate, userId: userId)
+    ) throws -> [Date: [WeekEvent]] {
+        let events = try fetchWeekEvents(from: startDate, to: endDate, userId: userId)
         
         var eventsByDay: [Date: [WeekEvent]] = [:]
         let calendar = Calendar.current
@@ -136,12 +135,15 @@ extension PersistenceController {
         endDate: Date,
         userId: String
     ) async -> [WeekEvent] {
-        await performBackgroundTask { context in
-            do {
-                return try await context.fetchWeekEvents(from: startDate, to: endDate, userId: userId)
-            } catch {
-                print("❌ Error fetching week events: \(error)")
-                return []
+        await withCheckedContinuation { continuation in
+            persistentContainer.performBackgroundTask { context in
+                do {
+                    let events = try context.fetchWeekEvents(from: startDate, to: endDate, userId: userId)
+                    continuation.resume(returning: events)
+                } catch {
+                    print("❌ Error fetching week events: \(error)")
+                    continuation.resume(returning: [])
+                }
             }
         }
     }
@@ -169,7 +171,7 @@ extension PersistenceController {
             // Task 3: Convert holidays
             group.addTask {
                 return holidays
-                    .filter { $0.date >= startDate && $0.date <= endDate }
+                    .filter { $0.dateValue >= startDate && $0.dateValue <= endDate }
                     .map { WeekEvent.from(holiday: $0) }
             }
             
@@ -182,7 +184,7 @@ extension PersistenceController {
         }
     }
     
-    private func generateScheduleEvents(from schedule: Schedule, startDate: Date, endDate: Date) -> [WeekEvent] {
+    nonisolated private func generateScheduleEvents(from schedule: Schedule, startDate: Date, endDate: Date) -> [WeekEvent] {
         var events: [WeekEvent] = []
         let calendar = Calendar.current
         
@@ -210,7 +212,7 @@ extension PersistenceController {
 
 // MARK: - Helper Extensions
 
-extension Weekday {
+fileprivate extension Weekday {
     init?(systemWeekday: Int) {
         switch systemWeekday {
         case 1: self = .sunday

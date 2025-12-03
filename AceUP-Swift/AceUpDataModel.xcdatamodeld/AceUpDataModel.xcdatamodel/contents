@@ -108,7 +108,7 @@
         <attribute name="uid" optional="YES" attributeType="String"/>
         <attribute name="updatedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
     </entity>
-    <entity name="WeekEventEntity" representedClassName="WeekEventEntity" syncable="YES" codeGenerationType="class">
+    <entity name="WeekEventEntity" representedClassName="WeekEventEntity" syncable="YES">
         <attribute name="color" optional="YES" attributeType="String"/>
         <attribute name="courseId" optional="YES" attributeType="String"/>
         <attribute name="courseName" optional="YES" attributeType="String"/>
