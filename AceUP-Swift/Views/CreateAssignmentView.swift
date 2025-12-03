@@ -12,6 +12,7 @@ struct CreateAssignmentView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showingAdvancedOptions = false
     @State private var hasStartedSession = false
+    @State private var taskCreationSessionId: String = ""
     
     var body: some View {
         NavigationView {
@@ -40,9 +41,12 @@ struct CreateAssignmentView: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
                         viewModel.clearForm()
-                        // Abandon analytics session if user cancels
+                        // Abandon analytics sessions if user cancels
                         if hasStartedSession {
                             UserUpdateAnalytics.shared.abandonUpdateSession(type: .assignment)
+                        }
+                        if !taskCreationSessionId.isEmpty {
+                            TaskCreationAnalytics.shared.abandonCreationSession(sessionId: taskCreationSessionId)
                         }
                         dismiss()
                     }
@@ -53,11 +57,32 @@ struct CreateAssignmentView: View {
                         Task {
                             await viewModel.createAssignment()
                             if !viewModel.showingCreateAssignment {
-                                // Complete analytics session on successful save
+                                // Complete analytics sessions on successful save
                                 UserUpdateAnalytics.shared.completeUpdateSession(
                                     type: .assignment,
                                     fieldsUpdated: ["title", "course", "dueDate", "priority"]
                                 )
+                                
+                                // Complete BQ 3.4 task creation session
+                                let fieldsCompleted = [
+                                    "title",
+                                    "course",
+                                    "dueDate",
+                                    "weight",
+                                    "priority",
+                                    viewModel.newAssignmentDescription.isEmpty ? nil : "description",
+                                    viewModel.newAssignmentEstimatedHours != nil ? "estimatedHours" : nil,
+                                    viewModel.newAssignmentTags.isEmpty ? nil : "tags"
+                                ].compactMap { $0 }
+                                
+                                TaskCreationAnalytics.shared.completeCreationSession(
+                                    sessionId: taskCreationSessionId,
+                                    fieldsCompleted: fieldsCompleted,
+                                    taskType: .assignment,
+                                    hasSubtasks: false,
+                                    subtaskCount: 0
+                                )
+                                
                                 hasStartedSession = false
                                 dismiss()
                             }
@@ -68,9 +93,15 @@ struct CreateAssignmentView: View {
                 }
             }
             .onAppear {
-                // Start analytics session when view appears
+                // Start analytics sessions when view appears
                 UserUpdateAnalytics.shared.startUpdateSession(type: .assignment)
                 hasStartedSession = true
+                
+                // Start BQ 3.4 task creation session
+                taskCreationSessionId = TaskCreationAnalytics.shared.startCreationSession(
+                    method: .standard,
+                    entryPoint: .assignmentsView
+                )
             }
         }
     }
@@ -84,6 +115,7 @@ struct CreateAssignmentView: View {
                 .titleInput($viewModel.newAssignmentTitle)
                 .onChange(of: viewModel.newAssignmentTitle) {
                     UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
+                    TaskCreationAnalytics.shared.trackInteraction(sessionId: taskCreationSessionId)
                 }
             
             TextField("Course Name", text: $viewModel.newAssignmentCourse)
@@ -91,6 +123,7 @@ struct CreateAssignmentView: View {
                 .courseNameInput($viewModel.newAssignmentCourse)
                 .onChange(of: viewModel.newAssignmentCourse) {
                     UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
+                    TaskCreationAnalytics.shared.trackInteraction(sessionId: taskCreationSessionId)
                 }
             
             DatePicker(
@@ -101,6 +134,7 @@ struct CreateAssignmentView: View {
             )
             .onChange(of: viewModel.newAssignmentDueDate) {
                 UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
+                TaskCreationAnalytics.shared.trackInteraction(sessionId: taskCreationSessionId)
             }
             
             HStack {
@@ -117,6 +151,7 @@ struct CreateAssignmentView: View {
             )
             .onChange(of: viewModel.newAssignmentWeight) {
                 UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
+                TaskCreationAnalytics.shared.trackInteraction(sessionId: taskCreationSessionId)
             }
             
             Picker("Priority", selection: $viewModel.newAssignmentPriority) {
@@ -132,6 +167,7 @@ struct CreateAssignmentView: View {
             }
             .onChange(of: viewModel.newAssignmentPriority) {
                 UserUpdateAnalytics.shared.trackInteraction(type: .assignment)
+                TaskCreationAnalytics.shared.trackInteraction(sessionId: taskCreationSessionId)
             }
         }
     }
