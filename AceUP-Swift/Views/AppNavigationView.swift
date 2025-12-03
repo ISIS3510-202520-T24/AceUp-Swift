@@ -91,7 +91,7 @@ struct AppNavigationView: View {
                         )
                         
                     case .planner:
-                        PlannerPlaceholder(onMenuTapped: {
+                        PlannerView(onMenuTapped: {
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 isSidebarPresented.toggle()
                             }
