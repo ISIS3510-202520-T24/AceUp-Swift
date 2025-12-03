@@ -122,8 +122,9 @@ final class DataSynchronizationManager: ObservableObject {
             
             print("✅ Full sync completed in \(String(format: "%.2f", duration))s")
             
-            // Print performance report
-            unifiedProvider.printPerformanceReport()
+            // Print cache statistics
+            let stats = unifiedProvider.getCacheStatistics()
+            print("📊 Cache: \(stats.assignmentsCount) assignments, \(stats.coursesCount) courses, \(stats.holidaysCount) holidays")
         } catch {
             print("❌ Full sync error: \(error)")
             syncStatus = "Error"

@@ -2,6 +2,7 @@ import Foundation
 
 /// Guarda la elección de avatar por email usando el UnifiedHybridDataProviders.
 /// Delegates to unified cache for better memory management and consistency.
+@MainActor
 final class AvatarStore {
     static let shared = AvatarStore()
     private init() {}

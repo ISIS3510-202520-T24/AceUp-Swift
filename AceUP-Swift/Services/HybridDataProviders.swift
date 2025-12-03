@@ -286,6 +286,12 @@ final class UnifiedHybridDataProviders {
         )
     }
     
+    /// Prints performance report with cache statistics
+    func printPerformanceReport() {
+        let stats = getCacheStatistics()
+        stats.printReport()
+    }
+    
     // MARK: - Private Helpers
     
     private func fetchAndCacheAssignments() async throws -> [Assignment] {
@@ -398,6 +404,7 @@ private class ProfileCache {
     private var userProfiles: [String: UserProfileData] = [:]
     private var avatarCache: [String: AvatarKey] = [:]
     private var snapshotCache = NSCache<NSString, NSData>()
+    private var snapshotCacheCount = 0  // Manual count tracker
     
     private let udSnapshotKey = "profile.snapshot.by.email"
     private let udAvatarKey = "avatar.by.email"
@@ -463,7 +470,11 @@ private class ProfileCache {
         guard let raw = try? JSONEncoder().encode(snapshot) else { return }
         
         // Cache in memory
+        let wasInCache = snapshotCache.object(forKey: email as NSString) != nil
         snapshotCache.setObject(raw as NSData, forKey: email as NSString)
+        if !wasInCache {
+            snapshotCacheCount += 1
+        }
         
         // Persist to UserDefaults
         var dict = (UserDefaults.standard.dictionary(forKey: udSnapshotKey) as? [String: Data]) ?? [:]
@@ -476,6 +487,7 @@ private class ProfileCache {
         userProfiles.removeAll()
         avatarCache.removeAll()
         snapshotCache.removeAllObjects()
+        snapshotCacheCount = 0
         UserDefaults.standard.removeObject(forKey: udSnapshotKey)
         UserDefaults.standard.removeObject(forKey: udAvatarKey)
     }
@@ -500,7 +512,7 @@ private class ProfileCache {
     
     var profileCount: Int { userProfiles.count }
     var avatarCount: Int { avatarCache.count }
-    var snapshotCount: Int { snapshotCache.totalCount }
+    var snapshotCount: Int { snapshotCacheCount }
 }
 
 // MARK: - Supporting Types
@@ -547,14 +559,6 @@ struct CacheStatistics {
         print("Profile Snapshots: \(snapshotsCount)")
         print("Total Memory: \(totalMemoryUsage)")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-    }
-}
-
-// NSCache extension for count
-extension NSCache {
-    var totalCount: Int {
-        // NSCache doesn't provide direct count, return estimated value
-        return 0
     }
 }
 
@@ -965,14 +969,15 @@ final class HybridTeacherDataProvider {
                     
                     return Teacher(
                         id: doc.documentID,
+                        userId: currentUserId,
                         name: name,
                         email: email,
-                        department: data["department"] as? String,
+                        phoneNumber: data["phoneNumber"] as? String,
                         officeLocation: data["officeLocation"] as? String,
                         officeHours: data["officeHours"] as? String,
-                        phone: data["phone"] as? String,
-                        notes: data["notes"] as? String,
+                        department: data["department"] as? String,
                         linkedCourseIds: data["linkedCourseIds"] as? [String] ?? [],
+                        notes: data["notes"] as? String,
                         createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
                         updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
                     )
@@ -993,19 +998,21 @@ final class HybridTeacherDataProvider {
     
     func save(_ teacher: Teacher) async throws {
         if isOnline && isLoggedIn {
-            try await db.collection("teachers").document(teacher.id).setData([
+            var data: [String: Any] = [
                 "userId": currentUserId,
                 "name": teacher.name,
-                "email": teacher.email,
-                "department": teacher.department ?? "",
-                "officeLocation": teacher.officeLocation ?? "",
-                "officeHours": teacher.officeHours ?? "",
-                "phone": teacher.phone ?? "",
-                "notes": teacher.notes ?? "",
                 "linkedCourseIds": teacher.linkedCourseIds,
                 "createdAt": Timestamp(date: teacher.createdAt),
                 "updatedAt": Timestamp(date: Date())
-            ])
+            ]
+            data["email"] = teacher.email ?? ""
+            data["phoneNumber"] = teacher.phoneNumber ?? ""
+            data["officeLocation"] = teacher.officeLocation ?? ""
+            data["officeHours"] = teacher.officeHours ?? ""
+            data["department"] = teacher.department ?? ""
+            data["notes"] = teacher.notes ?? ""
+            
+            try await db.collection("teachers").document(teacher.id).setData(data)
             try await coreDataProvider.save(teacher)
         } else {
             try await coreDataProvider.save(teacher)
@@ -1015,17 +1022,19 @@ final class HybridTeacherDataProvider {
     
     func update(_ teacher: Teacher) async throws {
         if isOnline && isLoggedIn {
-            try await db.collection("teachers").document(teacher.id).updateData([
+            var data: [String: Any] = [
                 "name": teacher.name,
-                "email": teacher.email,
-                "department": teacher.department ?? "",
-                "officeLocation": teacher.officeLocation ?? "",
-                "officeHours": teacher.officeHours ?? "",
-                "phone": teacher.phone ?? "",
-                "notes": teacher.notes ?? "",
                 "linkedCourseIds": teacher.linkedCourseIds,
                 "updatedAt": Timestamp(date: Date())
-            ])
+            ]
+            data["email"] = teacher.email ?? ""
+            data["phoneNumber"] = teacher.phoneNumber ?? ""
+            data["officeLocation"] = teacher.officeLocation ?? ""
+            data["officeHours"] = teacher.officeHours ?? ""
+            data["department"] = teacher.department ?? ""
+            data["notes"] = teacher.notes ?? ""
+            
+            try await db.collection("teachers").document(teacher.id).updateData(data)
             try await coreDataProvider.update(teacher)
         } else {
             try await coreDataProvider.update(teacher)
@@ -1183,7 +1192,8 @@ final class HybridSharedCalendarDataProvider {
                 for doc in snapshot.documents {
                     let data = doc.data()
                     guard let name = data["name"] as? String,
-                          let ownerId = data["ownerId"] as? String,
+                          let description = data["description"] as? String,
+                          let createdBy = data["createdBy"] as? String,
                           let members = data["members"] as? [String] else { continue }
                     
                     let groupMembers = members.map { memberId in
@@ -1191,19 +1201,22 @@ final class HybridSharedCalendarDataProvider {
                             id: memberId,
                             name: memberId, // Would fetch from users collection
                             email: "\(memberId)@example.com",
-                            isAdmin: memberId == ownerId,
-                            avatar: nil
+                            avatar: nil,
+                            isAdmin: memberId == createdBy,
+                            joinedAt: Date(),
+                            availability: []
                         )
                     }
                     
                     let group = CalendarGroup(
                         id: doc.documentID,
                         name: name,
-                        ownerId: ownerId,
+                        description: description,
                         members: groupMembers,
                         createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
+                        createdBy: createdBy,
                         color: data["color"] as? String ?? "#007AFF",
-                        inviteCode: data["inviteCode"] as? String ?? ""
+                        inviteCode: data["inviteCode"] as? String
                     )
                     groups.append(group)
                 }
@@ -1225,11 +1238,12 @@ final class HybridSharedCalendarDataProvider {
         if isOnline && isLoggedIn {
             try await db.collection("groups").document(group.id).setData([
                 "name": group.name,
-                "ownerId": group.ownerId,
+                "description": group.description,
+                "createdBy": group.createdBy,
                 "members": group.members.map { $0.id },
                 "createdAt": Timestamp(date: group.createdAt),
                 "color": group.color,
-                "inviteCode": group.inviteCode
+                "inviteCode": group.inviteCode ?? ""
             ])
             try await coreDataProvider.saveSharedCalendar(group)
         } else {

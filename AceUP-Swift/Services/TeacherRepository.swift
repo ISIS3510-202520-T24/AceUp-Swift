@@ -113,7 +113,11 @@ final class TeacherRepository: ObservableObject, TeacherRepositoryProtocol {
     init() {
         setupConnectivityObserver()
         Task {
-            await refreshFromCache()
+            do {
+                try await refreshFromCache()
+            } catch {
+                print("❌ [TeacherRepository] Failed to refresh from cache: \(error)")
+            }
         }
     }
     
@@ -132,8 +136,8 @@ final class TeacherRepository: ObservableObject, TeacherRepositoryProtocol {
     }
     
     /// Refreshes from unified cache
-    private func refreshFromCache() async {
-        teachers = unifiedProvider.getCachedTeachers()
+    private func refreshFromCache() async throws {
+        teachers = try await unifiedProvider.getCachedTeachers()
         if teachers.isEmpty {
             do {
                 try await getAllTeachers()
@@ -147,8 +151,14 @@ final class TeacherRepository: ObservableObject, TeacherRepositoryProtocol {
     
     /// Fetches all teachers from cache or remote
     func getAllTeachers() async throws -> [Teacher] {
-        teachers = try await unifiedProvider.teachers.fetchAll()
-        return teachers.sorted { $0.name < $1.name }
+        do {
+            let fetchedTeachers = try await unifiedProvider.teachers.fetchAll()
+            teachers = fetchedTeachers
+            return teachers.sorted { $0.name < $1.name }
+        } catch {
+            print("❌ [TeacherRepository] Failed to fetch teachers: \(error)")
+            throw error
+        }
     }
     
     /// Fetches a specific teacher by ID
@@ -159,35 +169,35 @@ final class TeacherRepository: ObservableObject, TeacherRepositoryProtocol {
     
     /// Saves a new teacher
     func saveTeacher(_ teacher: Teacher) async throws {
-        try await unifiedProvider.teachers.save(teacher)
-        teachers = unifiedProvider.getCachedTeachers()
+        do {
+            try await unifiedProvider.teachers.save(teacher)
+            teachers = try await unifiedProvider.getCachedTeachers()
+        } catch {
+            print("❌ [TeacherRepository] Failed to save teacher: \(error)")
+            throw error
+        }
     }
     
     /// Updates an existing teacher
     func updateTeacher(_ teacher: Teacher) async throws {
-        let updated = teacher.copying(updatedAt: Date())
-        try await unifiedProvider.teachers.update(updated)
-        teachers = unifiedProvider.getCachedTeachers()
+        do {
+            let updated = teacher.copying(updatedAt: Date())
+            try await unifiedProvider.teachers.update(updated)
+            teachers = try await unifiedProvider.getCachedTeachers()
+        } catch {
+            print("❌ [TeacherRepository] Failed to update teacher: \(error)")
+            throw error
+        }
     }
     
     /// Deletes a teacher by ID
     func deleteTeacher(_ id: String) async throws {
-        try await unifiedProvider.teachers.delete(id)
-        teachers = unifiedProvider.getCachedTeachers()
-    }
-            queueOperation(.delete(id))
-            print("📝 [TeacherRepository] Queued teacher deletion (offline): \(id)")
-            return
-        }
-        
-        // Delete from Firestore if online
         do {
-            try await db.collection("teachers").document(id).delete()
-            print("✅ [TeacherRepository] Teacher deleted from Firestore: \(id)")
+            try await unifiedProvider.teachers.delete(id)
+            teachers = try await unifiedProvider.getCachedTeachers()
         } catch {
-            // Queue for later sync on error
-            queueOperation(.delete(id))
-            print("⚠️ [TeacherRepository] Failed to delete, queued for sync: \(error)")
+            print("❌ [TeacherRepository] Failed to delete teacher: \(error)")
+            throw error
         }
     }
     
@@ -195,74 +205,28 @@ final class TeacherRepository: ObservableObject, TeacherRepositoryProtocol {
     
     /// Links a teacher to a course
     func linkCourse(_ courseId: String, to teacherId: String) async throws {
-        guard let wrapper = teacherCache.object(forKey: teacherId as NSString) else {
+        guard let teacher = try await fetchById(teacherId) else {
             throw NSError(domain: "TeacherRepository", code: 404, userInfo: [NSLocalizedDescriptionKey: "Teacher not found"])
         }
-        let teacher = wrapper.teacher
         
-        // Update local cache
         var linkedCourses = teacher.linkedCourseIds
         if !linkedCourses.contains(courseId) {
             linkedCourses.append(courseId)
             let updated = teacher.copying(linkedCourseIds: linkedCourses, updatedAt: Date())
-            teacherCache.setObject(TeacherCacheWrapper(teacher: updated), forKey: teacherId as NSString)
-            teacherIds.insert(teacherId)
-            updateTeachersArray()
-        }
-        
-        // Queue operation if offline
-        if !offlineManager.isOnline {
-            queueOperation(.linkCourse(teacherId: teacherId, courseId: courseId))
-            print("📝 [TeacherRepository] Queued course link (offline): \(courseId) -> \(teacherId)")
-            return
-        }
-        
-        // Update in Firestore if online
-        do {
-            try await db.collection("teachers").document(teacherId).updateData([
-                "linkedCourseIds": FieldValue.arrayUnion([courseId]),
-                "updatedAt": Date()
-            ])
-            print("✅ [TeacherRepository] Course linked in Firestore")
-        } catch {
-            queueOperation(.linkCourse(teacherId: teacherId, courseId: courseId))
-            print("⚠️ [TeacherRepository] Failed to link course, queued for sync: \(error)")
+            try await updateTeacher(updated)
         }
     }
     
     /// Unlinks a teacher from a course
     func unlinkCourse(_ courseId: String, from teacherId: String) async throws {
-        guard let wrapper = teacherCache.object(forKey: teacherId as NSString) else {
+        guard let teacher = try await fetchById(teacherId) else {
             throw NSError(domain: "TeacherRepository", code: 404, userInfo: [NSLocalizedDescriptionKey: "Teacher not found"])
         }
-        let teacher = wrapper.teacher
         
-        // Update local cache
         var linkedCourses = teacher.linkedCourseIds
         linkedCourses.removeAll { $0 == courseId }
         let updated = teacher.copying(linkedCourseIds: linkedCourses, updatedAt: Date())
-        teacherCache.setObject(TeacherCacheWrapper(teacher: updated), forKey: teacherId as NSString)
-        teacherIds.insert(teacherId)
-        updateTeachersArray()
-        
-        // Queue operation if offline
-        if !offlineManager.isOnline {
-            queueOperation(.unlinkCourse(teacherId: teacherId, courseId: courseId))
-            print("📝 [TeacherRepository] Queued course unlink (offline): \(courseId) -> \(teacherId)")
-            return
-        }
-        
-        // Update in Firestore if online
-        do {
-            try await db.collection("teachers").document(teacherId).updateData([
-                "linkedCourseIds": FieldValue.arrayRemove([courseId]),
-                "updatedAt": Date()
-            ])
-            print("✅ [TeacherRepository] Course unlinked in Firestore")
-        } catch {
-            queueOperation(.unlinkCourse(teacherId: teacherId, courseId: courseId))
-            print("⚠️ [TeacherRepository] Failed to unlink course, queued for sync: \(error)")
-        }
+        try await updateTeacher(updated)
     }
     
     /// Fetches all teachers for a specific course
@@ -273,39 +237,16 @@ final class TeacherRepository: ObservableObject, TeacherRepositoryProtocol {
     
     // MARK: - Sync Operations
     
-    /// Syncs pending operations with remote when connectivity is restored
-    func syncPendingOperations() async {
-        guard offlineManager.isOnline, !pendingOperations.isEmpty else { return }
-        
-        isSyncing = true
-        print("🔄 [TeacherRepository] Starting sync of \(pendingOperations.count) pending operations...")
-        
-        var successfulOps = 0
-        var failedOps: [TeacherPendingOperation] = []
-        
-        for operation in pendingOperations {
-            do {
-                try await executeOperation(operation)
-                successfulOps += 1
-            } catch {
-                print("❌ [TeacherRepository] Failed to sync operation: \(error)")
-                failedOps.append(operation)
-            }
-        }
-        
-        // Keep only failed operations for retry
-        pendingOperations = failedOps
-        savePendingOperations()
-        
-    
-    // MARK: - Sync Operations
-    
     /// Syncs pending operations when coming online
     func syncPendingOperations() async {
         guard offlineManager.isOnline else { return }
         isSyncing = true
         await unifiedProvider.teachers.syncPendingOperations()
-        teachers = unifiedProvider.getCachedTeachers()
+        do {
+            teachers = try await unifiedProvider.getCachedTeachers()
+        } catch {
+            print("❌ [TeacherRepository] Failed to refresh cache after sync: \(error)")
+        }
         isSyncing = false
     }
     

@@ -21,16 +21,16 @@ extension NSManagedObjectContext {
         var allEvents: [WeekEvent] = []
         
         // Fetch assignments due in this week
-        let assignmentRequest: NSFetchRequest<AssignmentEntity> = AssignmentEntity.fetchRequest()
+        let assignmentRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "AssignmentEntity")
         assignmentRequest.predicate = NSPredicate(
             format: "userId == %@ AND dueDate >= %@ AND dueDate <= %@",
             userId, startDate as NSDate, endDate as NSDate
         )
         assignmentRequest.sortDescriptors = [
-            NSSortDescriptor(keyPath: \AssignmentEntity.dueDate, ascending: true)
+            NSSortDescriptor(key: "dueDate", ascending: true)
         ]
         
-        let assignments = try self.fetch(assignmentRequest)
+        let assignments = try self.fetch(assignmentRequest) as? [AssignmentEntity] ?? []
         allEvents.append(contentsOf: assignments.map { WeekEvent.from(assignment: $0.toAssignment()) })
         
         return allEvents

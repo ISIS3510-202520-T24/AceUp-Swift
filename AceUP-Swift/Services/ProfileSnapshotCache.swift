@@ -15,6 +15,7 @@ struct ProfileSnapshot: Codable {
 }
 
 /// ProfileSnapshotCache now delegates to UnifiedHybridDataProviders for centralized caching
+@MainActor
 final class ProfileSnapshotCache {
     static let shared = ProfileSnapshotCache()
     private init() {}
