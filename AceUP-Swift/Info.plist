@@ -6,9 +6,5 @@
 	<string>https://api.straico.com/v0</string>
 	<key>STRAICO_API_KEY</key>
 	<string>0y-bzrifu2lUOW8yD6CbQlNOQx3eNYjsVCO98xGX2DwFvxi564Z</string>
-	<key>NSCalendarsUsageDescription</key>
-	<string>AceUp necesita acceso a tu calendario para agregar eventos de la universidad.</string>
-</dict>
-</plist></string>
 </dict>
 </plist>
