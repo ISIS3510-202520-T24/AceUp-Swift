@@ -14,6 +14,7 @@ struct AssignmentsListView: View {
     @State private var selectedFilter: AssignmentFilter = .all
     @State private var searchText = ""
     @State private var showingWorkloadAnalysis = false
+    @State private var showingQuickCreate = false
     @State private var showGradeInput = false
     @State private var gradeInputText = ""
     @State private var assignmentToComplete: Assignment?
