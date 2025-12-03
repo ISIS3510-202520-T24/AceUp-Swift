@@ -474,12 +474,15 @@ class TaskCreationAnalytics: ObservableObject {
                 totalDuration[method, default: 0] += duration
             }
             
+            var avgDurations: [CreationMethod: Double] = [:]
+            for (method, count) in methodCounts {
+                avgDurations[method] = totalDuration[method, default: 0] / Double(count)
+            }
+            
             return [
                 "total_sessions": snapshot.documents.count,
                 "method_counts": methodCounts.mapValues { $0 },
-                "avg_durations": methodCounts.mapValues { method, count in
-                    totalDuration[method, default: 0] / Double(count)
-                },
+                "avg_durations": avgDurations.mapValues { $0 },
                 "has_adopted_quick": methodCounts[.quickCreate] ?? 0 > 0,
                 "has_adopted_voice": methodCounts[.voiceInput] ?? 0 > 0,
                 "has_adopted_template": methodCounts[.template] ?? 0 > 0

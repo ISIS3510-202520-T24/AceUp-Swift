@@ -595,18 +595,18 @@ struct QuickCreateAssignmentView: View {
                 Section {
                     TextField("Assignment Title", text: $title)
                         .textInputAutocapitalization(.words)
-                        .onChange(of: title) { _ in
+                        .onChange(of: title) {
                             TaskCreationAnalytics.shared.trackInteraction(sessionId: taskCreationSessionId)
                         }
                     
                     TextField("Course", text: $course)
                         .textInputAutocapitalization(.words)
-                        .onChange(of: course) { _ in
+                        .onChange(of: course) {
                             TaskCreationAnalytics.shared.trackInteraction(sessionId: taskCreationSessionId)
                         }
                     
                     DatePicker("Due Date", selection: $dueDate, in: Date()...)
-                        .onChange(of: dueDate) { _ in
+                        .onChange(of: dueDate) {
                             TaskCreationAnalytics.shared.trackInteraction(sessionId: taskCreationSessionId)
                         }
                 }
