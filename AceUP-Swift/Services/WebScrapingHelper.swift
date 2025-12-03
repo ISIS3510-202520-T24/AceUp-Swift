@@ -5,10 +5,8 @@
 //  Created by Ana M. Sánchez on 2/12/25.
 //
 //  Este archivo contiene helpers para mejorar el web scraping de eventos.
-//  Por ahora, el servicio usa datos mock. Para implementar scraping real:
-//  1. Considera usar una librería como SwiftSoup
-//  2. O implementa un backend proxy que haga el scraping
-//  3. O usa la API de Eventtia si está disponible
+//  Por ahora, el servicio usa datos mock.
+
 
 import Foundation
 
@@ -123,40 +121,6 @@ extension String {
     }
 }
 
-// MARK: - Alternative: Backend Proxy Approach
-
-/// Si el scraping en el cliente es muy complejo, considera crear un backend
-/// que haga el scraping y exponga una API REST simple.
-///
-/// Ejemplo de arquitectura:
-///
-/// 1. Backend (Node.js/Python):
-///    - Hace scraping de eventos.uniandes.edu.co
-///    - Parsea HTML usando Cheerio/BeautifulSoup
-///    - Caché en Redis/Firebase
-///    - Expone API REST
-///
-/// 2. App iOS:
-///    - Consume API REST del backend
-///    - Mucho más simple y confiable
-///    - Mejor manejo de errores
-///
-/// Endpoints sugeridos:
-/// GET /api/events              -> Lista de eventos
-/// GET /api/events/:id          -> Detalle de evento
-/// GET /api/events?category=X   -> Filtrar por categoría
-/// GET /api/events?upcoming=true -> Solo próximos
-
-// MARK: - Alternative: Eventtia API
-
-/// Eventtia (la plataforma que usa Uniandes) puede tener una API pública.
-/// Verifica si existe documentación en:
-/// - https://www.eventtia.com/developers
-/// - https://api.eventtia.com/docs
-///
-/// Si existe API oficial, es MUCHO mejor que hacer scraping.
-
-// MARK: - Example: Improved Service with Backend
 
 class ImprovedUniandesEventsService {
     private let baseURL = "https://tu-backend.com/api"
@@ -187,46 +151,3 @@ class ImprovedUniandesEventsService {
         return event
     }
 }
-
-// MARK: - Development Notes
-
-/*
- NOTAS IMPORTANTES PARA IMPLEMENTAR SCRAPING REAL:
- 
- 1. **Inspecciona la página web**:
-    - Abre https://eventos.uniandes.edu.co/
-    - Inspecciona el HTML (Safari Developer Tools)
-    - Identifica los selectores CSS/XPath de los eventos
-    - Verifica si usa JavaScript para cargar contenido
- 
- 2. **Estrategias posibles**:
-    a) Web Scraping directo (complejo si usa JS):
-       - Usa SwiftSoup o similar
-       - Requiere actualizar cuando cambie la estructura HTML
-    
-    b) Backend proxy (RECOMENDADO):
-       - Crea un servidor simple (Node.js/Python/Go)
-       - Expone API REST
-       - Más confiable y mantenible
-    
-    c) API oficial de Eventtia:
-       - Investiga si existe
-       - Contacta a Eventtia o a Uniandes IT
-       - La mejor opción si está disponible
- 
- 3. **Consideraciones legales**:
-    - Verifica términos de servicio de eventos.uniandes.edu.co
-    - El scraping debe respetar robots.txt
-    - Considera rate limiting
-    - No sobrecargues el servidor
- 
- 4. **Testing**:
-    - Crea tests con HTML de ejemplo
-    - Mock responses para desarrollo
-    - Monitorea cambios en la estructura HTML
- 
- 5. **Caché**:
-    - Implementa caché agresivo (1-6 horas)
-    - Reduce carga en el servidor
-    - Mejora experiencia offline
- */
