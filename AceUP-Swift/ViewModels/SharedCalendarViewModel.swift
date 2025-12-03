@@ -104,15 +104,19 @@ class SharedCalendarViewModel: ObservableObject {
         let sanitizedDescription = InputValidation.sanitizeDescription(newGroupDescription)
         
         Task {
-            await sharedCalendarService.createGroup(
-                name: sanitizedName,
-                description: sanitizedDescription
-            )
-            
-            // Reset form
-            newGroupName = ""
-            newGroupDescription = ""
-            showingCreateGroup = false
+            do {
+                try await sharedCalendarService.createGroup(
+                    name: sanitizedName,
+                    description: sanitizedDescription
+                )
+                
+                // Reset form
+                newGroupName = ""
+                newGroupDescription = ""
+                showingCreateGroup = false
+            } catch {
+                errorMessage = "Failed to create group: \(error.localizedDescription)"
+            }
         }
     }
     
@@ -123,20 +127,28 @@ class SharedCalendarViewModel: ObservableObject {
         }
         
         Task {
-            await sharedCalendarService.joinGroup(groupId: joinGroupCode)
-            
-            // Reset form
-            joinGroupCode = ""
-            showingJoinGroup = false
+            do {
+                try await sharedCalendarService.joinGroup(groupId: joinGroupCode)
+                
+                // Reset form
+                joinGroupCode = ""
+                showingJoinGroup = false
+            } catch {
+                errorMessage = "Failed to join group: \(error.localizedDescription)"
+            }
         }
     }
     
     func leaveGroup(_ group: CalendarGroup) {
         Task {
-            await sharedCalendarService.leaveGroup(groupId: group.id)
-            
-            if selectedGroup?.id == group.id {
-                selectedGroup = nil
+            do {
+                try await sharedCalendarService.leaveGroup(groupId: group.id)
+                
+                if selectedGroup?.id == group.id {
+                    selectedGroup = nil
+                }
+            } catch {
+                errorMessage = "Failed to leave group: \(error.localizedDescription)"
             }
         }
     }
