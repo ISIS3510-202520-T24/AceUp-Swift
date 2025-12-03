@@ -40,14 +40,14 @@ class UniandesEventsService: ObservableObject, UniandesEventsServiceProtocol {
         
         // Try to load from cache first
         if !forceRefresh, let cachedEvents = loadFromCache(), !cachedEvents.isExpired {
-            print("📦 Loading events from cache (age: \(Int(cachedEvents.age))s)")
+            print("Loading events from cache (age: \(Int(cachedEvents.age))s)")
             return applyUserPreferences(to: cachedEvents.events)
         }
         
         // Check if offline
         if !offlineManager.isOnline {
             if let cachedEvents = loadFromCache() {
-                print("📡 Offline mode: using cached events (expired: \(cachedEvents.isExpired))")
+                print("Offline mode: using cached events (expired: \(cachedEvents.isExpired))")
                 return applyUserPreferences(to: cachedEvents.events)
             }
             throw UniandesEventsError.offline
@@ -61,7 +61,7 @@ class UniandesEventsService: ObservableObject, UniandesEventsServiceProtocol {
         } catch {
             // If fetch fails, try to use expired cache
             if let cachedEvents = loadFromCache() {
-                print("⚠️ Fetch failed, using expired cache")
+                print("Fetch failed, using expired cache")
                 self.error = error
                 return applyUserPreferences(to: cachedEvents.events)
             }
@@ -157,7 +157,7 @@ class UniandesEventsService: ObservableObject, UniandesEventsServiceProtocol {
         
         eventStore.requestAccess(to: .event) { [weak self] granted, error in
             guard granted else {
-                print("❌ Calendar access not granted: \(error?.localizedDescription ?? "Unknown error")")
+                print("Calendar access not granted: \(error?.localizedDescription ?? "Unknown error")")
                 return
             }
             
@@ -176,9 +176,9 @@ class UniandesEventsService: ObservableObject, UniandesEventsServiceProtocol {
             
             do {
                 try eventStore.save(calendarEvent, span: .thisEvent)
-                print("✅ Event added to calendar: \(event.title)")
+                print("Event added to calendar: \(event.title)")
             } catch {
-                print("❌ Failed to save event to calendar: \(error)")
+                print("Failed to save event to calendar: \(error)")
             }
         }
     }
@@ -226,7 +226,7 @@ class UniandesEventsService: ObservableObject, UniandesEventsServiceProtocol {
                 }
             }
         } catch {
-            print("❌ Regex error: \(error)")
+            print("Regex error: \(error)")
         }
         
         // If regex parsing fails, use mock data for development
@@ -374,7 +374,7 @@ class UniandesEventsService: ObservableObject, UniandesEventsServiceProtocol {
             let cache = try JSONDecoder().decode(EventsCache.self, from: data)
             return cache
         } catch {
-            print("❌ Failed to decode cache: \(error)")
+            print("Failed to decode cache: \(error)")
             return nil
         }
     }
@@ -386,9 +386,9 @@ class UniandesEventsService: ObservableObject, UniandesEventsServiceProtocol {
         do {
             let data = try JSONEncoder().encode(cache)
             userDefaults.set(data, forKey: cacheKey)
-            print("💾 Saved \(events.count) events to cache (expires: \(expiresAt))")
+            print("Saved \(events.count) events to cache (expires: \(expiresAt))")
         } catch {
-            print("❌ Failed to save cache: \(error)")
+            print("Failed to save cache: \(error)")
         }
     }
     
@@ -402,7 +402,7 @@ class UniandesEventsService: ObservableObject, UniandesEventsServiceProtocol {
         do {
             return try JSONDecoder().decode(EventUserPreferences.self, from: data)
         } catch {
-            print("❌ Failed to decode preferences: \(error)")
+            print("Failed to decode preferences: \(error)")
             return .default
         }
     }
@@ -412,7 +412,7 @@ class UniandesEventsService: ObservableObject, UniandesEventsServiceProtocol {
             let data = try JSONEncoder().encode(prefs)
             userDefaults.set(data, forKey: preferencesKey)
         } catch {
-            print("❌ Failed to save preferences: \(error)")
+            print("Failed to save preferences: \(error)")
         }
     }
     

@@ -95,11 +95,11 @@ class UniandesEventsViewModel: ObservableObject {
             events = try await service.fetchEvents(forceRefresh: forceRefresh)
             applyFilters()
             updateStatistics()
-            print("✅ Loaded \(events.count) events")
+            print("Loaded \(events.count) events")
         } catch {
             errorMessage = error.localizedDescription
             showError = true
-            print("❌ Error loading events: \(error)")
+            print("Error loading events: \(error)")
         }
         
         isLoading = false
@@ -167,7 +167,7 @@ class UniandesEventsViewModel: ObservableObject {
             }
             
             // Show success message
-            errorMessage = "✅ Registrado exitosamente para: \(event.title)"
+            errorMessage = "Registrado exitosamente para: \(event.title)"
             showError = true
         } catch {
             errorMessage = "Error al registrarse: \(error.localizedDescription)"
@@ -177,7 +177,7 @@ class UniandesEventsViewModel: ObservableObject {
     
     func addToCalendar(_ event: UniandesEvent) {
         service.addToCalendar(event: event)
-        errorMessage = "✅ Agregando evento al calendario..."
+        errorMessage = "Agregando evento al calendario..."
         showError = true
     }
     

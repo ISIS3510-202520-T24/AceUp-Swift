@@ -42,14 +42,14 @@ class ImageCacheService: ObservableObject {
         
         // Check disk cache
         if let diskImage = loadFromDisk(url: url) {
-            print("💾 Image loaded from disk cache: \(url)")
+            print("Image loaded from disk cache: \(url)")
             cache.setObject(diskImage, forKey: key)
             return diskImage
         }
         
         // Download image
         guard let downloadedImage = await downloadImage(url: url) else {
-            print("❌ Failed to download image: \(url)")
+            print("Failed to download image: \(url)")
             return nil
         }
         
@@ -57,7 +57,7 @@ class ImageCacheService: ObservableObject {
         cache.setObject(downloadedImage, forKey: key)
         saveToDisk(image: downloadedImage, url: url)
         
-        print("✅ Image downloaded and cached: \(url)")
+        print("Image downloaded and cached: \(url)")
         return downloadedImage
     }
     
@@ -65,7 +65,7 @@ class ImageCacheService: ObservableObject {
         cache.removeAllObjects()
         try? fileManager.removeItem(at: cacheDirectory)
         try? fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
-        print("🗑️ Image cache cleared")
+        print("Image cache cleared")
     }
     
     // MARK: - Private Methods
@@ -77,7 +77,7 @@ class ImageCacheService: ObservableObject {
             let (data, _) = try await URLSession.shared.data(from: imageURL)
             return UIImage(data: data)
         } catch {
-            print("❌ Error downloading image: \(error.localizedDescription)")
+            print("Error downloading image: \(error.localizedDescription)")
             return nil
         }
     }
