@@ -149,6 +149,21 @@ struct SidebarView: View {
                             }
                         }
 
+                        // -- Sección: Universidad
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Universidad")
+                                .font(.title3).fontWeight(.semibold)
+                                .foregroundColor(UI.navy)
+                                .padding(.horizontal, 24)
+                                .padding(.top, isLandscape ? 12 : 20)
+                                .padding(.bottom, 10)
+
+                            MenuItemView(icon: "calendar.badge.clock", title: "Eventos Uniandes",
+                                         isSelected: selectedView == .events) {
+                                selectedView = .events; isPresented = false
+                            }
+                        }
+
                         // Settings fijo al final del scroll
                         MenuItemView(icon: "gear", title: "Settings",
                                      isSelected: selectedView == .settings) {
@@ -259,6 +274,7 @@ enum AppView {
     case assignments
     case teachers
     case holidays
+    case events
     case profile
     case settings
     case scheduleOCR
