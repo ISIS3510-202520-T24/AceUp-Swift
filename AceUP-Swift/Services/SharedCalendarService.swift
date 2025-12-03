@@ -23,6 +23,7 @@ class SharedCalendarService: ObservableObject {
     
     // MARK: - Private Properties
     private let db = Firestore.firestore()
+    private let unifiedProvider = UnifiedHybridDataProviders.shared
     private var cancellables = Set<AnyCancellable>()
     private var currentUserId: String {
         return Auth.auth().currentUser?.uid ?? "anonymous_user"
@@ -31,88 +32,86 @@ class SharedCalendarService: ObservableObject {
     // MARK: - Initialization
     init() {
         Task {
-            await loadGroupsFromFirebase()
+            do {
+                try await loadGroupsFromCache()
+            } catch {
+                print("Error loading groups from cache: \(error)")
+            }
+            do {
+                try await loadGroupsFromFirebase()
+            } catch {
+                print("Error loading groups from Firebase: \(error)")
+            }
             await generateSmartSuggestions()
         }
     }
     
+    // MARK: - Data Loading
+    
+    private func loadGroupsFromCache() async throws {
+        groups = try await unifiedProvider.getCachedSharedCalendars()
+    }
+    
     // MARK: - Firebase Data Loading
-    func loadGroupsFromFirebase() async {
-        await MainActor.run {
-            isLoading = true
-        }
+    func loadGroupsFromFirebase() async throws {
+        isLoading = true
         
         defer { 
-            Task { @MainActor in
-                isLoading = false
-            }
+            isLoading = false
         }
         
         do {
-            let groupsSnapshot = try await db.collection("groups")
-                .whereField("members", arrayContains: currentUserId)
-                .getDocuments()
+            groups = try await unifiedProvider.sharedCalendars.fetchAll()
             
-            var loadedGroups: [CalendarGroup] = []
-            
-            for document in groupsSnapshot.documents {
-                if let group = try? document.data(as: CalendarGroupFirestore.self) {
-                    
-                    let calendarGroup = await convertFirestoreGroupToCalendarGroup(group, documentId: document.documentID)
-                    loadedGroups.append(calendarGroup)
-                }
-            }
-            
-            await MainActor.run {
-                self.groups = loadedGroups
-            }
-            
-            if loadedGroups.isEmpty {
+            if groups.isEmpty {
                 await createSampleGroupsInFirebase()
             }
             
         } catch {
-            await MainActor.run {
-                errorMessage = "Error loading groups: \(error.localizedDescription)"
-            }
+            errorMessage = "Error loading groups: \(error.localizedDescription)"
             print("Error loading groups from Firebase: \(error)")
            
-            await MainActor.run {
-                loadMockData()
-            }
+            loadMockData()
         }
     }
     
     // MARK: - Group Management
-    func createGroup(name: String, description: String) async {
-        await MainActor.run {
-            isLoading = true
-        }
+    func createGroup(name: String, description: String) async throws {
+        isLoading = true
         
         defer { 
-            Task { @MainActor in
-                isLoading = false
-            }
+            isLoading = false
         }
         
         do {
             let groupId = UUID().uuidString
-            
-            
             let groupCode = generateGroupCode()
-            let groupData: [String: Any] = [
-                "name": name,
-                "ownerId": currentUserId,
-                "members": [currentUserId], 
-                "createdAt": Timestamp(date: Date()),
-                "description": description,
-                "color": generateRandomColor(),
-                "inviteCode": groupCode 
-            ]
             
-            try await db.collection("groups").document(groupId).setData(groupData)
+            let groupMember = GroupMember(
+                id: currentUserId,
+                name: currentUserId,
+                email: "\(currentUserId)@example.com",
+                avatar: nil,
+                isAdmin: true,
+                joinedAt: Date(),
+                availability: generateMockAvailability()
+            )
             
-           
+            let newGroup = CalendarGroup(
+                id: groupId,
+                name: name,
+                description: description,
+                members: [groupMember],
+                createdAt: Date(),
+                createdBy: currentUserId,
+                color: generateRandomColor(),
+                inviteCode: groupCode
+            )
+            
+            try await unifiedProvider.sharedCalendars.save(newGroup)
+            groups = try await unifiedProvider.getCachedSharedCalendars()
+            
+            // Create welcome event
             let welcomeEventData: [String: Any] = [
                 "title": "Grupo creado: \(name)",
                 "createdBy": currentUserId,
@@ -120,29 +119,24 @@ class SharedCalendarService: ObservableObject {
                 "type": "group_created"
             ]
             
-            try await db.collection("groups").document(groupId)
-                .collection("events").addDocument(data: welcomeEventData)
-            
-            
-            await loadGroupsFromFirebase()
+            do {
+                try await db.collection("groups").document(groupId)
+                    .collection("events").addDocument(data: welcomeEventData)
+            } catch {
+                print("⚠️ Failed to create welcome event: \(error)")
+            }
             
         } catch {
-            await MainActor.run {
-                errorMessage = "Error creating group: \(error.localizedDescription)"
-            }
+            errorMessage = "Error creating group: \(error.localizedDescription)"
             print("Error creating group in Firebase: \(error)")
         }
     }
     
-    func joinGroup(groupId: String, inviteCode: String? = nil) async {
-        await MainActor.run {
-            isLoading = true
-        }
+    func joinGroup(groupId: String, inviteCode: String? = nil) async throws {
+        isLoading = true
         
         defer { 
-            Task { @MainActor in
-                isLoading = false
-            }
+            isLoading = false
         }
         
         do {
@@ -155,9 +149,7 @@ class SharedCalendarService: ObservableObject {
                     .getDocuments()
                 
                 guard let foundGroup = groupsQuery.documents.first else {
-                    await MainActor.run {
-                        errorMessage = "Código de grupo inválido"
-                    }
+                    errorMessage = "Código de grupo inválido"
                     return
                 }
                 
@@ -167,9 +159,7 @@ class SharedCalendarService: ObservableObject {
                 groupDoc = try await db.collection("groups").document(groupId).getDocument()
                 
                 guard groupDoc.exists else {
-                    await MainActor.run {
-                        errorMessage = "Grupo no encontrado"
-                    }
+                    errorMessage = "Grupo no encontrado"
                     return
                 }
             }
@@ -178,9 +168,7 @@ class SharedCalendarService: ObservableObject {
             if let data = groupDoc.data(),
                let members = data["members"] as? [String],
                members.contains(currentUserId) {
-                await MainActor.run {
-                    errorMessage = "Ya eres miembro de este grupo"
-                }
+                errorMessage = "Ya eres miembro de este grupo"
                 return
             }
             
@@ -196,35 +184,34 @@ class SharedCalendarService: ObservableObject {
                 "type": "member_joined"
             ]
             
-            try await db.collection("groups").document(groupDoc.documentID)
-                .collection("events").addDocument(data: joinEventData)
-            
+            do {
+                try await db.collection("groups").document(groupDoc.documentID)
+                    .collection("events").addDocument(data: joinEventData)
+            } catch {
+                print("⚠️ Failed to log join event: \(error)")
+            }
            
-            await loadGroupsFromFirebase()
+            try await loadGroupsFromFirebase()
             
         } catch {
-            await MainActor.run {
-                errorMessage = "Error joining group: \(error.localizedDescription)"
-            }
+            errorMessage = "Error joining group: \(error.localizedDescription)"
             print("Error joining group in Firebase: \(error)")
         }
     }
     
-    func joinGroupByCode(_ inviteCode: String) async {
-        await joinGroup(groupId: "", inviteCode: inviteCode)
+    func joinGroupByCode(_ inviteCode: String) async throws {
+        try await joinGroup(groupId: "", inviteCode: inviteCode)
     }
     
-    func leaveGroup(groupId: String) async {
+    func leaveGroup(groupId: String) async throws {
         isLoading = true
         defer { isLoading = false }
         
         do {
+            try await unifiedProvider.sharedCalendars.delete(groupId)
+            groups = try await unifiedProvider.getCachedSharedCalendars()
             
-            try await db.collection("groups").document(groupId).updateData([
-                "members": FieldValue.arrayRemove([currentUserId])
-            ])
-            
-            
+            // Log event
             let leaveEventData: [String: Any] = [
                 "title": "Miembro dejó el grupo",
                 "createdBy": currentUserId,
@@ -232,11 +219,12 @@ class SharedCalendarService: ObservableObject {
                 "type": "member_left"
             ]
             
-            try await db.collection("groups").document(groupId)
-                .collection("events").addDocument(data: leaveEventData)
-            
-            
-            groups.removeAll { $0.id == groupId }
+            do {
+                try await db.collection("groups").document(groupId)
+                    .collection("events").addDocument(data: leaveEventData)
+            } catch {
+                print("⚠️ Failed to log leave event: \(error)")
+            }
             
             if currentGroup?.id == groupId {
                 currentGroup = nil
@@ -281,7 +269,7 @@ class SharedCalendarService: ObservableObject {
         smartSuggestions = suggestions
     }
     
-    func saveSharedEventToFirebase(event: CalendarEvent, groupId: String) async {
+    func saveSharedEventToFirebase(event: CalendarEvent, groupId: String) async throws {
         isLoading = true
         defer { isLoading = false }
         
@@ -825,57 +813,8 @@ class SharedCalendarService: ObservableObject {
             )
         ]
     }
-}
-
-// MARK: - Firebase Models
-struct CalendarGroupFirestore: Codable {
-    let name: String
-    let ownerId: String
-    let members: [String] // Array de User IDs
-    let createdAt: Timestamp
-    let description: String
-    let color: String
-    let inviteCode: String? 
-}
-
-struct UserFirestore: Codable {
-    let email: String
-    let nick: String?
-    let uid: String?
-    let avatar: String?
     
-    // Computed property to get display name
-    var displayName: String {
-        return nick ?? email.components(separatedBy: "@").first ?? "Usuario"
-    }
-}
-
-struct GroupEventFirestore: Codable {
-    let title: String
-    let createdBy: String
-    let timestamp: Timestamp
-    let type: String
-    let description: String?
-}
-
-struct SmartSuggestionFirestore: Codable {
-    let type: String
-    let title: String
-    let description: String
-    let confidence: Double
-    let actionRequired: Bool
-    let suggestedTime: TimeOfDayFirestore?
-    let affectedMembers: [String]
-    let createdAt: Timestamp
-}
-
-struct TimeOfDayFirestore: Codable {
-    let hour: Int
-    let minute: Int
-}
-
-// MARK: - Firebase Conversion Methods
-extension SharedCalendarService {
+    // MARK: - Firebase Conversion Methods
     
     private func convertFirestoreGroupToCalendarGroup(_ firestoreGroup: CalendarGroupFirestore, documentId: String) async -> CalendarGroup {
         
@@ -960,7 +899,58 @@ extension SharedCalendarService {
         ]
         
         for group in sampleGroups {
-            await createGroup(name: group.name, description: group.description)
+            do {
+                try await createGroup(name: group.name, description: group.description)
+            } catch {
+                print("Error creating sample group: \(error)")
+            }
         }
     }
+}
+
+// MARK: - Firebase Models
+struct CalendarGroupFirestore: Codable {
+    let name: String
+    let ownerId: String
+    let members: [String] // Array de User IDs
+    let createdAt: Timestamp
+    let description: String
+    let color: String
+    let inviteCode: String? 
+}
+
+struct UserFirestore: Codable {
+    let email: String
+    let nick: String?
+    let uid: String?
+    let avatar: String?
+    
+    // Computed property to get display name
+    var displayName: String {
+        return nick ?? email.components(separatedBy: "@").first ?? "Usuario"
+    }
+}
+
+struct GroupEventFirestore: Codable {
+    let title: String
+    let createdBy: String
+    let timestamp: Timestamp
+    let type: String
+    let description: String?
+}
+
+struct SmartSuggestionFirestore: Codable {
+    let type: String
+    let title: String
+    let description: String
+    let confidence: Double
+    let actionRequired: Bool
+    let suggestedTime: TimeOfDayFirestore?
+    let affectedMembers: [String]
+    let createdAt: Timestamp
+}
+
+struct TimeOfDayFirestore: Codable {
+    let hour: Int
+    let minute: Int
 }

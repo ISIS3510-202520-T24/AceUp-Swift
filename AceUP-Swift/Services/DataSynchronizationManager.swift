@@ -27,19 +27,14 @@ final class DataSynchronizationManager: ObservableObject {
     private let networkMonitor = NWPathMonitor()
     private let networkQueue = DispatchQueue(label: "DataSyncNetworkMonitor")
 
-    private let assignmentProvider: HybridAssignmentDataProvider
-    private let holidayProvider: HybridHolidayDataProvider
-    private let courseProvider: HybridCourseDataProvider
+    // Use unified provider for optimized data access
+    private let unifiedProvider = UnifiedHybridDataProviders.shared
 
     private var autoSyncTimer: Timer?
     private var backgroundSyncTimer: Timer?
 
     // MARK: - Init
     private init() {
-        self.assignmentProvider = HybridAssignmentDataProvider()
-        self.holidayProvider = HybridHolidayDataProvider()
-        self.courseProvider = HybridCourseDataProvider()
-
         networkMonitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
                 self?.isOnline = (path.status == .satisfied)
@@ -79,11 +74,11 @@ final class DataSynchronizationManager: ObservableObject {
         do {
             // Sync pending operations first
             syncProgress = 0.3
-            await assignmentProvider.syncPendingOperations()
+            await unifiedProvider.assignments.syncPendingOperations()
             
             // Then perform full sync
             syncProgress = 0.6
-            try await assignmentProvider.performFullSync()
+            try await unifiedProvider.assignments.performFullSync()
             
             syncProgress = 1.0
             syncStatus = "Completed"
@@ -108,26 +103,28 @@ final class DataSynchronizationManager: ObservableObject {
         syncStatus = "Syncing"
         syncProgress = 0.0
 
+        let startTime = CFAbsoluteTimeGetCurrent()
+
         do {
             // 1. Sync pending assignment operations
             syncProgress = 0.2
-            await assignmentProvider.syncPendingOperations()
+            await unifiedProvider.assignments.syncPendingOperations()
             
-            // 2. Full assignment sync
+            // 2. Use batched parallel sync for all data types
             syncProgress = 0.4
-            try await assignmentProvider.performFullSync()
-            
-            // 3. Sync holidays
-            syncProgress = 0.6
-            _ = try await holidayProvider.fetchAllHolidays()
-            
-            // 4. Sync courses
-            syncProgress = 0.8
-            _ = try await courseProvider.fetchCourses()
+            try await unifiedProvider.performBatchedFullSync()
             
             syncProgress = 1.0
             syncStatus = "Completed"
-            print("✅ Full sync completed")
+            
+            let endTime = CFAbsoluteTimeGetCurrent()
+            let duration = endTime - startTime
+            
+            print("✅ Full sync completed in \(String(format: "%.2f", duration))s")
+            
+            // Print cache statistics
+            let stats = unifiedProvider.getCacheStatistics()
+            print("📊 Cache: \(stats.assignmentsCount) assignments, \(stats.coursesCount) courses, \(stats.holidaysCount) holidays")
         } catch {
             print("❌ Full sync error: \(error)")
             syncStatus = "Error"
@@ -150,17 +147,25 @@ final class DataSynchronizationManager: ObservableObject {
     func performFullSync() async { await triggerFullSync() }
     func performIncrementalSync() async { await triggerLightSync() }
 
-    func getHolidayProvider() -> HybridHolidayDataProvider { holidayProvider }
-    func getAssignmentProvider() -> HybridAssignmentDataProvider { assignmentProvider }
-    func getCourseProvider() -> HybridCourseDataProvider { courseProvider }
+    func getHolidayProvider() -> HybridHolidayDataProvider { 
+        unifiedProvider.holidays
+    }
+    
+    func getAssignmentProvider() -> HybridAssignmentDataProvider { 
+        unifiedProvider.assignments
+    }
+    
+    func getCourseProvider() -> HybridCourseDataProvider { 
+        unifiedProvider.courses
+    }
 
     func getAssignmentPendingSyncCount() -> Int {
-        assignmentProvider.getPendingOperationsCount()
+        unifiedProvider.assignments.getPendingOperationsCount()
     }
     
     /// Refresh pending count and update OfflineManager
     private func refreshPendingCount() {
-        let count = assignmentProvider.getPendingOperationsCount()
+        let count = unifiedProvider.assignments.getPendingOperationsCount()
         pendingSyncCount = count
         
         // Also update OfflineManager
