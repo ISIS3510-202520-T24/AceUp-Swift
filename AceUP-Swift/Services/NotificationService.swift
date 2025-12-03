@@ -331,4 +331,54 @@ extension NotificationService {
         let daysLeft = max(0, next.daysUntilDue)
         return (next, daysLeft)
     }
+    
+    // MARK: - BQ 2.2: Daily Progress Notification
+    static func scheduleTodayProgressNotification(todaysAssignments: [Assignment]) {
+        let id = "today_progress_bq_2_2"
+        
+        // Cancel any existing notification
+        cancel(id: id)
+        
+        let todaysTotal = todaysAssignments.count
+        let todaysCompleted = todaysAssignments.filter { $0.status == .completed }.count
+        let todaysPending = todaysTotal - todaysCompleted
+        
+        let title: String
+        let body: String
+        
+        if todaysTotal == 0 {
+            title = "No Assignments Due Today"
+            body = "You're all caught up! Great job staying ahead. 🎉"
+        } else if todaysCompleted == todaysTotal {
+            title = "All Tasks Completed! 🎉"
+            body = "You finished all \(todaysTotal) assignment\(todaysTotal == 1 ? "" : "s") due today. Amazing work!"
+        } else {
+            let completionPercentage = Int((Double(todaysCompleted) / Double(todaysTotal)) * 100)
+            title = "Today's Progress: \(todaysCompleted)/\(todaysTotal) Complete"
+            body = "You've completed \(completionPercentage)% of today's tasks. \(todaysPending) assignment\(todaysPending == 1 ? "" : "s") remaining. Keep going! 💪"
+        }
+        
+        // Schedule notification for 3 seconds from now (for testing)
+        let fireDate = Calendar.current.date(byAdding: .second, value: 3, to: Date()) ?? Date()
+        
+        schedule(
+            id: id,
+            title: title,
+            body: body,
+            date: fireDate
+        )
+        
+        // Track analytics
+        AnalyticsClient.shared.logEvent(
+            AnalyticsEventType.smartReminderTriggered.rawValue,
+            parameters: [
+                "type": "daily_progress_bq_2_2" as NSString,
+                "total_tasks": NSNumber(value: todaysTotal),
+                "completed_tasks": NSNumber(value: todaysCompleted),
+                "pending_tasks": NSNumber(value: todaysPending),
+                "completion_percentage": NSNumber(value: todaysTotal > 0 ? (todaysCompleted * 100 / todaysTotal) : 0),
+                "source": "ios_app" as NSString
+            ]
+        )
+    }
 }

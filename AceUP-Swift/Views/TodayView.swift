@@ -472,6 +472,36 @@ struct AssignmentsTabContent: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(isSchedulingNotification)
 
+                // BQ 2.2: Daily Progress Notification Button
+                Button {
+                    guard !isSchedulingNotification else { return }
+                    isSchedulingNotification = true
+                    
+                    NotificationService.checkAuthorizationStatus { status in
+                        if status.contains("Authorized") {
+                            // Get today's assignments and send notification
+                            NotificationService.scheduleTodayProgressNotification(
+                                todaysAssignments: assignmentViewModel.todaysAssignments
+                            )
+                        } else if status.contains("Not determined") {
+                            NotificationService.requestAuthorization()
+                        }
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            isSchedulingNotification = false
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "calendar.badge.checkmark")
+                        Text("Progreso Hoy (BQ 2.2)")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(UI.primary)
+                .disabled(isSchedulingNotification)
+
                 // BQ 2.4 boton
                 // Test BQ: Days Since Last Activity (Type 2) — demo button
                 Button {
