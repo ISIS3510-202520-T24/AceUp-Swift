@@ -98,8 +98,8 @@ SELECT
   COUNT(*) as total_sessions,
   COUNT(CASE WHEN completed THEN 1 END) as completed_sessions,
   COUNT(CASE WHEN abandoned THEN 1 END) as abandoned_sessions,
-  ROUND(COUNT(CASE WHEN completed THEN 1 END) * 100.0 / COUNT(*), 2) as completion_rate_percent,
-  ROUND(COUNT(CASE WHEN abandoned THEN 1 END) * 100.0 / COUNT(*), 2) as abandonment_rate_percent,
+  ROUND(SAFE_DIVIDE(COUNT(CASE WHEN completed THEN 1 END) * 100.0, COUNT(*)), 2) as completion_rate_percent,
+  ROUND(SAFE_DIVIDE(COUNT(CASE WHEN abandoned THEN 1 END) * 100.0, COUNT(*)), 2) as abandonment_rate_percent,
   ROUND(AVG(CASE WHEN completed THEN durationSeconds END), 2) as avg_duration_seconds,
   ROUND(STDDEV(CASE WHEN completed THEN durationSeconds END), 2) as stddev_duration_seconds,
   ROUND(APPROX_QUANTILES(CASE WHEN completed THEN durationSeconds END, 100)[OFFSET(50)], 2) as median_duration_seconds,
@@ -130,12 +130,13 @@ SELECT
   adopted_quick_create,
   adopted_voice_input,
   adopted_templates,
-  ROUND(adopted_quick_create * 100.0 / cohort_size, 2) as quick_create_adoption_percent,
-  ROUND(adopted_voice_input * 100.0 / cohort_size, 2) as voice_input_adoption_percent,
-  ROUND(adopted_templates * 100.0 / cohort_size, 2) as template_adoption_percent,
-  ROUND((adopted_quick_create + adopted_voice_input + adopted_templates) * 100.0 / (cohort_size * 3), 2) as overall_feature_adoption_percent
+  ROUND(SAFE_DIVIDE(adopted_quick_create * 100.0, cohort_size), 2) as quick_create_adoption_percent,
+  ROUND(SAFE_DIVIDE(adopted_voice_input * 100.0, cohort_size), 2) as voice_input_adoption_percent,
+  ROUND(SAFE_DIVIDE(adopted_templates * 100.0, cohort_size), 2) as template_adoption_percent,
+  ROUND(SAFE_DIVIDE((adopted_quick_create + adopted_voice_input + adopted_templates) * 100.0, cohort_size * 3), 2) as overall_feature_adoption_percent
 FROM user_cohorts
 WHERE cohort_date IS NOT NULL
+  AND cohort_size > 0
 ORDER BY cohort_date DESC;
 
 # View: Efficiency Gains Analysis
@@ -151,9 +152,9 @@ SELECT
   ROUND(avgQuickCreateDuration, 2) as avg_quick_create_duration_sec,
   ROUND(avgVoiceInputDuration, 2) as avg_voice_input_duration_sec,
   ROUND(avgTemplateDuration, 2) as avg_template_duration_sec,
-  ROUND((avgStandardDuration - avgQuickCreateDuration) / avgStandardDuration * 100, 2) as quick_create_time_saved_percent,
-  ROUND((avgStandardDuration - avgVoiceInputDuration) / avgStandardDuration * 100, 2) as voice_input_time_saved_percent,
-  ROUND((avgStandardDuration - avgTemplateDuration) / avgStandardDuration * 100, 2) as template_time_saved_percent,
+  ROUND(SAFE_DIVIDE((avgStandardDuration - avgQuickCreateDuration) * 100, avgStandardDuration), 2) as quick_create_time_saved_percent,
+  ROUND(SAFE_DIVIDE((avgStandardDuration - avgVoiceInputDuration) * 100, avgStandardDuration), 2) as voice_input_time_saved_percent,
+  ROUND(SAFE_DIVIDE((avgStandardDuration - avgTemplateDuration) * 100, avgStandardDuration), 2) as template_time_saved_percent,
   ROUND(
     (totalQuickCreates * (avgStandardDuration - avgQuickCreateDuration) +
      totalVoiceInputs * (avgStandardDuration - avgVoiceInputDuration) +
@@ -172,7 +173,7 @@ SELECT
   entryPoint,
   creationMethod,
   COUNT(*) as session_count,
-  ROUND(COUNT(CASE WHEN completed THEN 1 END) * 100.0 / COUNT(*), 2) as completion_rate_percent,
+  ROUND(SAFE_DIVIDE(COUNT(CASE WHEN completed THEN 1 END) * 100.0, COUNT(*)), 2) as completion_rate_percent,
   ROUND(AVG(CASE WHEN completed THEN durationSeconds END), 2) as avg_duration_seconds,
   COUNT(DISTINCT userId) as unique_users
 FROM `aceup-app-123.aceup_analytics.task_creation_sessions`
@@ -185,7 +186,7 @@ SELECT
   templateId,
   COUNT(*) as usage_count,
   COUNT(CASE WHEN completed THEN 1 END) as completed_count,
-  ROUND(COUNT(CASE WHEN completed THEN 1 END) * 100.0 / COUNT(*), 2) as completion_rate_percent,
+  ROUND(SAFE_DIVIDE(COUNT(CASE WHEN completed THEN 1 END) * 100.0, COUNT(*)), 2) as completion_rate_percent,
   ROUND(AVG(CASE WHEN completed THEN durationSeconds END), 2) as avg_duration_seconds,
   ROUND(AVG(CASE WHEN completed THEN interactionCount END), 2) as avg_interactions,
   ROUND(AVG(CASE WHEN completed THEN satisfactionImplicit END), 2) as avg_satisfaction,
@@ -229,18 +230,18 @@ SELECT
   userId,
   standard_duration,
   quick_duration,
-  ROUND((standard_duration - quick_duration) / standard_duration * 100, 2) as time_reduction_percent,
+  ROUND(SAFE_DIVIDE((standard_duration - quick_duration) * 100, standard_duration), 2) as time_reduction_percent,
   standard_interactions,
   quick_interactions,
-  ROUND((standard_interactions - quick_interactions) / standard_interactions * 100, 2) as interaction_reduction_percent,
+  ROUND(SAFE_DIVIDE((standard_interactions - quick_interactions) * 100, standard_interactions), 2) as interaction_reduction_percent,
   standard_errors,
   quick_errors,
   standard_count,
   quick_count,
-  ROUND(quick_count * 100.0 / (standard_count + quick_count), 2) as quick_usage_percent,
+  ROUND(SAFE_DIVIDE(quick_count * 100.0, standard_count + quick_count), 2) as quick_usage_percent,
   CASE
-    WHEN quick_count > standard_count AND time_reduction_percent > 20 THEN 'strong_adopter'
-    WHEN quick_count > 0 AND time_reduction_percent > 10 THEN 'moderate_adopter'
+    WHEN quick_count > standard_count AND SAFE_DIVIDE((standard_duration - quick_duration) * 100, standard_duration) > 20 THEN 'strong_adopter'
+    WHEN quick_count > 0 AND SAFE_DIVIDE((standard_duration - quick_duration) * 100, standard_duration) > 10 THEN 'moderate_adopter'
     WHEN quick_count > 0 THEN 'light_adopter'
     ELSE 'non_adopter'
   END as adoption_segment
@@ -258,7 +259,7 @@ SELECT
   COUNT(CASE WHEN completed THEN 1 END) as completed_count,
   COUNT(DISTINCT userId) as unique_users,
   ROUND(AVG(CASE WHEN completed THEN durationSeconds END), 2) as avg_duration_seconds,
-  ROUND(COUNT(CASE WHEN completed THEN 1 END) * 100.0 / COUNT(*), 2) as completion_rate_percent
+  ROUND(SAFE_DIVIDE(COUNT(CASE WHEN completed THEN 1 END) * 100.0, COUNT(*)), 2) as completion_rate_percent
 FROM `aceup-app-123.aceup_analytics.task_creation_sessions`
 WHERE startTimestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY)
 GROUP BY date, creationMethod
@@ -296,9 +297,9 @@ SELECT
   'Overall Metrics' as metric_category,
   COUNT(DISTINCT CASE WHEN hasAdoptedQuickCreate OR hasAdoptedVoiceInput OR hasAdoptedTemplates THEN userId END) as users_adopted_quick_features,
   COUNT(DISTINCT userId) as total_users,
-  ROUND(
-    COUNT(DISTINCT CASE WHEN hasAdoptedQuickCreate OR hasAdoptedVoiceInput OR hasAdoptedTemplates THEN userId END) * 100.0 / 
-    COUNT(DISTINCT userId), 2
+  ROUND(SAFE_DIVIDE(
+    COUNT(DISTINCT CASE WHEN hasAdoptedQuickCreate OR hasAdoptedVoiceInput OR hasAdoptedTemplates THEN userId END) * 100.0,
+    COUNT(DISTINCT userId)), 2
   ) as adoption_rate_percent,
   ROUND(AVG(CASE 
     WHEN avgQuickCreateDuration IS NOT NULL OR avgVoiceInputDuration IS NOT NULL OR avgTemplateDuration IS NOT NULL
@@ -317,7 +318,7 @@ SELECT
   userId,
   totalStandardCreates,
   avgStandardDuration as avg_time_spent_seconds,
-  ROUND(avgStandardDuration * totalStandardCreates / 60, 2) as total_time_spent_minutes,
+  ROUND(SAFE_DIVIDE(avgStandardDuration * totalStandardCreates, 60), 2) as total_time_spent_minutes,
   CASE
     WHEN avgStandardDuration > 120 THEN 'high_friction'
     WHEN avgStandardDuration > 60 THEN 'moderate_friction'
@@ -354,8 +355,8 @@ SELECT
   f.total_uses,
   ROUND(f.avg_duration, 2) as avg_duration_seconds,
   ROUND(s.standard_avg - f.avg_duration, 2) as time_saved_per_task_seconds,
-  ROUND((s.standard_avg - f.avg_duration) * f.total_uses / 3600, 2) as total_hours_saved,
-  ROUND(((s.standard_avg - f.avg_duration) / s.standard_avg) * 100, 2) as efficiency_improvement_percent
+  ROUND(SAFE_DIVIDE((s.standard_avg - f.avg_duration) * f.total_uses, 3600), 2) as total_hours_saved,
+  ROUND(SAFE_DIVIDE((s.standard_avg - f.avg_duration) * 100, s.standard_avg), 2) as efficiency_improvement_percent
 FROM feature_impact f
 CROSS JOIN standard_baseline s
 WHERE f.creationMethod != 'standard'
