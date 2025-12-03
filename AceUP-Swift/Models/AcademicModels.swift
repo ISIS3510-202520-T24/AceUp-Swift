@@ -8,7 +8,7 @@
 import Foundation
 
 // MARK: - Academic Event Models
-struct AcademicEvent: Codable, Identifiable, Hashable {
+struct AcademicEvent: Codable, Identifiable, Hashable, Equatable {
     let id: String
     let title: String
     let description: String?
@@ -17,12 +17,13 @@ struct AcademicEvent: Codable, Identifiable, Hashable {
     let type: EventType
     let dueDate: Date
     let weight: Double // Percentage of final grade (0.0 - 1.0)
-    let status: EventStatus
-    let priority: Priority
+    let status: AcademicEventStatus
     let estimatedHours: Double?
     let actualHours: Double?
     let createdAt: Date
     let updatedAt: Date
+    
+    // Note: Priority is defined globally, not here
     
     var weightPercentage: Int {
         Int(weight * 100)
@@ -44,6 +45,14 @@ struct AcademicEvent: Codable, Identifiable, Hashable {
         let statusPenalty = status == .pending ? 0.0 : -50.0 // Completed items get penalty
         
         return weightFactor + urgencyFactor + statusPenalty
+    }
+    
+    static func == (lhs: AcademicEvent, rhs: AcademicEvent) -> Bool {
+        return lhs.id == rhs.id
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 }
 
@@ -81,7 +90,7 @@ enum EventType: String, Codable, CaseIterable {
     }
 }
 
-enum EventStatus: String, Codable, CaseIterable {
+enum AcademicEventStatus: String, Codable, CaseIterable {
     case pending = "pending"
     case inProgress = "in_progress"
     case completed = "completed"

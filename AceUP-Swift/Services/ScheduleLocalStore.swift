@@ -7,8 +7,7 @@ struct StoredSchedule: Codable {
 }
 
 /// DataStore local
-@MainActor
-final class ScheduleLocalStore {
+final class ScheduleLocalStore: Sendable {
     static let shared = ScheduleLocalStore()
 
     private let fileURL: URL

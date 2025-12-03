@@ -14,6 +14,7 @@ struct AssignmentsListView: View {
     @State private var selectedFilter: AssignmentFilter = .all
     @State private var searchText = ""
     @State private var showingWorkloadAnalysis = false
+    @State private var showingQuickCreate = false
     
     init(onMenuTapped: @escaping () -> Void = {}) {
         self.onMenuTapped = onMenuTapped
@@ -40,6 +41,9 @@ struct AssignmentsListView: View {
             .overlay(fabButton(geometry: geometry), alignment: .bottomTrailing)
             .sheet(isPresented: $viewModel.showingCreateAssignment) {
                 CreateAssignmentView(viewModel: viewModel)
+            }
+            .sheet(isPresented: $showingQuickCreate) {
+                QuickCreateAssignmentView(viewModel: viewModel)
             }
             .sheet(isPresented: $showingWorkloadAnalysis) {
                 WorkloadAnalysisView(analysis: viewModel.workloadAnalysis)
@@ -195,13 +199,21 @@ struct AssignmentsListView: View {
     // MARK: - FAB
     
     private func fabButton(geometry: GeometryProxy) -> some View {
-        Button(action: { viewModel.showingCreateAssignment = true }) {
+        Menu {
+            Button(action: { showingQuickCreate = true }) {
+                Label("Quick Create", systemImage: "bolt.fill")
+            }
+            
+            Button(action: { viewModel.showingCreateAssignment = true }) {
+                Label("Standard Create", systemImage: "doc.text")
+            }
+        } label: {
             Image(systemName: "plus")
                 .font(.title2)
                 .fontWeight(.semibold)
                 .foregroundColor(.white)
                 .frame(width: geometry.size.width > geometry.size.height ? 48 : 56, 
-                       height: geometry.size.width > geometry.size.height ? 48 : 56) // Smaller in landscape
+                       height: geometry.size.width > geometry.size.height ? 48 : 56)
                 .background(UI.primary)
                 .clipShape(Circle())
                 .shadow(color: UI.primary.opacity(0.3), radius: 8, x: 0, y: 4)
@@ -563,6 +575,98 @@ enum AssignmentFilter: String, CaseIterable {
         case .dueToday: return "Due Today"
         case .dueTomorrow: return "Due Tomorrow"
         case .highPriority: return "High Priority"
+        }
+    }
+}
+
+// MARK: - Quick Create Assignment View
+
+struct QuickCreateAssignmentView: View {
+    @ObservedObject var viewModel: AssignmentViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var course = ""
+    @State private var dueDate = Date()
+    @State private var taskCreationSessionId: String = ""
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section {
+                    TextField("Assignment Title", text: $title)
+                        .textInputAutocapitalization(.words)
+                        .onChange(of: title) {
+                            TaskCreationAnalytics.shared.trackInteraction(sessionId: taskCreationSessionId)
+                        }
+                    
+                    TextField("Course", text: $course)
+                        .textInputAutocapitalization(.words)
+                        .onChange(of: course) {
+                            TaskCreationAnalytics.shared.trackInteraction(sessionId: taskCreationSessionId)
+                        }
+                    
+                    DatePicker("Due Date", selection: $dueDate, in: Date()...)
+                        .onChange(of: dueDate) {
+                            TaskCreationAnalytics.shared.trackInteraction(sessionId: taskCreationSessionId)
+                        }
+                }
+                
+                Section {
+                    Text("⚡ Quick create uses default settings: Medium priority, 10% weight")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .navigationTitle("Quick Create")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        TaskCreationAnalytics.shared.abandonCreationSession(sessionId: taskCreationSessionId)
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        createQuickAssignment()
+                    }
+                    .disabled(title.isEmpty || course.isEmpty)
+                    .fontWeight(.semibold)
+                }
+            }
+            .onAppear {
+                taskCreationSessionId = TaskCreationAnalytics.shared.startCreationSession(
+                    method: .quickCreate,
+                    entryPoint: .fab
+                )
+            }
+        }
+    }
+    
+    private func createQuickAssignment() {
+        Task {
+            // Set quick create defaults
+            viewModel.newAssignmentTitle = title
+            viewModel.newAssignmentCourse = course
+            viewModel.newAssignmentDueDate = dueDate
+            viewModel.newAssignmentWeight = 0.1  // 10% default
+            viewModel.newAssignmentPriority = .medium
+            
+            await viewModel.createAssignment()
+            
+            if !viewModel.showingCreateAssignment {
+                // Complete BQ 3.4 session
+                TaskCreationAnalytics.shared.completeCreationSession(
+                    sessionId: taskCreationSessionId,
+                    fieldsCompleted: ["title", "course", "dueDate"],
+                    taskType: .assignment,
+                    hasSubtasks: false,
+                    subtaskCount: 0
+                )
+                
+                dismiss()
+            }
         }
     }
 }
