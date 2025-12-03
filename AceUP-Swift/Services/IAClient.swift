@@ -1,6 +1,6 @@
 import Foundation
 
-public struct StraicoConfig {
+public struct StraicoConfig: Sendable {
     public var baseURL: URL
     public var apiKey: String
 
@@ -26,7 +26,7 @@ public struct StraicoConfig {
     }
 }
 
-public final class StraicoClient {
+public final class StraicoClient: Sendable {
     private let cfg: StraicoConfig
     private let session: URLSession
 

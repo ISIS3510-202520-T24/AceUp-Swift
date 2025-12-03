@@ -71,6 +71,9 @@ struct ScheduleView: View {
             )
         }
         .navigationBarHidden(true)
+        .onAppear {
+            viewModel.loadSavedSchedule()
+        }
     }
 
     // MARK: - Header

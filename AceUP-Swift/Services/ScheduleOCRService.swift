@@ -2,11 +2,11 @@ import Foundation
 import Vision
 import UIKit
 
-public protocol ScheduleOCRServiceProtocol {
+public protocol ScheduleOCRServiceProtocol: Sendable {
     func parseSchedule(imageData: Data) async throws -> Schedule
 }
 
-public struct ScheduleOCRServiceConfig {
+public struct ScheduleOCRServiceConfig: Sendable {
     public var useMock: Bool
     public var straico: StraicoConfig?
 
@@ -23,7 +23,7 @@ public struct ScheduleOCRServiceConfig {
     }
 }
 
-public final class ScheduleOCRService: ScheduleOCRServiceProtocol {
+public final class ScheduleOCRService: ScheduleOCRServiceProtocol, Sendable {
     private let cfg: ScheduleOCRServiceConfig
     private let straico: StraicoClient?
 

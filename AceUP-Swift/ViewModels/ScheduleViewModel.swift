@@ -17,25 +17,27 @@ final class ScheduleViewModel: ObservableObject {
     @Published var capturedImage: UIImage?
     @Published var schedule: Schedule = .empty
 
-    private let service: ScheduleOCRServiceProtocol
+    nonisolated private let service: ScheduleOCRServiceProtocol
     // Local store para calendario
-    private let localStore: ScheduleLocalStore
+    nonisolated private let localStore: ScheduleLocalStore
 
-    init(service: ScheduleOCRServiceProtocol,
-         localStore: ScheduleLocalStore = .shared) {
+    nonisolated init(service: ScheduleOCRServiceProtocol,
+                     localStore: ScheduleLocalStore = .shared) {
 
         self.service = service
         self.localStore = localStore
+    }
 
-        // Intentar cargar el horario guardado previamente
+    func loadSavedSchedule() {
+        // Load previously saved schedule
         if let saved = try? localStore.load() {
             self.schedule = saved
             if !saved.days.isEmpty {
                 self.state = .parsed
             }
-            print("Init saved schedule with \(saved.days.count) days")
+            print("Loaded saved schedule with \(saved.days.count) days")
         } else {
-            print("Init no saved schedule found")
+            print("No saved schedule found")
         }
     }
 
