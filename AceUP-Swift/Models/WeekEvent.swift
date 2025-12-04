@@ -183,6 +183,34 @@ struct WeekEventFilter: Equatable {
         )
     }
     
+    /// Restore filter from saved dictionary
+    static func from(dictionary: [String: Any]) -> WeekEventFilter {
+        let eventTypeStrings = dictionary["eventTypes"] as? [String] ?? []
+        let eventTypes = Set(eventTypeStrings.compactMap { WeekEventType(rawValue: $0) })
+        
+        let courseIds = Set(dictionary["courseIds"] as? [String] ?? [])
+        
+        let statusStrings = dictionary["statuses"] as? [String] ?? []
+        let statuses = Set(statusStrings.compactMap { EventStatus(rawValue: $0) })
+        
+        let showOverlapping = dictionary["showOverlapping"] as? Bool ?? true
+        let showFreeTime = dictionary["showFreeTime"] as? Bool ?? false
+        
+        // Return default if data is invalid
+        if eventTypes.isEmpty || statuses.isEmpty {
+            return .default
+        }
+        
+        return WeekEventFilter(
+            eventTypes: eventTypes,
+            courseIds: courseIds,
+            statuses: statuses,
+            showOverlapping: showOverlapping,
+            showFreeTime: showFreeTime,
+            searchQuery: ""
+        )
+    }
+    
     func matches(_ event: WeekEvent) -> Bool {
         // Type filter
         guard eventTypes.contains(event.type) else { return false }

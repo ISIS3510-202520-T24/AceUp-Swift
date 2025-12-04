@@ -82,6 +82,27 @@ class UserPreferencesManager: ObservableObject {
         didSet { UserDefaults.standard.set(workloadAnalysisEnabled, forKey: Keys.workloadAnalysisEnabled) }
     }
     
+    // Week View Preferences
+    @Published var lastViewedWeekStart: Date? {
+        didSet { 
+            if let date = lastViewedWeekStart {
+                UserDefaults.standard.set(date, forKey: Keys.lastViewedWeekStart)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Keys.lastViewedWeekStart)
+            }
+        }
+    }
+    
+    @Published var lastSelectedDate: Date? {
+        didSet { 
+            if let date = lastSelectedDate {
+                UserDefaults.standard.set(date, forKey: Keys.lastSelectedDate)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Keys.lastSelectedDate)
+            }
+        }
+    }
+    
     // MARK: - Private Properties
     
     private let userDefaults = UserDefaults.standard
@@ -107,6 +128,11 @@ class UserPreferencesManager: ObservableObject {
         static let firstLaunch = "firstLaunch"
         static let onboardingCompleted = "onboardingCompleted"
         static let lastAppVersion = "lastAppVersion"
+        
+        // Week View Preferences
+        static let lastViewedWeekStart = "lastViewedWeekStart"
+        static let lastSelectedDate = "lastSelectedDate"
+        static let weekViewFilter = "weekViewFilter"
     }
     
     // MARK: - Initialization
@@ -129,6 +155,10 @@ class UserPreferencesManager: ObservableObject {
         self.defaultCourseColor = userDefaults.string(forKey: Keys.defaultCourseColor) ?? "#122C4A"
         self.enableSmartSuggestions = userDefaults.object(forKey: Keys.enableSmartSuggestions) as? Bool ?? true
         self.workloadAnalysisEnabled = userDefaults.object(forKey: Keys.workloadAnalysisEnabled) as? Bool ?? true
+        
+        // Week View Preferences
+        self.lastViewedWeekStart = userDefaults.object(forKey: Keys.lastViewedWeekStart) as? Date
+        self.lastSelectedDate = userDefaults.object(forKey: Keys.lastSelectedDate) as? Date
         
         // Apply current theme on initialization
         applyTheme()
@@ -196,6 +226,30 @@ class UserPreferencesManager: ObservableObject {
     /// Update stored app version
     func updateAppVersion() {
         userDefaults.set(currentAppVersion, forKey: Keys.lastAppVersion)
+    }
+    
+    // MARK: - Week View Preferences
+    
+    /// Save week view filter
+    func saveWeekViewFilter(eventTypes: [String], courseIds: [String], statuses: [String], showOverlapping: Bool, showFreeTime: Bool) {
+        let filterData: [String: Any] = [
+            "eventTypes": eventTypes,
+            "courseIds": courseIds,
+            "statuses": statuses,
+            "showOverlapping": showOverlapping,
+            "showFreeTime": showFreeTime
+        ]
+        userDefaults.set(filterData, forKey: Keys.weekViewFilter)
+    }
+    
+    /// Load week view filter
+    func loadWeekViewFilter() -> [String: Any]? {
+        return userDefaults.dictionary(forKey: Keys.weekViewFilter)
+    }
+    
+    /// Clear week view filter
+    func clearWeekViewFilter() {
+        userDefaults.removeObject(forKey: Keys.weekViewFilter)
     }
     
     // MARK: - Theme Management

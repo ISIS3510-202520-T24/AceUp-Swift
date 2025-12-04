@@ -30,6 +30,7 @@ class WeekViewModel: ObservableObject {
     // MARK: - Dependencies
     
     private let persistenceController: PersistenceController
+    private let preferencesManager = UserPreferencesManager.shared
     private let scheduleStore = ScheduleLocalStore.shared
     private let offlineManager = OfflineManager.shared
     private var cancellables = Set<AnyCancellable>()
@@ -42,6 +43,20 @@ class WeekViewModel: ObservableObject {
     
     init(persistenceController: PersistenceController? = nil) {
         self.persistenceController = persistenceController ?? PersistenceController.shared
+        
+        // Load saved preferences
+        if let savedWeekStart = preferencesManager.lastViewedWeekStart {
+            self.currentWeekStart = savedWeekStart
+        }
+        if let savedDate = preferencesManager.lastSelectedDate {
+            self.selectedDate = savedDate
+        }
+        
+        // Load saved filter if available
+        if let savedFilter = preferencesManager.loadWeekViewFilter() {
+            self.filter = WeekEventFilter.from(dictionary: savedFilter)
+        }
+        
         Task { @MainActor in
             self.setupObservers()
         }
@@ -82,6 +97,8 @@ class WeekViewModel: ObservableObject {
     func nextWeek() {
         currentWeekStart = Calendar.current.date(byAdding: .weekOfYear, value: 1, to: currentWeekStart) ?? currentWeekStart
         selectedDate = currentWeekStart
+        preferencesManager.lastViewedWeekStart = currentWeekStart
+        preferencesManager.lastSelectedDate = selectedDate
         Task {
             await loadWeek()
         }
@@ -91,6 +108,8 @@ class WeekViewModel: ObservableObject {
     func previousWeek() {
         currentWeekStart = Calendar.current.date(byAdding: .weekOfYear, value: -1, to: currentWeekStart) ?? currentWeekStart
         selectedDate = currentWeekStart
+        preferencesManager.lastViewedWeekStart = currentWeekStart
+        preferencesManager.lastSelectedDate = selectedDate
         Task {
             await loadWeek()
         }
@@ -100,6 +119,8 @@ class WeekViewModel: ObservableObject {
     func goToToday() {
         currentWeekStart = Date().startOfWeek()
         selectedDate = Date()
+        preferencesManager.lastViewedWeekStart = currentWeekStart
+        preferencesManager.lastSelectedDate = selectedDate
         Task {
             await loadWeek()
         }
@@ -108,11 +129,13 @@ class WeekViewModel: ObservableObject {
     /// Select a specific date
     func selectDate(_ date: Date) {
         selectedDate = date
+        preferencesManager.lastSelectedDate = date
         
         // If date is outside current week, navigate to that week
         let weekEnd = currentWeekStart.endOfWeek()
         if date < currentWeekStart || date > weekEnd {
             currentWeekStart = date.startOfWeek()
+            preferencesManager.lastViewedWeekStart = currentWeekStart
             Task {
                 await loadWeek()
             }
@@ -122,6 +145,18 @@ class WeekViewModel: ObservableObject {
     /// Update filter and reload
     func updateFilter(_ newFilter: WeekEventFilter) {
         filter = newFilter
+        
+        // Save filter to preferences
+        let eventTypeStrings = newFilter.eventTypes.map { $0.rawValue }
+        let statusStrings = newFilter.statuses.map { $0.rawValue }
+        preferencesManager.saveWeekViewFilter(
+            eventTypes: eventTypeStrings,
+            courseIds: Array(newFilter.courseIds),
+            statuses: statusStrings,
+            showOverlapping: newFilter.showOverlapping,
+            showFreeTime: newFilter.showFreeTime
+        )
+        
         applyFilter()
     }
     
