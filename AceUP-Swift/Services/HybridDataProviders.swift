@@ -1,6 +1,7 @@
 import Foundation
 import FirebaseAuth
 import FirebaseFirestore
+import CoreData
 import UIKit
 
 // MARK: - Unified Hybrid Data Providers with Centralized Caching
@@ -1300,15 +1301,19 @@ enum TeacherPendingOp: Codable {
     }
 }
 
-// Core Data provider for Teachers using NSCache for offline storage
+// Core Data provider for Teachers with persistent storage + NSCache for performance
 @MainActor
 class CoreDataTeacherDataProvider {
-    // NSCache for in-memory teacher storage with automatic eviction
+    // NSCache for fast in-memory access (performance layer on top of Core Data)
     private let cache = NSCache<NSString, TeacherCacheBox>()
-    private let cacheKey: NSString = "allTeachers"
+    private let persistenceController = PersistenceController.shared
     
     private var currentUserId: String {
         Auth.auth().currentUser?.uid ?? "anonymous"
+    }
+    
+    private var context: NSManagedObjectContext {
+        persistenceController.container.viewContext
     }
     
     init() {
@@ -1319,24 +1324,82 @@ class CoreDataTeacherDataProvider {
     }
     
     func fetchAll() async throws -> [Teacher] {
-        // Check NSCache first
-        if let box = cache.object(forKey: "\(cacheKey)_\(currentUserId)" as NSString) {
+        // Check NSCache first for performance
+        let cacheKey = "\(currentUserId)_teachers" as NSString
+        if let box = cache.object(forKey: cacheKey) {
             return box.teachers
         }
         
-        // If not in cache, return empty array
-        return []
+        // Fetch from Core Data (persistent storage)
+        let request = NSFetchRequest<TeacherEntity>(entityName: "TeacherEntity")
+        request.predicate = NSPredicate(format: "userId == %@", currentUserId)
+        request.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+        
+        let entities = try context.fetch(request)
+        let teachers = entities.compactMap { entity -> Teacher? in
+            guard let id = entity.id,
+                  let userId = entity.userId,
+                  let name = entity.name,
+                  let createdAt = entity.createdAt,
+                  let updatedAt = entity.updatedAt else {
+                return nil
+            }
+            
+            // Parse linkedCourseIds from comma-separated string
+            let linkedCourseIds = (entity.linkedCourseIds ?? "")
+                .split(separator: ",")
+                .map { String($0) }
+                .filter { !$0.isEmpty }
+            
+            return Teacher(
+                id: id,
+                userId: userId,
+                name: name,
+                email: entity.email,
+                phoneNumber: entity.phoneNumber,
+                officeLocation: entity.officeLocation,
+                officeHours: entity.officeHours,
+                department: entity.department,
+                linkedCourseIds: linkedCourseIds,
+                notes: entity.notes,
+                createdAt: createdAt,
+                updatedAt: updatedAt
+            )
+        }
+        
+        // Cache in NSCache for fast subsequent access
+        let box = TeacherCacheBox(teachers)
+        cache.setObject(box, forKey: cacheKey)
+        
+        return teachers
     }
     
     func save(_ teacher: Teacher) async throws {
-        var teachers = try await fetchAll()
-        // Remove existing if any
-        teachers.removeAll { $0.id == teacher.id }
-        // Add new/updated teacher
-        teachers.append(teacher)
-        // Save to NSCache
-        let box = TeacherCacheBox(teachers)
-        cache.setObject(box, forKey: "\(cacheKey)_\(currentUserId)" as NSString)
+        // Save to Core Data (persistent)
+        let request = NSFetchRequest<TeacherEntity>(entityName: "TeacherEntity")
+        request.predicate = NSPredicate(format: "id == %@ AND userId == %@", teacher.id, currentUserId)
+        
+        let existing = try context.fetch(request).first
+        let entity = existing ?? TeacherEntity(context: context)
+        
+        entity.id = teacher.id
+        entity.userId = teacher.userId
+        entity.name = teacher.name
+        entity.email = teacher.email
+        entity.phoneNumber = teacher.phoneNumber
+        entity.officeLocation = teacher.officeLocation
+        entity.officeHours = teacher.officeHours
+        entity.department = teacher.department
+        entity.linkedCourseIds = teacher.linkedCourseIds.joined(separator: ",")
+        entity.notes = teacher.notes
+        entity.createdAt = teacher.createdAt
+        entity.updatedAt = teacher.updatedAt
+        
+        try context.save()
+        
+        // Invalidate cache to force refresh on next fetch
+        let cacheKey = "\(currentUserId)_teachers" as NSString
+        cache.removeObject(forKey: cacheKey)
     }
     
     func update(_ teacher: Teacher) async throws {
@@ -1344,13 +1407,35 @@ class CoreDataTeacherDataProvider {
     }
     
     func delete(_ id: String) async throws {
-        var teachers = try await fetchAll()
-        teachers.removeAll { $0.id == id }
-        let box = TeacherCacheBox(teachers)
-        cache.setObject(box, forKey: "\(cacheKey)_\(currentUserId)" as NSString)
+        // Delete from Core Data (persistent)
+        let request = NSFetchRequest<TeacherEntity>(entityName: "TeacherEntity")
+        request.predicate = NSPredicate(format: "id == %@ AND userId == %@", id, currentUserId)
+        
+        let entities = try context.fetch(request)
+        for entity in entities {
+            context.delete(entity)
+        }
+        
+        try context.save()
+        
+        // Invalidate cache
+        let cacheKey = "\(currentUserId)_teachers" as NSString
+        cache.removeObject(forKey: cacheKey)
     }
     
     func clear() {
+        // Clear Core Data
+        let request = NSFetchRequest<TeacherEntity>(entityName: "TeacherEntity")
+        request.predicate = NSPredicate(format: "userId == %@", currentUserId)
+        
+        if let entities = try? context.fetch(request) {
+            for entity in entities {
+                context.delete(entity)
+            }
+            try? context.save()
+        }
+        
+        // Clear cache
         cache.removeAllObjects()
     }
 }
