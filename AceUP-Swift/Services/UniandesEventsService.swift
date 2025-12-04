@@ -106,7 +106,7 @@ class UniandesEventsService: ObservableObject {
         savePreferences(prefs)
     }
     
-    // MARK: - Cache Management (UserDefaults, NO CoreData)
+    // MARK: - Cache Management (Doble persistencia: UserDefaults + File)
     
     private func saveToCache(_ events: [UniandesEvent]) {
         let expiresAt = Date().addingTimeInterval(cacheExpirationInterval)
@@ -116,18 +116,114 @@ class UniandesEventsService: ObservableObject {
             expiresAt: expiresAt
         )
         
+        // OPCIÓN 1: UserDefaults (memoria + .plist)
         if let encoded = try? JSONEncoder().encode(cache) {
             UserDefaults.standard.set(encoded, forKey: cacheKey)
-            print("Eventos guardados en cache (expira en 1h)")
+            print("Eventos guardados en UserDefaults")
         }
+        
+        // OPCIÓN 2: Archivo JSON directo (FileManager)
+        saveToFile(cache)
     }
     
     private func loadFromCache() -> EventsCache? {
-        guard let data = UserDefaults.standard.data(forKey: cacheKey),
-              let cache = try? JSONDecoder().decode(EventsCache.self, from: data) else {
+        // OPCIÓN 1: Intentar cargar desde UserDefaults
+        if let data = UserDefaults.standard.data(forKey: cacheKey),
+           let cache = try? JSONDecoder().decode(EventsCache.self, from: data) {
+            print("Cache cargado desde UserDefaults")
+            return cache
+        }
+        
+        // OPCIÓN 2: Fallback - Intentar cargar desde archivo
+        if let fileCache = loadFromFile() {
+            print("Cache cargado desde archivo JSON")
+            return fileCache
+        }
+        
+        return nil
+    }
+    
+    // MARK: - File Management (Archivos Locales con FileManager)
+    
+    private func saveToFile(_ cache: EventsCache) {
+        let fileURL = getFileURL()
+        
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = .prettyPrinted
+        
+        do {
+            let data = try encoder.encode(cache)
+            try data.write(to: fileURL, options: [.atomic, .completeFileProtection])
+            
+            // Obtener tamaño del archivo
+            let fileSize = try FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int ?? 0
+            let sizeKB = Double(fileSize) / 1024.0
+            
+            print("Cache guardado en archivo JSON")
+            print("Ubicación: \(fileURL.path)")
+            print("Tamaño: \(String(format: "%.2f", sizeKB)) KB")
+            print("Eventos guardados: \(cache.events.count)")
+        } catch {
+            print("Error guardando archivo: \(error.localizedDescription)")
+        }
+    }
+    
+    private func loadFromFile() -> EventsCache? {
+        let fileURL = getFileURL()
+        
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            print("Archivo de cache no existe")
             return nil
         }
-        return cache
+        
+        do {
+            let data = try Data(contentsOf: fileURL)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let cache = try decoder.decode(EventsCache.self, from: data)
+            
+            print("Cache leído desde archivo: \(cache.events.count) eventos")
+            return cache
+        } catch {
+            print("Error leyendo archivo: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    private func getFileURL() -> URL {
+        let documentsDirectory = FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return documentsDirectory.appendingPathComponent("uniandes_events_cache.json")
+    }
+    
+    // Método para debugging - muestra info del archivo
+    func getCacheFileInfo() -> String? {
+        let fileURL = getFileURL()
+        
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return "No existe archivo de cache"
+        }
+        
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+            let fileSize = attributes[.size] as? Int ?? 0
+            let modificationDate = attributes[.modificationDate] as? Date ?? Date()
+            
+            let sizeKB = Double(fileSize) / 1024.0
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateStyle = .short
+            dateFormatter.timeStyle = .short
+            
+            return """
+            Archivo: uniandes_events_cache.json
+            Ruta: \(fileURL.path)
+            Tamaño: \(String(format: "%.2f", sizeKB)) KB
+            Modificado: \(dateFormatter.string(from: modificationDate))
+            """
+        } catch {
+            return "Error obteniendo info: \(error.localizedDescription)"
+        }
     }
     
     private func savePreferences(_ prefs: EventUserPreferences) {
