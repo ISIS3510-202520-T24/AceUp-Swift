@@ -6,8 +6,8 @@ struct StoredSchedule: Codable {
     var schedule: Schedule
 }
 
-/// DataStore local
-final class ScheduleLocalStore: Sendable {
+/// DataStore local - Thread-safe usando actor
+actor ScheduleLocalStore {
     static let shared = ScheduleLocalStore()
 
     private let fileURL: URL
@@ -22,13 +22,13 @@ final class ScheduleLocalStore: Sendable {
         decoder.dateDecodingStrategy = .iso8601
     }
 
-    func save(_ schedule: Schedule) throws {
+    func save(_ schedule: Schedule) async throws {
         let wrapper = StoredSchedule(updatedAt: Date(), schedule: schedule)
         let data = try encoder.encode(wrapper)
         try data.write(to: fileURL, options: [.atomic])
     }
 
-    func load() throws -> Schedule? {
+    func load() async throws -> Schedule? {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             return nil
         }
@@ -37,7 +37,7 @@ final class ScheduleLocalStore: Sendable {
         return wrapper.schedule
     }
 
-    func delete() throws {
+    func delete() async throws {
         if FileManager.default.fileExists(atPath: fileURL.path) {
             try FileManager.default.removeItem(at: fileURL)
         }

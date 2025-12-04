@@ -9,8 +9,8 @@ struct CourseDetailView: View {
     @State private var assignments: [Assignment] = []
     @State private var isLoadingAssignments = false
     
-    // ahora podemos usar el hybrid provider
-    private let assignmentRepo: AssignmentRepositoryProtocol
+    // repository inicializado de forma lazy
+    @State private var assignmentRepo: AssignmentRepositoryProtocol?
     
     // tab seleccionado
     @State private var selectedTab: CourseTab = .schedule
@@ -24,8 +24,7 @@ struct CourseDetailView: View {
     
     init(course: CourseInfo) {
         self.course = course
-        let provider = DataSynchronizationManager.shared.getAssignmentProvider()
-        self.assignmentRepo = AssignmentRepository(dataProvider: provider)
+        // Inicialización lazy del repository - se obtiene en task
     }
     
     var body: some View {
@@ -95,14 +94,28 @@ struct CourseDetailView: View {
     }
     
     private func loadAssignments() async {
+        // Inicializar repository si no existe
+        if assignmentRepo == nil {
+            let provider = await Task.detached {
+                await DataSynchronizationManager.shared.getAssignmentProvider()
+            }.value
+            assignmentRepo = AssignmentRepository(dataProvider: provider)
+        }
+        
+        guard let repo = assignmentRepo else {
+            print("Assignment repository not available")
+            return
+        }
+        
         isLoadingAssignments = true
+        defer { isLoadingAssignments = false }
+        
         do {
-            let allAssignments = try await assignmentRepo.getAllAssignments()
+            let allAssignments = try await repo.getAllAssignments()
             assignments = allAssignments.filter { $0.courseName == course.name }
         } catch {
             print("Error loading assignments: \(error)")
         }
-        isLoadingAssignments = false
     }
     
     private var timetableSection: some View {
@@ -116,7 +129,7 @@ struct CourseDetailView: View {
                         return false
                     }
                     return indexA < indexB
-                }), id: \.self) { session in
+                })) { session in
                     HStack {
                         // dia
                         Text(session.weekday.display)
@@ -350,8 +363,16 @@ struct AddGradeItemView: View {
                     TextField("Name (e.g., Midterm 1)", text: $name)
                     TextField("Weight % (e.g., 30)", text: $weight)
                         .keyboardType(.decimalPad)
+                        .onChange(of: weight) { newValue in
+                            // Reemplazar coma por punto para decimales
+                            weight = newValue.replacingOccurrences(of: ",", with: ".")
+                        }
                     TextField("Grade (e.g., 4.5)", text: $grade)
                         .keyboardType(.decimalPad)
+                        .onChange(of: grade) { newValue in
+                            // Reemplazar coma por punto para decimales
+                            grade = newValue.replacingOccurrences(of: ",", with: ".")
+                        }
                 }
             }
             .navigationTitle("Add Grade Item")

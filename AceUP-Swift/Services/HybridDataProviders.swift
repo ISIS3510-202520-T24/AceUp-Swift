@@ -1461,7 +1461,7 @@ final class HybridScheduleDataProvider {
         }
         
         // 2) Intentar desde disco (ScheduleLocalStore)
-        if let saved = try? localStore.load() {
+        if let saved = try? await localStore.load() {
             memoryCache.setObject(ScheduleCacheBox(saved), forKey: cacheKey)
             // Refrescar en background desde remoto
             Task { await self.refreshFromRemoteIfNeeded(localSchedule: saved) }
@@ -1472,7 +1472,7 @@ final class HybridScheduleDataProvider {
         // 3) Intentar desde Firestore
         if let remote = await fetchRemoteSchedule() {
             // guardar en local + NSCache
-            do { try localStore.save(remote) } catch {
+            do { try await localStore.save(remote) } catch {
                 print("HybridScheduleDataProvider.loadSchedule -> failed to cache remote:", error)
             }
             memoryCache.setObject(ScheduleCacheBox(remote), forKey: cacheKey)
@@ -1496,7 +1496,7 @@ final class HybridScheduleDataProvider {
         
         // 2) Guardar en disco
         do {
-            try localStore.save(schedule)
+            try await localStore.save(schedule)
             print("HybridScheduleDataProvider.saveSchedule -> saved locally with \(schedule.days.count) days")
         } catch {
             print("HybridScheduleDataProvider.saveSchedule -> local save failed:", error)
@@ -1536,7 +1536,7 @@ final class HybridScheduleDataProvider {
         
         // 2) LocalStore
         do {
-            try localStore.delete()
+            try await localStore.delete()
         } catch {
             print("HybridScheduleDataProvider.clearSchedule -> local delete failed:", error)
         }
@@ -1592,7 +1592,7 @@ final class HybridScheduleDataProvider {
         guard remote != localSchedule else { return }
         
         do {
-            try localStore.save(remote)
+            try await localStore.save(remote)
             memoryCache.setObject(ScheduleCacheBox(remote), forKey: cacheKey)
             print("HybridScheduleDataProvider.refreshFromRemoteIfNeeded -> updated local cache from remote")
         } catch {

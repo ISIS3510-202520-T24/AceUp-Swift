@@ -15,7 +15,9 @@ struct PlannerView: View {
                 VStack(spacing: 0) {
                     topBar
                     
-                    if viewModel.courses.isEmpty {
+                    if viewModel.isLoading {
+                        loadingView
+                    } else if viewModel.courses.isEmpty {
                         emptyState
                     } else {
                         courseList
@@ -26,8 +28,13 @@ struct PlannerView: View {
             .navigationDestination(item: $selectedCourse) { course in
                 CourseDetailView(course: course)
             }
-            .onAppear {
-                viewModel.loadCourses()
+            .task {
+                // Usar .task en lugar de .onAppear para async
+                await viewModel.loadCourses()
+            }
+            .refreshable {
+                // Pull-to-refresh para recargar
+                await viewModel.loadCourses()
             }
         }
     }
@@ -48,6 +55,15 @@ struct PlannerView: View {
         }
         .padding()
         .background(Color.white)
+    }
+    
+    private var loadingView: some View {
+        VStack {
+            Spacer()
+            ProgressView("Loading classes...")
+                .tint(UI.primary)
+            Spacer()
+        }
     }
     
     private var emptyState: some View {

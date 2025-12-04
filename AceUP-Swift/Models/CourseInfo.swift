@@ -10,15 +10,30 @@ struct CourseInfo: Identifiable, Hashable {
     var sessions: [ClassSession]
     
     init(name: String, color: String = "#122C4A") {
-        self.id = UUID().uuidString
+        // ID determinístico basado en el nombre normalizado para estabilidad en ForEach
+        self.id = Self.normalizeCourseName(name)
         self.name = name
         self.color = color
         self.sessions = []
     }
+    
+    // Normaliza el nombre del curso para generar un ID estable
+    private static func normalizeCourseName(_ name: String) -> String {
+        name
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: " ", with: "_")
+            .replacingOccurrences(of: "[^a-z0-9_]", with: "", options: .regularExpression)
+    }
 }
 
 // representa una sesion de clase con dia y hora
-struct ClassSession: Hashable {
+struct ClassSession: Identifiable, Hashable {
+    // ID estable basado en weekday+start+end para ForEach
+    var id: String {
+        "\(weekday.rawValue)_\(start)_\(end)"
+    }
+    
     let weekday: Weekday
     let start: String
     let end: String

@@ -4,27 +4,57 @@ import Combine
 @MainActor
 class PlannerViewModel: ObservableObject {
     @Published var courses: [CourseInfo] = []
+    @Published var isLoading = false
     
     private let scheduleStore = ScheduleLocalStore.shared
-    private let assignmentRepo: AssignmentRepositoryProtocol
+    private var assignmentRepo: AssignmentRepositoryProtocol?
     
     init() {
-        // ahora podemos usar el hybrid provider sin problemas
-        let provider = DataSynchronizationManager.shared.getAssignmentProvider()
-        self.assignmentRepo = AssignmentRepository(dataProvider: provider)
+        // Inicialización sincrónica - el provider se obtiene async en loadCourses
     }
     
-    func loadCourses() {
-        // cargamos el schedule guardado
-        let schedule: Schedule
-        do {
-            schedule = try scheduleStore.load() ?? Schedule.empty
-        } catch {
-            print("Error loading schedule: \(error)")
-            schedule = Schedule.empty
+    /// Carga los cursos de forma asíncrona en background thread
+    func loadCourses() async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        // 1. Obtener provider de forma async si no existe
+        if assignmentRepo == nil {
+            await initializeRepository()
         }
         
-        // agrupamos las sesiones por nombre de materia
+        // 2. Cargar schedule en background thread
+        let schedule = await Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self = self else { return Schedule.empty }
+            do {
+                return try await self.scheduleStore.load() ?? Schedule.empty
+            } catch {
+                print("Error loading schedule: \(error)")
+                return Schedule.empty
+            }
+        }.value
+        
+        // 3. Procesar en background thread
+        let processedCourses = await Task.detached(priority: .userInitiated) {
+            await Self.processCourses(from: schedule)
+        }.value
+        
+        // 4. Actualizar UI en MainActor
+        courses = processedCourses
+    }
+    
+    /// Inicializa el repositorio de forma asíncrona
+    private func initializeRepository() async {
+        // Ejecutar en background para no bloquear el MainActor
+        let provider = await Task.detached {
+            await DataSynchronizationManager.shared.getAssignmentProvider()
+        }.value
+        
+        assignmentRepo = AssignmentRepository(dataProvider: provider)
+    }
+    
+    /// Procesa el schedule y agrupa por materias (ejecutado en background)
+    private static func processCourses(from schedule: Schedule) -> [CourseInfo] {
         var courseDict: [String: CourseInfo] = [:]
         
         for day in schedule.days {
@@ -61,13 +91,23 @@ class PlannerViewModel: ObservableObject {
         }
         
         // convertimos a array y ordenamos por nombre
-        courses = courseDict.values.sorted { $0.name < $1.name }
+        return courseDict.values.sorted { $0.name < $1.name }
     }
     
     func getAssignments(for courseName: String) async -> [Assignment] {
+        // Asegurarse de que el repo esté inicializado
+        if assignmentRepo == nil {
+            await initializeRepository()
+        }
+        
+        guard let repo = assignmentRepo else {
+            print("Assignment repository not initialized")
+            return []
+        }
+        
         // traemos todas las tareas y filtramos por nombre de materia
         do {
-            let allAssignments = try await assignmentRepo.getAllAssignments()
+            let allAssignments = try await repo.getAllAssignments()
             return allAssignments.filter { $0.courseName == courseName }
         } catch {
             print("Error loading assignments: \(error)")
