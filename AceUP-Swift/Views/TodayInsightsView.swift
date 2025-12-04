@@ -110,9 +110,9 @@ struct TodayInsightsView: View {
         }
         .task {
             // Cargamos el streak y las insights
-            async let _ = loadInitialStudyStreak()
-            async let _ = insightsAnalytics.generateTodaysInsights()
-            _ = await ()
+            async let streakLoad: Void = loadInitialStudyStreak()
+            async let insightsLoad: Void = insightsAnalytics.generateTodaysInsights()
+            _ = await (streakLoad, insightsLoad)
         }
         .alert("Sin conexión",
                isPresented: $showOfflineAlert,

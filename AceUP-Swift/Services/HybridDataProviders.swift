@@ -1313,7 +1313,7 @@ class CoreDataTeacherDataProvider {
     }
     
     private var context: NSManagedObjectContext {
-        persistenceController.container.viewContext
+        persistenceController.persistentContainer.viewContext
     }
     
     init() {
@@ -1379,8 +1379,8 @@ class CoreDataTeacherDataProvider {
         let request = NSFetchRequest<TeacherEntity>(entityName: "TeacherEntity")
         request.predicate = NSPredicate(format: "id == %@ AND userId == %@", teacher.id, currentUserId)
         
-        let existing = try context.fetch(request).first
-        let entity = existing ?? TeacherEntity(context: context)
+        let existingEntities = try context.fetch(request)
+        let entity = existingEntities.first ?? TeacherEntity(context: context)
         
         entity.id = teacher.id
         entity.userId = teacher.userId
@@ -1428,11 +1428,14 @@ class CoreDataTeacherDataProvider {
         let request = NSFetchRequest<TeacherEntity>(entityName: "TeacherEntity")
         request.predicate = NSPredicate(format: "userId == %@", currentUserId)
         
-        if let entities = try? context.fetch(request) {
+        do {
+            let entities = try context.fetch(request)
             for entity in entities {
                 context.delete(entity)
             }
-            try? context.save()
+            try context.save()
+        } catch {
+            print("❌ Failed to clear teachers from Core Data: \(error)")
         }
         
         // Clear cache
