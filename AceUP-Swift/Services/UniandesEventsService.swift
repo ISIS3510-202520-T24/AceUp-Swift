@@ -8,11 +8,10 @@
 
 import Foundation
 
-@MainActor
 class UniandesEventsService: ObservableObject {
     
-    @Published var isLoading = false
-    @Published var errorMessage: String?
+    @Published @MainActor var isLoading = false
+    @Published @MainActor var errorMessage: String?
     
     private let cacheExpirationInterval: TimeInterval = 3600 // 1 hora
     private let cacheKey = "uniandes_events_cache"
@@ -49,8 +48,8 @@ class UniandesEventsService: ObservableObject {
     
     // MARK: - Fetch Events
     func fetchEvents(forceRefresh: Bool = false) async -> [UniandesEvent] {
-        isLoading = true
-        defer { isLoading = false }
+        await MainActor.run { isLoading = true }
+        defer { Task { @MainActor in isLoading = false } }
         
         // NIVEL 1: NSCache en memoria (más rápido - LRU)
         if !forceRefresh, let cache = loadFromMemoryCache(), !cache.isExpired {
@@ -75,7 +74,7 @@ class UniandesEventsService: ObservableObject {
             return applyUserPreferences(to: cache.events)
         }
         
-        // NIVEL 4: Network (API)
+        // NIVEL 4: Network (API) - ejecutado en background
         do {
             let events = try await scrapeEvents()
             if !events.isEmpty {
@@ -84,7 +83,9 @@ class UniandesEventsService: ObservableObject {
             }
         } catch {
             print("⚠️ Error scraping: \(error.localizedDescription)")
-            errorMessage = "No se pudieron cargar los eventos"
+            await MainActor.run {
+                errorMessage = "No se pudieron cargar los eventos"
+            }
         }
         
         // NIVEL 5: Cache expirado (mejor que nada)
