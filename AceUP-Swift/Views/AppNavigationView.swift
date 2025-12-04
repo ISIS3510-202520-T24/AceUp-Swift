@@ -117,6 +117,13 @@ struct AppNavigationView: View {
                                 isSidebarPresented.toggle()
                             }
                         })
+                    
+                    case .events:
+                        UniandesEventsView(onMenuTapped: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                isSidebarPresented.toggle()
+                            }
+                        })
                         
                     case .profile:
                         ProfileView(onMenuTapped: {

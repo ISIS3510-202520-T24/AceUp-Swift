@@ -147,6 +147,11 @@ struct SidebarView: View {
                                          isSelected: selectedView == .holidays) {
                                 selectedView = .holidays; isPresented = false
                             }
+                            
+                            MenuItemView(icon: nil, title: "Eventos Uniandes",
+                                         isSelected: selectedView == .events) {
+                                selectedView = .events; isPresented = false
+                            }
                         }
 
                         // Settings fijo al final del scroll
@@ -259,6 +264,7 @@ enum AppView {
     case assignments
     case teachers
     case holidays
+    case events
     case profile
     case settings
     case scheduleOCR
