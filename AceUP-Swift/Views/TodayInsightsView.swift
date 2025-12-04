@@ -10,9 +10,19 @@ import SwiftUI
 /// Enhanced insights view that integrates with TodayInsightsAnalytics service
 /// Provides smart insights, analytics, and personalized recommendations for students
 struct TodayInsightsView: View {
+    
+    // Agregue esta monda
+    private let unified = UnifiedHybridDataProviders.shared
+    private let offlineManager = OfflineManager.shared
+    
     @StateObject private var insightsAnalytics = TodayInsightsAnalytics()
     @State private var isRefreshing = false
     @State private var selectedInsight: TodayInsight?
+    
+    //Study Streak
+    @State private var studyStreakSummary: StudyStreak = .empty
+    @State private var isLoadingStudyStreak: Bool = false
+    @State private var showOfflineAlert: Bool = false
     
     var body: some View {
         ScrollView {
@@ -88,6 +98,9 @@ struct TodayInsightsView: View {
                 if !insightsAnalytics.todaysInsights.isEmpty {
                     TodaysInsightsSummary(insights: insightsAnalytics.todaysInsights)
                 }
+                
+                //Study streak card
+                streakCard
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 100) // Extra padding for FAB
@@ -95,11 +108,21 @@ struct TodayInsightsView: View {
         .refreshable {
             await refreshInsights()
         }
-        .onAppear {
-            Task {
-                await insightsAnalytics.generateTodaysInsights()
-            }
+        .task {
+            // Cargamos el streak y las insights
+            async let _ = loadInitialStudyStreak()
+            async let _ = insightsAnalytics.generateTodaysInsights()
+            _ = await ()
         }
+        .alert("Sin conexión",
+               isPresented: $showOfflineAlert,
+               actions: {
+            Button("OK", role: .cancel) { }
+        },
+               message: {
+            Text("No se puede verificar la racha porque estás offline. Mostramos el último resultado guardado.")
+        }
+        )
     }
     
     // MARK: - Views
@@ -138,6 +161,80 @@ struct TodayInsightsView: View {
         await insightsAnalytics.refreshInsights()
         try? await Task.sleep(nanoseconds: 500_000_000) // Small delay for smooth animation
         isRefreshing = false
+    }
+    // MARK: - Study Streak Card
+    private var streakCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Study streak")
+                    .font(.headline)
+                    .foregroundColor(UI.navy)
+
+                Spacer()
+
+                if isLoadingStudyStreak {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                }
+            }
+
+            Text("Racha actual: \(studyStreakSummary.currentStreakDays) días")
+                .font(.subheadline)
+                .foregroundColor(UI.navy)
+
+            Text("Racha más larga: \(studyStreakSummary.longestStreakDays) días")
+                .font(.caption)
+                .foregroundColor(UI.muted)
+
+            Text("Completado esta semana: \(studyStreakSummary.assignmentsCompletedThisWeek)")
+                .font(.caption)
+                .foregroundColor(UI.muted)
+
+            if let last = studyStreakSummary.lastActivityDate {
+                Text("Última actividad: \(last.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.caption2)
+                    .foregroundColor(UI.muted)
+            }
+
+            Button(action: {
+                verifyStreakTapped()
+            }) {
+                Text(isLoadingStudyStreak ? "Verificando..." : "Verificar racha")
+                    .font(.subheadline.bold())
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isLoadingStudyStreak)
+            .padding(.top, 4)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+        )
+    }
+    // MARK: - Study Streak Logic
+
+    private func loadInitialStudyStreak() async {
+        let summary = await unified.getStudyStreakSummary(forceRefresh: false)
+        await MainActor.run {
+            self.studyStreakSummary = summary
+        }
+    }
+    private func verifyStreakTapped() {
+        guard offlineManager.isOnline else {
+            showOfflineAlert = true
+            return
+        }
+        isLoadingStudyStreak = true
+        Task {
+            let summary = await unified.getStudyStreakSummary(forceRefresh: true)
+            await MainActor.run {
+                self.studyStreakSummary = summary
+                self.isLoadingStudyStreak = false
+            }
+        }
     }
 }
 
@@ -246,7 +343,10 @@ struct ProgressAnalysisCard: View {
         case .night: return "moon.fill"
         }
     }
+    
 }
+
+
 
 struct ProgressStat: View {
     let icon: String
