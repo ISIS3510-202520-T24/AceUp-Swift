@@ -29,7 +29,7 @@ class UniandesEventsService: ObservableObject {
         
         // intentar cargar del cache primero
         if !forceRefresh, let cache = loadFromCache(), !cache.isExpired {
-            print("📦 Cargando eventos del cache")
+            print("Cargando eventos del cache")
             return applyUserPreferences(to: cache.events)
         }
         
@@ -41,13 +41,13 @@ class UniandesEventsService: ObservableObject {
                 return applyUserPreferences(to: events)
             }
         } catch {
-            print("⚠️ Error scraping: \(error.localizedDescription)")
+            print("Error scraping: \(error.localizedDescription)")
             errorMessage = "No se pudieron cargar los eventos"
         }
         
         // si falla, usar cache expirado o vacio
         if let cache = loadFromCache() {
-            print("📦 Usando cache expirado por error de scraping")
+            print("Usando cache expirado por error de scraping")
             return applyUserPreferences(to: cache.events)
         }
         
@@ -76,7 +76,7 @@ class UniandesEventsService: ObservableObject {
         
         let events = response.events.map { UniandesEvent(from: $0) }
         
-        print("🌐 Fetched \(events.count) eventos from API")
+        print("Fetched \(events.count) eventos from API")
         return events
     }
     
@@ -118,7 +118,7 @@ class UniandesEventsService: ObservableObject {
         
         if let encoded = try? JSONEncoder().encode(cache) {
             UserDefaults.standard.set(encoded, forKey: cacheKey)
-            print("💾 Eventos guardados en cache (expira en 1h)")
+            print("Eventos guardados en cache (expira en 1h)")
         }
     }
     
