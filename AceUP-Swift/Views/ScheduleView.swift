@@ -25,8 +25,7 @@ struct ScheduleView: View {
 
         _viewModel = StateObject(
             wrappedValue: ScheduleViewModel(
-                service: ScheduleOCRService(),
-                localStore: ScheduleLocalStore.shared
+                service: ScheduleOCRService()
             )
         )
     }
@@ -34,23 +33,41 @@ struct ScheduleView: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .top) {
+            // Fondo general crema (o el que tengas en UI.neutralLight)
+            UI.neutralLight
+                .ignoresSafeArea()
 
-            topBar
+            VStack(spacing: 0) {
+                topBar
 
-            ScrollView {
-                VStack(spacing: 24) {
-                    previewHeader
-                    stateMessage
-                    manualScheduleSection
-                    actionButtons
-                    saveButton
+                ScrollView {
+                    VStack(spacing: 20) {
+                        stepHeader
+
+                        card {
+                            previewHeader
+                        }
+
+                        card {
+                            stateMessage
+                        }
+
+                        card {
+                            manualScheduleSection
+                        }
+
+                        card {
+                            actionButtons
+                        }
+
+                        saveButton
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 40)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 40)
-                .padding(.bottom, 40)
             }
-            .background(UI.neutralLight)
         }
         .sheet(isPresented: $showCamera) {
             ImagePicker(sourceType: .camera) { img in
@@ -71,67 +88,110 @@ struct ScheduleView: View {
             )
         }
         .navigationBarHidden(true)
+        .onAppear {
+            viewModel.loadSavedSchedule()
+        }
     }
 
-    // MARK: - Header
+    // MARK: - Reusable Card
+
+    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack {
+            content()
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 4)
+    }
+
+    // MARK: - Header barra superior
 
     private var topBar: some View {
-        HStack {
-            Button(action: onMenuTapped) {
-                Image(systemName: "line.3.horizontal")
-                    .foregroundColor(UI.navy)
+        ZStack {
+            HStack {
+                Button(action: onMenuTapped) {
+                    Image(systemName: "line.3.horizontal")
+                        .foregroundColor(UI.navy)
+                        .font(.title2)
+                }
+
+                Spacer()
+
+                Text("Schedule")
                     .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(UI.navy)
+
+                Spacer()
+
+                // Espaciador visual para balancear el ícono del menú
+                Color.clear
+                    .frame(width: 24)
             }
+            .padding(.horizontal, 20)
+        }
+        // Altura más pequeña + respeta el safe area superior
+        .frame(height: 52)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .background(
+            Color(hex: "#B8C8DB")
+                .ignoresSafeArea(edges: .top)
+        )
+    }
 
-            Spacer()
+    // MARK: - Header de pasos
 
-            Text("Schedule")
-                .font(.title2)
-                .fontWeight(.semibold)
+    private var stepHeader: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Set up your weekly schedule")
+                .font(.headline)
                 .foregroundColor(UI.navy)
 
-            Spacer()
-
-            // Espaciador visual
-            Color.clear
-                .frame(width: 24)
+            Text("1) Capture or enter it • 2) Adjust details • 3) Save and see it in your calendar.")
+                .font(.footnote)
+                .foregroundColor(UI.muted)
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
-        .background(Color(hex: "#B8C8DB"))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Preview imagen
 
     private var previewHeader: some View {
-        Group {
-            if let image = viewModel.capturedImage {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: 220)
-                    .cornerRadius(16)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.secondary)
-                    )
-            } else {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(.secondarySystemBackground))
-                    .frame(height: 180)
-                    .overlay(
-                        VStack(spacing: 8) {
-                            Image(systemName: "camera.viewfinder")
-                                .font(.system(size: 42))
-                                .foregroundColor(UI.primary)
-                            Text("Capture a photo of your schedule")
-                                .font(.subheadline)
-                                .foregroundColor(UI.muted)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 20)
-                        }
-                    )
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Step 1 – Capture your schedule")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(UI.navy)
+
+            Group {
+                if let image = viewModel.capturedImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxHeight: 220)
+                        .cornerRadius(16)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.secondary.opacity(0.3))
+                        )
+                } else {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(.secondarySystemBackground))
+                        .frame(height: 180)
+                        .overlay(
+                            VStack(spacing: 8) {
+                                Image(systemName: "camera.viewfinder")
+                                    .font(.system(size: 42))
+                                    .foregroundColor(UI.primary)
+                                Text("Capture a photo of your timetable")
+                                    .font(.subheadline)
+                                    .foregroundColor(UI.muted)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 20)
+                            }
+                        )
+                }
             }
         }
     }
@@ -139,41 +199,41 @@ struct ScheduleView: View {
     // MARK: - Mensaje según estado
 
     private var stateMessage: some View {
-        Group {
-            switch viewModel.state {
-            case .idle, .capturing:
-                Text("Use the camera, pick a photo or enter your schedule manually.")
-                    .font(.body)
-                    .foregroundColor(UI.muted)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Step 2 – Let the AI parse it")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(UI.navy)
 
-            case .sending:
-                VStack(spacing: 12) {
-                    ProgressView("Parsing schedule with AI…")
-                    Text("We're extracting your classes, times and days.")
-                        .font(.footnote)
+            Group {
+                switch viewModel.state {
+                case .idle, .capturing:
+                    Text("Use the camera, pick a photo or enter your schedule manually. We’ll extract your classes and times for you.")
+                        .font(.body)
                         .foregroundColor(UI.muted)
-                }
 
-            case .parsed:
-                Text("Your schedule is ready. You can adjust it manually if needed, then save it to see it in the calendar.")
-                    .font(.body)
-                    .foregroundColor(UI.muted)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
+                case .sending:
+                    VStack(alignment: .leading, spacing: 8) {
+                        ProgressView("Parsing schedule with AI…")
+                        Text("We're extracting your classes, days and times.")
+                            .font(.footnote)
+                            .foregroundColor(UI.muted)
+                    }
 
-            case .error(let msg):
-                VStack(spacing: 8) {
-                    Text("Couldn't parse schedule")
-                        .font(.headline)
-                        .foregroundColor(UI.navy)
-
-                    Text(msg)
-                        .font(.footnote)
+                case .parsed:
+                    Text("Your schedule is ready. You can adjust it manually if needed before saving it to the calendar.")
+                        .font(.body)
                         .foregroundColor(UI.muted)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 20)
+
+                case .error(let msg):
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Couldn't parse schedule")
+                            .font(.headline)
+                            .foregroundColor(.red)
+
+                        Text(msg)
+                            .font(.footnote)
+                            .foregroundColor(UI.muted)
+                    }
                 }
             }
         }
@@ -182,18 +242,25 @@ struct ScheduleView: View {
     // MARK: - Botón para horario manual (crear o COMPLETAR y editar)
 
     private var manualScheduleSection: some View {
-        VStack(spacing: 8) {
-            Text("If you prefer, you can enter your schedule manually. This works even when you're offline.")
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Step 3 – Edit it manually (optional)")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(UI.navy)
+
+            Text("If you prefer, you can build or adjust your schedule by hand. This works even when you’re offline.")
                 .font(.footnote)
                 .foregroundColor(UI.muted)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 8)
 
             Button {
                 handleManualButtonTapped()
             } label: {
-                Label("Enter schedule manually", systemImage: "square.and.pencil")
+                HStack {
+                    Image(systemName: "square.and.pencil")
+                    Text("Enter / edit schedule manually")
+                }
+                .font(.subheadline.weight(.semibold))
             }
+            .buttonStyle(.borderedProminent)
         }
     }
 
@@ -208,8 +275,7 @@ struct ScheduleView: View {
                 ScheduleDay(weekday: weekday, sessions: [])
             }
         } else {
-            // 2. Si solo vino miércoles/viernes (por ejemplo),
-            //    añadimos los días faltantes vacíos
+            // 2. Añadir días faltantes vacíos
             let existingWeekdays = Set(current.days.map { $0.weekday })
             for wd in allWeekdays where !existingWeekdays.contains(wd) {
                 current.days.append(
@@ -235,22 +301,29 @@ struct ScheduleView: View {
     // MARK: - Botones de acción (camera / photos / reset)
 
     private var actionButtons: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Capture options")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(UI.navy)
+
             HStack(spacing: 12) {
                 Button {
                     showCamera = true
                 } label: {
                     Label("Use Camera", systemImage: "camera")
-                        .foregroundColor(offlineManager.isOnline ? UI.navy : UI.muted)
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(UI.navy)
                 .disabled(!offlineManager.isOnline)
+            }
 
+            HStack(spacing: 12) {
                 Button {
                     showLibrary = true
                 } label: {
                     Label("From Photos", systemImage: "photo")
-                        .foregroundColor(offlineManager.isOnline ? UI.navy : UI.muted)
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
                 .disabled(!offlineManager.isOnline)
@@ -262,10 +335,9 @@ struct ScheduleView: View {
             }
 
             if !offlineManager.isOnline {
-                Text("You are offline. You can edit your schedule manually but capturing from camera is disabled.")
+                Text("You are offline. You can edit your schedule manually, but capturing from camera or photos is disabled.")
                     .font(.footnote)
                     .foregroundColor(UI.muted)
-                    .padding(.horizontal, 4)
             }
         }
     }
@@ -275,13 +347,15 @@ struct ScheduleView: View {
     private var saveButton: some View {
         Button {
             viewModel.saveCurrentSchedule()
-            onDone()   // volver al calendario (AppNavigationView hace selectedView = .calendar)
+            onDone()   // volver al calendario
         } label: {
             Text("Save and go to calendar")
                 .font(.headline)
                 .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
         }
         .buttonStyle(.borderedProminent)
-        .padding(.top, 16)
+        .tint(UI.primary)
+        .padding(.top, 4)
     }
 }

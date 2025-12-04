@@ -17,33 +17,44 @@ final class ScheduleViewModel: ObservableObject {
     @Published var capturedImage: UIImage?
     @Published var schedule: Schedule = .empty
 
+    // Servicio de OCR/IA para parsear el horario desde una foto
     private let service: ScheduleOCRServiceProtocol
-    // Local store para calendario
-    private let localStore: ScheduleLocalStore
 
-    init(service: ScheduleOCRServiceProtocol,
-         localStore: ScheduleLocalStore = .shared) {
+    // Provider híbrido (NSCache en memoria + ScheduleLocalStore + Firebase)
+    private let scheduleProvider = UnifiedHybridDataProviders.shared.scheduleProvider
 
+    // Init simplificado (ya no inyectamos ScheduleLocalStore)
+    init(service: ScheduleOCRServiceProtocol) {
         self.service = service
-        self.localStore = localStore
+    }
 
-        // Intentar cargar el horario guardado previamente
-        if let saved = try? localStore.load() {
-            self.schedule = saved
-            if !saved.days.isEmpty {
+    // MARK: - Carga inicial
+
+    /// Carga el horario usando el HybridScheduleDataProvider (NSCache + local + Firebase)
+    func loadSavedSchedule() {
+        Task { @MainActor in
+            let loaded = await self.scheduleProvider.loadSchedule()
+            self.schedule = loaded
+
+            if !loaded.days.isEmpty {
                 self.state = .parsed
+            } else {
+                self.state = .idle
             }
-            print("Init saved schedule with \(saved.days.count) days")
-        } else {
-            print("Init no saved schedule found")
+
+            print("Loaded schedule (hybrid cache + Firebase) with \(loaded.days.count) days")
         }
     }
+
+    // MARK: - Captura de imagen
 
     func didCapture(image: UIImage) {
         capturedImage = image
         print("📸 ScheduleViewModel.didCapture -> image captured, starting analyze()")
         Task { await analyze() }
     }
+
+    // MARK: - Análisis con OCR/IA
 
     func analyze() async {
         guard let img = capturedImage,
@@ -58,13 +69,8 @@ final class ScheduleViewModel: ObservableObject {
         do {
             let parsed = try await service.parseSchedule(imageData: data)
 
-            // Guardar en local
-            do {
-                try localStore.save(parsed)
-                print("Analyze -> schedule saved locally")
-            } catch {
-                print("Failed to save schedule locally: \(error)")
-            }
+            // Guarda el resultado a través del provider híbrido (NSCache + local + Firebase)
+            await scheduleProvider.saveSchedule(parsed)
 
             self.schedule = parsed
             self.state = .parsed
@@ -75,15 +81,15 @@ final class ScheduleViewModel: ObservableObject {
         }
     }
 
-    // Aplica un horario manualmente y lo persiste
+    // MARK: - Cambios manuales
+
+    /// Aplica un horario manualmente y lo persiste
     func applyManualChanges(_ newSchedule: Schedule) {
         self.schedule = newSchedule
 
-        do {
-            try localStore.save(newSchedule)
-            print("Apply manual changes -> saved")
-        } catch {
-            print("Failed to save manual schedule: \(error)")
+        Task {
+            await self.scheduleProvider.saveSchedule(newSchedule)
+            print("Apply manual changes -> saved via HybridScheduleDataProvider")
         }
 
         if newSchedule.days.isEmpty {
@@ -93,13 +99,13 @@ final class ScheduleViewModel: ObservableObject {
         }
     }
 
-    /// Guardar explícitamente lo que esté en `schedule` (para el botón Save)
+    /// Guardar explícitamente lo que esté en schedule (para el botón Save)
     func saveCurrentSchedule() {
-        do {
-            try localStore.save(schedule)
-            print("saveCurrentSchedule -> saved schedule with \(schedule.days.count) days")
-        } catch {
-            print("saveCurrentSchedule -> failed: \(error)")
+        let current = schedule
+
+        Task {
+            await self.scheduleProvider.saveSchedule(current)
+            print("saveCurrentSchedule -> saved via HybridScheduleDataProvider with \(current.days.count) days")
         }
 
         if schedule.days.isEmpty {
@@ -109,18 +115,17 @@ final class ScheduleViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Reset
+
     func reset() {
         print("🔄 ScheduleViewModel.reset")
         state = .idle
         capturedImage = nil
         schedule = .empty
 
-        // Guardar horario vacío para que Calendar también quede limpio
-        do {
-            try localStore.save(.empty)
-            print("Reset -> saved empty schedule")
-        } catch {
-            print("Reset -> failed to save empty schedule: \(error)")
+        Task {
+            await self.scheduleProvider.clearSchedule()
+            print("Reset -> cleared schedule via HybridScheduleDataProvider")
         }
     }
 }

@@ -229,12 +229,19 @@ struct JoinGroupView: View {
         }
         
         Task {
-            await sharedCalendarService.joinGroupByCode(trimmedCode)
-            
-            await MainActor.run {
-                if sharedCalendarService.errorMessage == nil {
-                    alertMessage = "You have successfully joined the group"
-                    showingSuccessAlert = true
+            do {
+                try await sharedCalendarService.joinGroupByCode(trimmedCode)
+                
+                await MainActor.run {
+                    if sharedCalendarService.errorMessage == nil {
+                        alertMessage = "You have successfully joined the group"
+                        showingSuccessAlert = true
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    alertMessage = "Failed to join group: \(error.localizedDescription)"
+                    showingErrorAlert = true
                 }
             }
         }

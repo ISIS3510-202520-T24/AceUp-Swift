@@ -51,6 +51,7 @@ struct TodayView: View {
                 VStack(spacing: 0) {
                 // Tab Navigation
                 ScrollView(.horizontal, showsIndicators: false) {
+                    Spacer().frame(height: 16)
                     HStack(spacing: geometry.size.width > geometry.size.height ? 16 : 8) {
                         TabButton(
                             title: "Assignments",
@@ -77,6 +78,7 @@ struct TodayView: View {
                         )
                     }
                     .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
                 }
     
                 // Tab Content
@@ -315,7 +317,6 @@ struct TimetableTabContent: View {
 struct AssignmentsTabContent: View {
     @ObservedObject var assignmentViewModel: AssignmentViewModel
     @State private var days: Int? = nil
-    @State private var isSchedulingNotification = false
     private let userKey = UserKeyManager.shared.userKey()
     
     init(assignmentViewModel: AssignmentViewModel) {
@@ -351,183 +352,6 @@ struct AssignmentsTabContent: View {
             
             // Today's Assignments List
             TodaysAssignmentsList(viewModel: assignmentViewModel)
-            
-            // Trigger Highest Weight Assignment Notification
-            VStack(spacing: 8) {
-                Button {
-                    // Prevent rapid successive calls
-                    guard !isSchedulingNotification else { return }
-                    isSchedulingNotification = true
-                    
-                    // Check notification authorization and trigger notification
-                    NotificationService.checkAuthorizationStatus { status in
-                        // If authorized, send notification
-                        if status.contains("Authorized") {
-                            if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
-                                NotificationService.scheduleHighestWeightAssignmentReminder(assignment: highestWeightAssignment)
-                            }
-                        } else if status.contains("Not determined") {
-                            // Request permission
-                            NotificationService.requestAuthorization()
-                        }
-                        
-                        // Reset flag after 2 seconds
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            isSchedulingNotification = false
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: isSchedulingNotification ? "hourglass" : "bell.fill")
-                        Text(isSchedulingNotification ? "Scheduling..." : "Set Priority Reminder")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(isSchedulingNotification || assignmentViewModel.highestWeightPendingAssignment == nil)
-                
-                // Test button for immediate notification (for development/testing)
-                Button {
-                    // Prevent rapid successive calls
-                    guard !isSchedulingNotification else { return }
-                    isSchedulingNotification = true
-                    
-                    NotificationService.checkAuthorizationStatus { status in
-                        if status.contains("Authorized") {
-                            let testDate = Calendar.current.date(byAdding: .second, value: 3, to: Date()) ?? Date()
-                            
-                            if let highestWeightAssignment = assignmentViewModel.highestWeightPendingAssignment {
-                                NotificationService.schedule(
-                                    id: "test_immediate_\(Int(Date().timeIntervalSince1970))",
-                                    title: "High Priority Assignment",
-                                    body: "Your assignment '\(highestWeightAssignment.title)' (\(highestWeightAssignment.weightPercentage)% of grade) needs attention!",
-                                    date: testDate
-                                )
-                            } else {
-                                NotificationService.schedule(
-                                    id: "test_immediate_\(Int(Date().timeIntervalSince1970))",
-                                    title: "High Priority Assignment",
-                                    body: "Test notification - No pending assignments found.",
-                                    date: testDate
-                                )
-                            }
-                        } else if status.contains("Not determined") {
-                            NotificationService.requestAuthorization()
-                        }
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            isSchedulingNotification = false
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: "clock.badge.exclamationmark")
-                        Text("Test (3 sec)")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isSchedulingNotification)
-
-                // BQ 2J Próxima entrega 
-                Button {
-                    // Evitar llamadas rápidas consecutivas
-                    guard !isSchedulingNotification else { return }
-                    isSchedulingNotification = true
-
-                    NotificationService.checkAuthorizationStatus { status in
-                        Task {
-                            defer {
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                    isSchedulingNotification = false
-                                }
-                            }
-                            if status.contains("Authorized") {
-                                do {
-                                    let repo = AssignmentRepository()
-                                    let all = try await repo.getAllAssignments()
-                                    NotificationService.scheduleDaysUntilNextDueAssignment(assignments: all)
-                                } catch {
-                                    // Feedback si falla el fetch
-                                    NotificationService.schedule(
-                                        id: "bq_next_due_error_\(Int(Date().timeIntervalSince1970))",
-                                        title: "Error",
-                                        body: "No se pudo obtener las tareas: \(error.localizedDescription)",
-                                        date: Date().addingTimeInterval(3)
-                                    )
-                                }
-                            } else if status.contains("Not determined") {
-                                // Solicitar permiso si aún no se ha otorgado
-                                NotificationService.requestAuthorization()
-                            }
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: "calendar.badge.clock")
-                        Text("Próxima entrega (BQ 2.2)")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isSchedulingNotification)
-
-                // BQ 2.4 boton
-                // Test BQ: Days Since Last Activity (Type 2) — demo button
-                Button {
-                    Task {
-                        guard !isSchedulingNotification else { return }
-                        isSchedulingNotification = true
-                        defer { DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { isSchedulingNotification = false } }
-                        do {
-                            let repo = AssignmentRepository()
-                            let all = try await repo.getAllAssignments()
-                            let completed = all.filter { $0.status == .completed }
-                            let lastDate = completed.map { $0.updatedAt }.max() ?? Date.distantPast
-                            let days = Calendar.current.dateComponents([.day], from: lastDate, to: Date()).day ?? 0
-
-                            let body: String
-                            if completed.isEmpty {
-                                body = "We couldn't find completed assignments yet. Update any grade or mark one as done to start tracking."
-                            } else {
-                                body = "It's been \(days) day\(days == 1 ? "" : "s") since your last update."
-                            }
-
-                            NotificationService.schedule(
-                                id: "test_bq_days_since_activity_today",
-                                title: "BQ Test – Days Since Activity",
-                                body: body,
-                                date: Date().addingTimeInterval(3)
-                            )
-
-                            // Analytics event for demo purposes
-                            AnalyticsClient.shared.logEvent(
-                                AnalyticsEventType.smartReminderTriggered.rawValue,
-                                parameters: [
-                                    "type": "inactivity_test_today" as NSString,
-                                    "days_since": NSNumber(value: days),
-                                    "source": "ios_app" as NSString
-                                ]
-                            )
-                        } catch {
-                            NotificationService.schedule(
-                                id: "test_bq_days_since_activity_today_error",
-                                title: "BQ Test – Error",
-                                body: "Failed to compute days since activity: \(error.localizedDescription)",
-                                date: Date().addingTimeInterval(3)
-                            )
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: "calendar.badge.clock")
-                        Text("Test BQ: Days Since Activity")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isSchedulingNotification)
-            }
         }
     }
 

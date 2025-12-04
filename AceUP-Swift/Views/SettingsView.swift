@@ -703,7 +703,7 @@ struct DataManagementView: View {
 
 // MARK: - Helper Views
 
-struct InfoRow: View {
+private struct InfoRow: View {
     let title: String
     let value: String
     

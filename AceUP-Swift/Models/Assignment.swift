@@ -273,6 +273,16 @@ struct Subtask: Codable, Identifiable, Hashable, Equatable {
 extension Assignment {
     /// Create an assignment from an AcademicEvent
     static func from(academicEvent: AcademicEvent) -> Assignment {
+        // Determine priority based on weight and due date
+        let priority: Priority
+        if academicEvent.weight >= 0.3 {
+            priority = .high
+        } else if academicEvent.weight >= 0.15 {
+            priority = .medium
+        } else {
+            priority = .low
+        }
+        
         return Assignment(
             id: academicEvent.id,
             title: academicEvent.title,
@@ -283,7 +293,7 @@ extension Assignment {
             weight: academicEvent.weight,
             estimatedHours: academicEvent.estimatedHours,
             actualHours: academicEvent.actualHours,
-            priority: academicEvent.priority,
+            priority: priority,
             status: AssignmentStatus(rawValue: academicEvent.status.rawValue) ?? .pending,
             createdAt: academicEvent.createdAt,
             updatedAt: academicEvent.updatedAt
@@ -301,8 +311,7 @@ extension Assignment {
             type: .assignment,
             dueDate: dueDate,
             weight: weight,
-            status: EventStatus(rawValue: status.rawValue) ?? .pending,
-            priority: priority,
+            status: AcademicEventStatus(rawValue: status.rawValue) ?? .pending,
             estimatedHours: estimatedHours,
             actualHours: actualHours,
             createdAt: createdAt,
