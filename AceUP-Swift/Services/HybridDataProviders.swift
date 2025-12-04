@@ -1137,20 +1137,32 @@ enum TeacherPendingOp: Codable {
     }
 }
 
-// Core Data provider for Teachers using UserDefaults for offline storage
+// Core Data provider for Teachers using NSCache for offline storage
 @MainActor
 class CoreDataTeacherDataProvider {
-    private let userDefaultsKey = "CachedTeachers"
+    // NSCache for in-memory teacher storage with automatic eviction
+    private let cache = NSCache<NSString, TeacherCacheBox>()
+    private let cacheKey: NSString = "allTeachers"
+    
     private var currentUserId: String {
         Auth.auth().currentUser?.uid ?? "anonymous"
     }
     
+    init() {
+        // Configure cache limits
+        cache.countLimit = 100  // Max 100 teachers
+        cache.totalCostLimit = 10 * 1024 * 1024  // 10MB limit
+        cache.name = "TeachersCache"
+    }
+    
     func fetchAll() async throws -> [Teacher] {
-        guard let data = UserDefaults.standard.data(forKey: "\(userDefaultsKey)_\(currentUserId)"),
-              let teachers = try? JSONDecoder().decode([Teacher].self, from: data) else {
-            return []
+        // Check NSCache first
+        if let box = cache.object(forKey: "\(cacheKey)_\(currentUserId)" as NSString) {
+            return box.teachers
         }
-        return teachers
+        
+        // If not in cache, return empty array
+        return []
     }
     
     func save(_ teacher: Teacher) async throws {
@@ -1159,9 +1171,9 @@ class CoreDataTeacherDataProvider {
         teachers.removeAll { $0.id == teacher.id }
         // Add new/updated teacher
         teachers.append(teacher)
-        // Save to UserDefaults
-        let data = try JSONEncoder().encode(teachers)
-        UserDefaults.standard.set(data, forKey: "\(userDefaultsKey)_\(currentUserId)")
+        // Save to NSCache
+        let box = TeacherCacheBox(teachers)
+        cache.setObject(box, forKey: "\(cacheKey)_\(currentUserId)" as NSString)
     }
     
     func update(_ teacher: Teacher) async throws {
@@ -1171,8 +1183,22 @@ class CoreDataTeacherDataProvider {
     func delete(_ id: String) async throws {
         var teachers = try await fetchAll()
         teachers.removeAll { $0.id == id }
-        let data = try JSONEncoder().encode(teachers)
-        UserDefaults.standard.set(data, forKey: "\(userDefaultsKey)_\(currentUserId)")
+        let box = TeacherCacheBox(teachers)
+        cache.setObject(box, forKey: "\(cacheKey)_\(currentUserId)" as NSString)
+    }
+    
+    func clear() {
+        cache.removeAllObjects()
+    }
+}
+
+/// Wrapper class to store Teacher arrays in NSCache
+final class TeacherCacheBox: NSObject {
+    let teachers: [Teacher]
+    
+    init(_ teachers: [Teacher]) {
+        self.teachers = teachers
+        super.init()
     }
 }
 
