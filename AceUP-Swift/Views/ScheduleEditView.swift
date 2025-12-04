@@ -126,8 +126,8 @@ private struct SessionRowView: View {
                     displayedComponents: .hourAndMinute
                 )
                 .labelsHidden()
-                .onChange(of: startDate) { newValue in
-                    session.start = Self.timeFormatter.string(from: newValue)
+                .onChange(of: startDate) {
+                    session.start = Self.timeFormatter.string(from: startDate)
                 }
 
                 DatePicker(
@@ -136,8 +136,8 @@ private struct SessionRowView: View {
                     displayedComponents: .hourAndMinute
                 )
                 .labelsHidden()
-                .onChange(of: endDate) { newValue in
-                    session.end = Self.timeFormatter.string(from: newValue)
+                .onChange(of: endDate) {
+                    session.end = Self.timeFormatter.string(from: endDate)
                 }
             }
 

@@ -968,14 +968,13 @@ final class HybridTeacherDataProvider {
                 
                 let teachers = snapshot.documents.compactMap { doc -> Teacher? in
                     let data = doc.data()
-                    guard let name = data["name"] as? String,
-                          let email = data["email"] as? String else { return nil }
+                    guard let name = data["name"] as? String else { return nil }
                     
                     return Teacher(
                         id: doc.documentID,
                         userId: currentUserId,
                         name: name,
-                        email: email,
+                        email: data["email"] as? String,
                         phoneNumber: data["phoneNumber"] as? String,
                         officeLocation: data["officeLocation"] as? String,
                         officeHours: data["officeHours"] as? String,
@@ -1138,26 +1137,42 @@ enum TeacherPendingOp: Codable {
     }
 }
 
-// Core Data provider for Teachers
+// Core Data provider for Teachers using UserDefaults for offline storage
 @MainActor
 class CoreDataTeacherDataProvider {
-    private let context = PersistenceController.shared.viewContext
+    private let userDefaultsKey = "CachedTeachers"
+    private var currentUserId: String {
+        Auth.auth().currentUser?.uid ?? "anonymous"
+    }
     
     func fetchAll() async throws -> [Teacher] {
-        // Simplified - would need TeacherEntity in Core Data model
-        return []
+        guard let data = UserDefaults.standard.data(forKey: "\(userDefaultsKey)_\(currentUserId)"),
+              let teachers = try? JSONDecoder().decode([Teacher].self, from: data) else {
+            return []
+        }
+        return teachers
     }
     
     func save(_ teacher: Teacher) async throws {
-        // Simplified - would persist to Core Data
+        var teachers = try await fetchAll()
+        // Remove existing if any
+        teachers.removeAll { $0.id == teacher.id }
+        // Add new/updated teacher
+        teachers.append(teacher)
+        // Save to UserDefaults
+        let data = try JSONEncoder().encode(teachers)
+        UserDefaults.standard.set(data, forKey: "\(userDefaultsKey)_\(currentUserId)")
     }
     
     func update(_ teacher: Teacher) async throws {
-        // Simplified - would update in Core Data
+        try await save(teacher)
     }
     
     func delete(_ id: String) async throws {
-        // Simplified - would delete from Core Data
+        var teachers = try await fetchAll()
+        teachers.removeAll { $0.id == id }
+        let data = try JSONEncoder().encode(teachers)
+        UserDefaults.standard.set(data, forKey: "\(userDefaultsKey)_\(currentUserId)")
     }
 }
 
