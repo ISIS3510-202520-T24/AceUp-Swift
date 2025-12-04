@@ -1,7 +1,7 @@
 import Foundation
 
 // Representa el día de la semana. Esto viene del JSON como "monday", "tuesday", etc.
-public enum Weekday: String, Codable, CaseIterable {
+public enum Weekday: String, Codable, CaseIterable, Sendable {
     case monday
     case tuesday
     case wednesday
@@ -25,19 +25,19 @@ public enum Weekday: String, Codable, CaseIterable {
 }
 
 // Representa TODO el horario completo
-public struct Schedule: Codable, Equatable {
+public struct Schedule: Codable, Equatable, Sendable {
     public var days: [ScheduleDay]
 }
 
 // Representa un día con sus materias/sesiones
-public struct ScheduleDay: Codable, Equatable {
+public struct ScheduleDay: Codable, Equatable, Sendable {
     public var weekday: Weekday
     public var sessions: [ScheduleSession]
 }
 
 // Representa una clase/sesión individual
 // 🔥 Ahora también es Hashable para poder usar ForEach(..., id: \.self)
-public struct ScheduleSession: Codable, Equatable, Hashable {
+public struct ScheduleSession: Codable, Equatable, Hashable, Sendable {
     public var course: String          // Nombre de la materia
     public var start: String?          // "08:00" o nil si no sabemos
     public var end: String?            // "10:00" o nil si no sabemos

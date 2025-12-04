@@ -12,13 +12,16 @@ struct CourseDetailView: View {
     // repository inicializado de forma lazy
     @State private var assignmentRepo: AssignmentRepositoryProtocol?
     
+    // grades local store para persistencia
+    private let gradesStore = GradesLocalStore.shared
+    
     // tab seleccionado
     @State private var selectedTab: CourseTab = .schedule
     
     // para navegar a detalle de assignment
     @State private var selectedAssignment: Assignment?
     
-    // para el calculador de notas (local, no se guarda)
+    // para el calculador de notas (ahora se persiste en JSON)
     @State private var gradeItems: [GradeItem] = []
     @State private var showAddGrade = false
     
@@ -54,6 +57,7 @@ struct CourseDetailView: View {
         .navigationBarHidden(true)
         .task {
             await loadAssignments()
+            await loadGrades()
         }
     }
     
@@ -115,6 +119,26 @@ struct CourseDetailView: View {
             assignments = allAssignments.filter { $0.courseName == course.name }
         } catch {
             print("Error loading assignments: \(error)")
+        }
+    }
+    
+    /// Carga las notas guardadas del curso
+    private func loadGrades() async {
+        do {
+            if let savedGrades = try await gradesStore.load(for: course.id) {
+                gradeItems = savedGrades
+            }
+        } catch {
+            print("Error loading grades: \(error)")
+        }
+    }
+    
+    /// Guarda las notas actuales del curso
+    private func saveGrades() async {
+        do {
+            try await gradesStore.save(gradeItems, for: course.id)
+        } catch {
+            print("Error saving grades: \(error)")
         }
     }
     
@@ -234,6 +258,9 @@ struct CourseDetailView: View {
             ForEach(gradeItems.indices, id: \.self) { index in
                 GradeItemRow(item: gradeItems[index]) {
                     gradeItems.remove(at: index)
+                    Task {
+                        await saveGrades()
+                    }
                 }
             }
             
@@ -256,6 +283,9 @@ struct CourseDetailView: View {
         .sheet(isPresented: $showAddGrade) {
             AddGradeItemView { newItem in
                 gradeItems.append(newItem)
+                Task {
+                    await saveGrades()
+                }
             }
         }
     }
@@ -304,12 +334,19 @@ struct CourseTabButton: View {
     }
 }
 
-// modelo local para calcular notas (no se guarda en DB)
-struct GradeItem: Identifiable {
-    let id = UUID()
+// modelo para calcular notas - ahora se persiste en JSON
+struct GradeItem: Identifiable, Codable, Sendable {
+    let id: UUID
     let name: String
     let weight: Double  // porcentaje del 100
     let grade: Double   // nota obtenida
+    
+    init(id: UUID = UUID(), name: String, weight: Double, grade: Double) {
+        self.id = id
+        self.name = name
+        self.weight = weight
+        self.grade = grade
+    }
 }
 
 // fila de item de nota

@@ -23,23 +23,25 @@ class PlannerViewModel: ObservableObject {
             await initializeRepository()
         }
         
-        // 2. Cargar schedule en background thread
-        let schedule = await Task.detached(priority: .userInitiated) { [weak self] in
-            guard let self = self else { return Schedule.empty }
+        // 2. Capturar scheduleStore fuera del Task para evitar captura de self/@MainActor
+        let store = scheduleStore
+        
+        // 3. Cargar schedule en background thread
+        let schedule = await Task(priority: .userInitiated) {
             do {
-                return try await self.scheduleStore.load() ?? Schedule.empty
+                return try await store.load() ?? Schedule.empty
             } catch {
                 print("Error loading schedule: \(error)")
                 return Schedule.empty
             }
         }.value
         
-        // 3. Procesar en background thread
-        let processedCourses = await Task.detached(priority: .userInitiated) {
-            await Self.processCourses(from: schedule)
+        // 4. Procesar en background thread
+        let processedCourses = await Task(priority: .userInitiated) {
+            Self.processCourses(from: schedule)
         }.value
         
-        // 4. Actualizar UI en MainActor
+        // 5. Actualizar UI en MainActor
         courses = processedCourses
     }
     
