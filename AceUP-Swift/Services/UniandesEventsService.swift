@@ -2,8 +2,8 @@
 //  UniandesEventsService.swift
 //  AceUP-Swift
 //
-//  Servicio standalone para eventos de Uniandes con web scraping
-//  NO usa CoreData, solo cache local en UserDefaults
+//  Servicio standalone para eventos de Uniandes con API
+//  Triple persistencia: NSCache (memoria) + UserDefaults + FileManager
 //
 
 import Foundation
@@ -21,19 +21,61 @@ class UniandesEventsService: ObservableObject {
     // API de Eventtia para eventos de Uniandes
     private let apiURL = "https://connect.eventtia.com/en/api/v2/14686ebc-5e09-481f-8/events/list"
     
-    // MARK: - Fetch Events
+    // MARK: - NSCache Configuration (LRU Cache en memoria)
     
+    private let memoryCache: NSCache<NSString, CacheWrapper> = {
+        let cache = NSCache<NSString, CacheWrapper>()
+        
+        // Configuración de límites
+        cache.countLimit = 100        // Máximo 100 objetos en cache
+        cache.totalCostLimit = 50 * 1024 * 1024  // Máximo 50 MB
+        
+        // Nombre para debugging
+        cache.name = "com.aceup.events.cache"
+        
+        return cache
+    }()
+    
+    // Wrapper class para NSCache (NSCache requiere clases, no structs)
+    private class CacheWrapper {
+        let cache: EventsCache
+        let cost: Int  // Tamaño en bytes
+        
+        init(cache: EventsCache, cost: Int) {
+            self.cache = cache
+            self.cost = cost
+        }
+    }
+    
+    // MARK: - Fetch Events
     func fetchEvents(forceRefresh: Bool = false) async -> [UniandesEvent] {
         isLoading = true
         defer { isLoading = false }
         
-        // intentar cargar del cache primero
-        if !forceRefresh, let cache = loadFromCache(), !cache.isExpired {
-            print("Cargando eventos del cache")
+        // NIVEL 1: NSCache en memoria (más rápido - LRU)
+        if !forceRefresh, let cache = loadFromMemoryCache(), !cache.isExpired {
+            print("⚡ Cache HIT desde NSCache (memoria)")
             return applyUserPreferences(to: cache.events)
         }
         
-        // intentar hacer scraping
+        // NIVEL 2: UserDefaults (.plist en disco)
+        if !forceRefresh, let cache = loadFromUserDefaults(), !cache.isExpired {
+            print("📦 Cache HIT desde UserDefaults")
+            // Guardar en NSCache para próxima vez
+            saveToMemoryCache(cache)
+            return applyUserPreferences(to: cache.events)
+        }
+        
+        // NIVEL 3: Archivo JSON (fallback)
+        if !forceRefresh, let cache = loadFromFile(), !cache.isExpired {
+            print("📄 Cache HIT desde archivo JSON")
+            // Guardar en niveles superiores
+            saveToMemoryCache(cache)
+            saveToUserDefaults(cache)
+            return applyUserPreferences(to: cache.events)
+        }
+        
+        // NIVEL 4: Network (API)
         do {
             let events = try await scrapeEvents()
             if !events.isEmpty {
@@ -41,13 +83,13 @@ class UniandesEventsService: ObservableObject {
                 return applyUserPreferences(to: events)
             }
         } catch {
-            print("Error scraping: \(error.localizedDescription)")
+            print("⚠️ Error scraping: \(error.localizedDescription)")
             errorMessage = "No se pudieron cargar los eventos"
         }
         
-        // si falla, usar cache expirado o vacio
-        if let cache = loadFromCache() {
-            print("Usando cache expirado por error de scraping")
+        // NIVEL 5: Cache expirado (mejor que nada)
+        if let cache = loadFromMemoryCache() ?? loadFromUserDefaults() ?? loadFromFile() {
+            print("📦 Usando cache expirado por error de scraping")
             return applyUserPreferences(to: cache.events)
         }
         
@@ -106,7 +148,7 @@ class UniandesEventsService: ObservableObject {
         savePreferences(prefs)
     }
     
-    // MARK: - Cache Management (Doble persistencia: UserDefaults + File)
+    // MARK: - Triple Cache System (NSCache + UserDefaults + File)
     
     private func saveToCache(_ events: [UniandesEvent]) {
         let expiresAt = Date().addingTimeInterval(cacheExpirationInterval)
@@ -116,31 +158,57 @@ class UniandesEventsService: ObservableObject {
             expiresAt: expiresAt
         )
         
-        // OPCIÓN 1: UserDefaults (memoria + .plist)
-        if let encoded = try? JSONEncoder().encode(cache) {
-            UserDefaults.standard.set(encoded, forKey: cacheKey)
-            print("Eventos guardados en UserDefaults")
-        }
+        // NIVEL 1: NSCache (memoria - más rápido, LRU)
+        saveToMemoryCache(cache)
         
-        // OPCIÓN 2: Archivo JSON directo (FileManager)
+        // NIVEL 2: UserDefaults (.plist)
+        saveToUserDefaults(cache)
+        
+        // NIVEL 3: Archivo JSON (respaldo)
         saveToFile(cache)
     }
     
-    private func loadFromCache() -> EventsCache? {
-        // OPCIÓN 1: Intentar cargar desde UserDefaults
-        if let data = UserDefaults.standard.data(forKey: cacheKey),
-           let cache = try? JSONDecoder().decode(EventsCache.self, from: data) {
-            print("Cache cargado desde UserDefaults")
-            return cache
-        }
+    // MARK: - NSCache Operations (LRU in-memory cache)
+    
+    private func saveToMemoryCache(_ cache: EventsCache) {
+        // Calcular costo aproximado (tamaño en bytes)
+        let cost = estimateCacheSize(cache)
         
-        // OPCIÓN 2: Fallback - Intentar cargar desde archivo
-        if let fileCache = loadFromFile() {
-            print("Cache cargado desde archivo JSON")
-            return fileCache
-        }
+        let wrapper = CacheWrapper(cache: cache, cost: cost)
+        memoryCache.setObject(wrapper, forKey: cacheKey as NSString, cost: cost)
         
-        return nil
+        print("⚡ NSCache: Guardado \(cache.events.count) eventos (~\(cost/1024) KB)")
+    }
+    
+    private func loadFromMemoryCache() -> EventsCache? {
+        guard let wrapper = memoryCache.object(forKey: cacheKey as NSString) else {
+            return nil
+        }
+        return wrapper.cache
+    }
+    
+    private func estimateCacheSize(_ cache: EventsCache) -> Int {
+        guard let data = try? JSONEncoder().encode(cache) else {
+            return 0
+        }
+        return data.count
+    }
+    
+    // MARK: - UserDefaults Operations
+    
+    private func saveToUserDefaults(_ cache: EventsCache) {
+        if let encoded = try? JSONEncoder().encode(cache) {
+            UserDefaults.standard.set(encoded, forKey: cacheKey)
+            print("📦 UserDefaults: Guardado")
+        }
+    }
+    
+    private func loadFromUserDefaults() -> EventsCache? {
+        guard let data = UserDefaults.standard.data(forKey: cacheKey),
+              let cache = try? JSONDecoder().decode(EventsCache.self, from: data) else {
+            return nil
+        }
+        return cache
     }
     
     // MARK: - File Management (Archivos Locales con FileManager)
