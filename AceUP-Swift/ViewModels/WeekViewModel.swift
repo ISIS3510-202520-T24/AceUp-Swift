@@ -271,8 +271,8 @@ class WeekViewModel: ObservableObject {
     
     /// Fetch schedule-based events (classes)
     private func fetchScheduleEvents(startDate: Date, endDate: Date) async -> [WeekEvent] {
-        return await Task.detached(priority: .userInitiated) {
-            guard let schedule = try? self.scheduleStore.load() else {
+        return await Task.detached(priority: .userInitiated) { [scheduleStore] in
+            guard let schedule = try? await scheduleStore.load() else {
                 return []
             }
             
