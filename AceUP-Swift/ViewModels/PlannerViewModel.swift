@@ -6,7 +6,8 @@ class PlannerViewModel: ObservableObject {
     @Published var courses: [CourseInfo] = []
     @Published var isLoading = false
     
-    private let scheduleStore = ScheduleLocalStore.shared
+    // Usar el provider híbrido en lugar de ScheduleLocalStore directamente
+    private let scheduleProvider = UnifiedHybridDataProviders.shared.scheduleProvider
     private var assignmentRepo: AssignmentRepositoryProtocol?
     
     init() {
@@ -23,25 +24,15 @@ class PlannerViewModel: ObservableObject {
             await initializeRepository()
         }
         
-        // 2. Capturar scheduleStore fuera del Task para evitar captura de self/@MainActor
-        let store = scheduleStore
+        // 2. Cargar schedule usando el provider híbrido (cache + local + Firebase)
+        let schedule = await scheduleProvider.loadSchedule()
         
-        // 3. Cargar schedule en background thread
-        let schedule = await Task(priority: .userInitiated) {
-            do {
-                return try await store.load() ?? Schedule.empty
-            } catch {
-                print("Error loading schedule: \(error)")
-                return Schedule.empty
-            }
-        }.value
-        
-        // 4. Procesar en background thread
+        // 3. Procesar en background thread
         let processedCourses = await Task(priority: .userInitiated) {
             Self.processCourses(from: schedule)
         }.value
         
-        // 5. Actualizar UI en MainActor
+        // 4. Actualizar UI en MainActor
         courses = processedCourses
     }
     

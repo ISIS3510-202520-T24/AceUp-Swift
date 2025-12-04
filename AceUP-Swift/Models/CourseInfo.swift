@@ -10,11 +10,9 @@ struct CourseInfo: Identifiable, Hashable, Sendable {
     var sessions: [ClassSession]
     
     init(name: String, color: String = "#122C4A") {
-        // ID único y estable: combinación de nombre normalizado + UUID corto
-        // Esto evita colisiones entre cursos con nombres similares
-        let normalizedName = Self.normalizeCourseName(name)
-        let uniqueSuffix = UUID().uuidString.prefix(8)
-        self.id = "\(normalizedName)_\(uniqueSuffix)"
+        // ID determinístico basado solo en el nombre normalizado
+        // Esto garantiza que el mismo curso siempre tenga el mismo ID
+        self.id = Self.normalizeCourseName(name)
         self.name = name
         self.color = color
         self.sessions = []
