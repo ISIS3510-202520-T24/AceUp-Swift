@@ -1,6 +1,7 @@
 import Foundation
 import FirebaseAuth
 import FirebaseFirestore
+import CoreData
 import UIKit
 
 // MARK: - Unified Hybrid Data Providers with Centralized Caching
@@ -81,6 +82,11 @@ final class UnifiedHybridDataProviders {
     // MARK: - Profile & Avatar Management
     private var profileCache = ProfileCache()
     
+    // Study Streak
+    private let studyStreakDefaultsKey = "studyStreakSummaryCache_v1"
+    private var studyStreakInMemory: StudyStreak?
+    private var studyStreakCacheTimestamp: Date?
+    
     private init() {
         // Initialize providers with shared dependencies
         self.assignments = HybridAssignmentDataProvider()
@@ -90,6 +96,12 @@ final class UnifiedHybridDataProviders {
         self.sharedCalendars = HybridSharedCalendarDataProvider()
         //calendario personal
         self.scheduleProvider = HybridScheduleDataProvider()
+        
+        // Cargar resumen de racha previamente guardado
+        if let persisted = loadPersistedStudyStreakSummary(){
+            self.studyStreakInMemory = persisted
+            self.studyStreakCacheTimestamp = persisted.generatedAt
+        }
         
         print("✅ UnifiedHybridDataProviders initialized with all services")
     }
@@ -169,6 +181,158 @@ final class UnifiedHybridDataProviders {
             return cached
         }
         return try await fetchAndCacheSharedCalendars()
+    }
+    
+    // Study Streak
+    private static func computeStudyStreakSummary(from assignments: [Assignment]) -> StudyStreak {
+        let calendar = Calendar.current
+        let now = Date()
+        let today = calendar.startOfDay(for: now)
+
+        // Solo assignments completados
+        let completedAssignments = assignments.filter { $0.status == .completed }
+        guard !completedAssignments.isEmpty else {
+            return .empty
+        }
+
+        // Usamos updatedAt como proxy de fecha de completado
+        let completionDates: [Date] = completedAssignments.map { $0.updatedAt }
+
+        if completionDates.isEmpty {
+            return .empty
+        }
+
+        // Días únicos con actividad, ordenados
+        let completionDays: [Date] = Array(
+            Set(completionDates.map { calendar.startOfDay(for: $0) })
+        ).sorted()
+
+        if completionDays.isEmpty {
+            return .empty
+        }
+
+        // Longest streak histórica
+        var longestStreak = 1
+        var currentRun = 1
+
+        if completionDays.count > 1 {
+            for i in 1..<completionDays.count {
+                let prev = completionDays[i - 1]
+                let current = completionDays[i]
+                let diff = calendar.dateComponents([.day], from: prev, to: current).day ?? 0
+
+                if diff == 1 {
+                    currentRun += 1
+                    longestStreak = max(longestStreak, currentRun)
+                } else {
+                    currentRun = 1
+                }
+            }
+        }
+
+        // Current streak hacia atrás desde hoy
+        var currentStreak = 0
+        var cursor = today
+        let completionDaySet = Set(completionDays)
+
+        while completionDaySet.contains(cursor) {
+            currentStreak += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
+            cursor = previous
+        }
+
+        // Completados esta semana
+        let weekStart = calendar.date(
+            from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
+        ) ?? today
+
+        let assignmentsCompletedThisWeek = completionDates.filter { date in
+            let day = calendar.startOfDay(for: date)
+            return day >= weekStart && day <= today
+        }.count
+
+        // Completados hoy
+        let assignmentsCompletedToday = completionDates.filter { date in
+            calendar.isDate(date, inSameDayAs: today)
+        }.count
+
+        // Última actividad
+        let lastActivity = completionDates.max()
+
+        return StudyStreak(
+            currentStreakDays: currentStreak,
+            longestStreakDays: longestStreak,
+            lastActivityDate: lastActivity,
+            assignmentsCompletedThisWeek: assignmentsCompletedThisWeek,
+            assignmentsCompletedToday: assignmentsCompletedToday,
+            generatedAt: Date()
+        )
+    }
+    
+    // Devuelve la racha usando cache en memoria + UserDefaults + assignments híbridos
+    func getStudyStreakSummary(forceRefresh: Bool = false) async -> StudyStreak {
+        // 1. Usar cache en memoria si es “fresco” (10 minutos)
+        if !forceRefresh,
+           let cached = studyStreakInMemory,
+           let ts = studyStreakCacheTimestamp,
+           Date().timeIntervalSince(ts) < 10 * 60 {
+            return cached
+        }
+
+        do {
+            // 2. Obtener assignments usando el sistema híbrido (ya maneja offline)
+            let assignments = try await getCachedAssignments()
+
+            // 3. Calcular racha en background
+            let summary = try await Task(priority: .utility) {
+                Self.computeStudyStreakSummary(from: assignments)
+            }.value
+
+            // 4. Actualizar cache + persistencia
+            studyStreakInMemory = summary
+            studyStreakCacheTimestamp = Date()
+            persistStudyStreakSummary(summary)
+
+            return summary
+        } catch {
+            print("⚠️ getStudyStreakSummary failed, using persisted if available:", error)
+
+            // 5. Fallback a lo último guardado en disco
+            if let persisted = loadPersistedStudyStreakSummary() {
+                studyStreakInMemory = persisted
+                studyStreakCacheTimestamp = persisted.generatedAt
+                return persisted
+            }
+
+            return .empty
+        }
+    }
+
+    // MARK: - Persistencia Study Streak (local storage)
+
+    private func persistStudyStreakSummary(_ summary: StudyStreak) {
+        do {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            let data = try encoder.encode(summary)
+            UserDefaults.standard.set(data, forKey: studyStreakDefaultsKey)
+        } catch {
+            print("⚠️ Could not persist StudyStreak:", error)
+        }
+    }
+
+    private func loadPersistedStudyStreakSummary() -> StudyStreak? {
+        guard let data = UserDefaults.standard.data(forKey: studyStreakDefaultsKey) else {
+            return nil
+        }
+        do {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(StudyStreak.self, from: data)
+        } catch {
+            print("⚠️ Could not decode persisted StudyStreak:", error)
+            return nil
+        }
     }
     
     // MARK: - Profile & Avatar Cache Management
@@ -1137,15 +1301,19 @@ enum TeacherPendingOp: Codable {
     }
 }
 
-// Core Data provider for Teachers using NSCache for offline storage
+// Core Data provider for Teachers with persistent storage + NSCache for performance
 @MainActor
 class CoreDataTeacherDataProvider {
-    // NSCache for in-memory teacher storage with automatic eviction
+    // NSCache for fast in-memory access (performance layer on top of Core Data)
     private let cache = NSCache<NSString, TeacherCacheBox>()
-    private let cacheKey: NSString = "allTeachers"
+    private let persistenceController = PersistenceController.shared
     
     private var currentUserId: String {
         Auth.auth().currentUser?.uid ?? "anonymous"
+    }
+    
+    private var context: NSManagedObjectContext {
+        persistenceController.persistentContainer.viewContext
     }
     
     init() {
@@ -1156,24 +1324,82 @@ class CoreDataTeacherDataProvider {
     }
     
     func fetchAll() async throws -> [Teacher] {
-        // Check NSCache first
-        if let box = cache.object(forKey: "\(cacheKey)_\(currentUserId)" as NSString) {
+        // Check NSCache first for performance
+        let cacheKey = "\(currentUserId)_teachers" as NSString
+        if let box = cache.object(forKey: cacheKey) {
             return box.teachers
         }
         
-        // If not in cache, return empty array
-        return []
+        // Fetch from Core Data (persistent storage)
+        let request = NSFetchRequest<TeacherEntity>(entityName: "TeacherEntity")
+        request.predicate = NSPredicate(format: "userId == %@", currentUserId)
+        request.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+        
+        let entities = try context.fetch(request)
+        let teachers = entities.compactMap { entity -> Teacher? in
+            guard let id = entity.id,
+                  let userId = entity.userId,
+                  let name = entity.name,
+                  let createdAt = entity.createdAt,
+                  let updatedAt = entity.updatedAt else {
+                return nil
+            }
+            
+            // Parse linkedCourseIds from comma-separated string
+            let linkedCourseIds = (entity.linkedCourseIds ?? "")
+                .split(separator: ",")
+                .map { String($0) }
+                .filter { !$0.isEmpty }
+            
+            return Teacher(
+                id: id,
+                userId: userId,
+                name: name,
+                email: entity.email,
+                phoneNumber: entity.phoneNumber,
+                officeLocation: entity.officeLocation,
+                officeHours: entity.officeHours,
+                department: entity.department,
+                linkedCourseIds: linkedCourseIds,
+                notes: entity.notes,
+                createdAt: createdAt,
+                updatedAt: updatedAt
+            )
+        }
+        
+        // Cache in NSCache for fast subsequent access
+        let box = TeacherCacheBox(teachers)
+        cache.setObject(box, forKey: cacheKey)
+        
+        return teachers
     }
     
     func save(_ teacher: Teacher) async throws {
-        var teachers = try await fetchAll()
-        // Remove existing if any
-        teachers.removeAll { $0.id == teacher.id }
-        // Add new/updated teacher
-        teachers.append(teacher)
-        // Save to NSCache
-        let box = TeacherCacheBox(teachers)
-        cache.setObject(box, forKey: "\(cacheKey)_\(currentUserId)" as NSString)
+        // Save to Core Data (persistent)
+        let request = NSFetchRequest<TeacherEntity>(entityName: "TeacherEntity")
+        request.predicate = NSPredicate(format: "id == %@ AND userId == %@", teacher.id, currentUserId)
+        
+        let existingEntities = try context.fetch(request)
+        let entity = existingEntities.first ?? TeacherEntity(context: context)
+        
+        entity.id = teacher.id
+        entity.userId = teacher.userId
+        entity.name = teacher.name
+        entity.email = teacher.email
+        entity.phoneNumber = teacher.phoneNumber
+        entity.officeLocation = teacher.officeLocation
+        entity.officeHours = teacher.officeHours
+        entity.department = teacher.department
+        entity.linkedCourseIds = teacher.linkedCourseIds.joined(separator: ",")
+        entity.notes = teacher.notes
+        entity.createdAt = teacher.createdAt
+        entity.updatedAt = teacher.updatedAt
+        
+        try context.save()
+        
+        // Invalidate cache to force refresh on next fetch
+        let cacheKey = "\(currentUserId)_teachers" as NSString
+        cache.removeObject(forKey: cacheKey)
     }
     
     func update(_ teacher: Teacher) async throws {
@@ -1181,13 +1407,38 @@ class CoreDataTeacherDataProvider {
     }
     
     func delete(_ id: String) async throws {
-        var teachers = try await fetchAll()
-        teachers.removeAll { $0.id == id }
-        let box = TeacherCacheBox(teachers)
-        cache.setObject(box, forKey: "\(cacheKey)_\(currentUserId)" as NSString)
+        // Delete from Core Data (persistent)
+        let request = NSFetchRequest<TeacherEntity>(entityName: "TeacherEntity")
+        request.predicate = NSPredicate(format: "id == %@ AND userId == %@", id, currentUserId)
+        
+        let entities = try context.fetch(request)
+        for entity in entities {
+            context.delete(entity)
+        }
+        
+        try context.save()
+        
+        // Invalidate cache
+        let cacheKey = "\(currentUserId)_teachers" as NSString
+        cache.removeObject(forKey: cacheKey)
     }
     
     func clear() {
+        // Clear Core Data
+        let request = NSFetchRequest<TeacherEntity>(entityName: "TeacherEntity")
+        request.predicate = NSPredicate(format: "userId == %@", currentUserId)
+        
+        do {
+            let entities = try context.fetch(request)
+            for entity in entities {
+                context.delete(entity)
+            }
+            try context.save()
+        } catch {
+            print("❌ Failed to clear teachers from Core Data: \(error)")
+        }
+        
+        // Clear cache
         cache.removeAllObjects()
     }
 }

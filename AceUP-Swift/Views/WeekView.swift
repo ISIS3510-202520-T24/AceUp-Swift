@@ -408,7 +408,7 @@ struct WeekStatBadge: View {
     }
 }
 
-struct FilterChip: View {
+private struct FilterChip: View {
     let icon: String
     let label: String
     let color: Color
